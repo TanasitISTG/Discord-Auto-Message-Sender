@@ -22,7 +22,7 @@ Designed for performance, flexibility, and ease of use.
 
 1.  **Clone the repository** (or download the source):
     ```bash
-    git clone [https://github.com/yourusername/discord-auto-sender.git](https://github.com/TanasitISTG/Discord-Auto-Message-Sender.git)
+    git clone https://github.com/TanasitISTG/Discord-Auto-Message-Sender.git
     cd Discord-Auto-Message-Sender
     ```
 
