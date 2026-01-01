@@ -12,7 +12,6 @@ Designed for performance, flexibility, and ease of use.
 -   **Smart Rate Limiting**: Automatically handles Discord's `429 Too Many Requests` with dynamic backoff.
 -   **Interactive Configuration**: Built-in CLI Menu for easy setup—no manual JSON editing required.
 -   **Infinite Loop Mode**: Run indefinitely or stop after a set number of messages.
--   **Human-Like Behavior**: Configurable random delays to reduce detection risk.
 
 ## 🛠️ Prerequisites
 
@@ -23,8 +22,8 @@ Designed for performance, flexibility, and ease of use.
 
 1.  **Clone the repository** (or download the source):
     ```bash
-    git clone https://github.com/yourusername/discord-auto-sender.git
-    cd discord-auto-sender
+    git clone [https://github.com/yourusername/discord-auto-sender.git](https://github.com/TanasitISTG/Discord-Auto-Message-Sender.git)
+    cd Discord-Auto-Message-Sender
     ```
 
 2.  **Install dependencies**:
