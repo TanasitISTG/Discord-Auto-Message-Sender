@@ -1,9 +1,9 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ZodError } from 'zod';
-import { Config } from '../types';
-import { loadConfig, loadMessages, saveConfig, saveMessages } from '../config/manager';
-import { formatZodError, parseConfig } from '../config/schema';
+import { AppConfig } from '../types';
+import { readAppConfig, writeAppConfig } from '../config/store';
+import { buildDefaultReferrer, createDefaultAppConfig, formatZodError } from '../config/schema';
 
 function getErrorMessage(error: unknown): string {
     if (error instanceof ZodError) {
@@ -21,11 +21,30 @@ async function showTokenSetup() {
     console.log(chalk.cyan('\n--- Token Setup ---'));
     console.log('1. Copy `.env.example` to `.env`.');
     console.log('2. Set `DISCORD_TOKEN` in `.env` or your shell environment.');
-    console.log('3. Set `user_agent` in `config.json` to a valid browser User-Agent string.');
     await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Press Enter to return to the menu:' }]);
 }
 
-async function configureChannels(current: Config) {
+async function configureUserAgent(current: AppConfig) {
+    const { userAgent } = await inquirer.prompt([{
+        type: 'input',
+        name: 'userAgent',
+        message: 'User-Agent:',
+        default: current.userAgent
+    }]);
+
+    const previousUserAgent = current.userAgent;
+    current.userAgent = userAgent;
+
+    try {
+        writeAppConfig(current);
+        console.log(chalk.green('User-Agent updated!'));
+    } catch (error) {
+        current.userAgent = previousUserAgent;
+        console.log(chalk.red(getErrorMessage(error)));
+    }
+}
+
+async function configureChannels(current: AppConfig) {
     while (true) {
         console.log(chalk.cyan(`\n--- Manage Channels (${current.channels.length}) ---`));
         const { action } = await inquirer.prompt([{
@@ -48,24 +67,24 @@ async function configureChannels(current: Config) {
                 continue;
             }
 
-            current.channels.forEach(c => console.log(chalk.gray(`- ${c.name} (${c.id}) [Group: ${c.message_group || 'default'}]`)));
+            current.channels.forEach((channel) => console.log(chalk.gray(`- ${channel.name} (${channel.id}) [Group: ${channel.messageGroup}]`)));
         }
         else if (action === 'Add Channel') {
-            const chan = await inquirer.prompt([
+            const channel = await inquirer.prompt([
                 { type: 'input', name: 'name', message: 'Channel Name:', default: `Channel ${current.channels.length + 1}` },
                 { type: 'input', name: 'id', message: 'Channel ID:' },
                 { type: 'input', name: 'referrer', message: 'Referrer URL (optional):' },
-                { type: 'input', name: 'message_group', message: 'Message Group:', default: 'default' }
+                { type: 'input', name: 'messageGroup', message: 'Message Group:', default: 'default' }
             ]);
 
             try {
                 current.channels.push({
-                    name: chan.name,
-                    id: chan.id,
-                    referrer: chan.referrer || undefined,
-                    message_group: chan.message_group
+                    name: channel.name,
+                    id: channel.id,
+                    referrer: channel.referrer || buildDefaultReferrer(channel.id),
+                    messageGroup: channel.messageGroup
                 });
-                saveConfig(current);
+                writeAppConfig(current);
                 console.log(chalk.green('Channel added!'));
             } catch (error) {
                 current.channels.pop();
@@ -87,17 +106,20 @@ async function configureChannels(current: Config) {
 
             if (toRemove.length > 0) {
                 current.channels = current.channels.filter((_, i) => !toRemove.includes(i));
-                saveConfig(current);
-                console.log(chalk.green('Channels removed!'));
+                try {
+                    writeAppConfig(current);
+                    console.log(chalk.green('Channels removed!'));
+                } catch (error) {
+                    console.log(chalk.red(getErrorMessage(error)));
+                }
             }
         }
     }
 }
 
-async function configureMessages() {
+async function configureMessages(current: AppConfig) {
     while (true) {
-        const msgs = loadMessages();
-        const groups = Object.keys(msgs);
+        const groups = Object.keys(current.messageGroups);
         console.log(chalk.cyan(`\n--- Manage Messages (${groups.length} groups) ---`));
 
         const { action } = await inquirer.prompt([{
@@ -115,17 +137,17 @@ async function configureMessages() {
         if (action === 'Back to Main Menu') break;
 
         if (action === 'List Groups') {
-            groups.forEach(g => console.log(chalk.gray(`- ${g} (${msgs[g].length} messages)`)));
+            groups.forEach((group) => console.log(chalk.gray(`- ${group} (${current.messageGroups[group].length} messages)`)));
         }
         else if (action === 'Add New Group') {
             const { name } = await inquirer.prompt([{ type: 'input', name: 'name', message: 'Group Name:' }]);
-            if (name && !msgs[name]) {
+            if (name && !current.messageGroups[name]) {
                 try {
-                    msgs[name] = ['New Message'];
-                    saveMessages(msgs);
+                    current.messageGroups[name] = ['New Message'];
+                    writeAppConfig(current);
                     console.log(chalk.green(`Group '${name}' created!`));
                 } catch (error) {
-                    delete msgs[name];
+                    delete current.messageGroups[name];
                     console.log(chalk.red(getErrorMessage(error)));
                 }
             } else {
@@ -147,7 +169,7 @@ async function configureMessages() {
 
             while (true) {
                 console.log(chalk.yellow(`\nEditing Group: ${group}`));
-                msgs[group].forEach((m, i) => console.log(chalk.gray(`${i + 1}. ${m}`)));
+                current.messageGroups[group].forEach((message, i) => console.log(chalk.gray(`${i + 1}. ${message}`)));
 
                 const { msgAction } = await inquirer.prompt([{
                     type: 'list',
@@ -162,11 +184,11 @@ async function configureMessages() {
                     const { text } = await inquirer.prompt([{ type: 'input', name: 'text', message: 'Message content:' }]);
                     if (text) {
                         try {
-                            msgs[group].push(text);
-                            saveMessages(msgs);
+                            current.messageGroups[group].push(text);
+                            writeAppConfig(current);
                             console.log(chalk.green('Message added!'));
                         } catch (error) {
-                            msgs[group].pop();
+                            current.messageGroups[group].pop();
                             console.log(chalk.red(getErrorMessage(error)));
                         }
                     }
@@ -176,19 +198,19 @@ async function configureMessages() {
                         type: 'checkbox',
                         name: 'indices',
                         message: 'Select messages to delete:',
-                        choices: msgs[group].map((m, i) => ({ name: m, value: i }))
+                        choices: current.messageGroups[group].map((message, i) => ({ name: message, value: i }))
                     }]);
 
                     if (indices.length > 0) {
-                        const updatedMessages = msgs[group].filter((_, i) => !indices.includes(i));
+                        const updatedMessages = current.messageGroups[group].filter((_, i) => !indices.includes(i));
                         if (updatedMessages.length === 0) {
                             console.log(chalk.red('A group must contain at least one message.'));
                             continue;
                         }
 
                         try {
-                            msgs[group] = updatedMessages;
-                            saveMessages(msgs);
+                            current.messageGroups[group] = updatedMessages;
+                            writeAppConfig(current);
                             console.log(chalk.green('Messages deleted!'));
                         } catch (error) {
                             console.log(chalk.red(getErrorMessage(error)));
@@ -200,12 +222,12 @@ async function configureMessages() {
     }
 }
 
-export async function startWizard() {
+export async function startWizard(): Promise<'start' | 'exit'> {
+    const current = readAppConfig() ?? createDefaultAppConfig();
+
     while (true) {
         console.clear();
         console.log(chalk.bold.cyan('\n--- Configuration Wizard ---\n'));
-
-        const current = loadConfig() || parseConfig({ channels: [] });
 
         const { menu } = await inquirer.prompt([{
             type: 'list',
@@ -215,6 +237,7 @@ export async function startWizard() {
                 'Start Bot',
                 new inquirer.Separator(),
                 'Token Setup',
+                'Edit User-Agent',
                 'Manage Channels',
                 'Manage Messages',
                 new inquirer.Separator(),
@@ -228,12 +251,12 @@ export async function startWizard() {
                 await new Promise(r => setTimeout(r, 2000));
                 continue;
             }
-            break;
+            return 'start';
         }
-        else if (menu === 'Exit') process.exit(0);
+        else if (menu === 'Exit') return 'exit';
         else if (menu === 'Token Setup') await showTokenSetup();
+        else if (menu === 'Edit User-Agent') await configureUserAgent(current);
         else if (menu === 'Manage Channels') await configureChannels(current);
-        else if (menu === 'Manage Messages') await configureMessages();
+        else if (menu === 'Manage Messages') await configureMessages(current);
     }
-    console.log(chalk.green('Starting bot...'));
 }
