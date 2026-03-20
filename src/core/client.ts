@@ -96,6 +96,12 @@ export async function createDiscordClient(token: string): Promise<Client<true>> 
         return client as Client<true>;
     } catch (error) {
         client.destroy();
+        log('DiscordClient', 'Failed to authenticate with Discord', 'red', { error });
+        if (error instanceof Error) {
+            throw new Error('Failed to authenticate with Discord. Check DISCORD_BOT_TOKEN and bot access.', {
+                cause: error
+            });
+        }
         throw new Error('Failed to authenticate with Discord. Check DISCORD_BOT_TOKEN and bot access.');
     }
 }
