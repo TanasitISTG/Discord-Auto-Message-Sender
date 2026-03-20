@@ -21,6 +21,11 @@ export type AppConfigReadResult =
     | { kind: 'missing' }
     | { kind: 'invalid'; error: string };
 
+export type LegacyMessagesReadResult =
+    | { kind: 'ok'; messages: LegacyMessages }
+    | { kind: 'missing' }
+    | { kind: 'invalid'; error: string };
+
 export function resolveConfigPaths(baseDir: string = process.cwd()): ConfigPaths {
     return {
         configFile: path.join(baseDir, CONFIG_FILE),
@@ -62,17 +67,16 @@ export function readLegacyConfig(paths: ConfigPaths = resolveConfigPaths()): Leg
     }
 }
 
-export function readLegacyMessages(paths: ConfigPaths = resolveConfigPaths()): LegacyMessages | null {
+export function readLegacyMessagesResult(paths: ConfigPaths = resolveConfigPaths()): LegacyMessagesReadResult {
     try {
         const raw = readJsonFile(paths.messagesFile);
         if (raw === null) {
-            return null;
+            return { kind: 'missing' };
         }
 
-        return parseLegacyMessages(raw);
+        return { kind: 'ok', messages: parseLegacyMessages(raw) };
     } catch (error) {
-        log('System', `Error loading legacy messages: ${formatError(error)}`, 'red');
-        return null;
+        return { kind: 'invalid', error: `Error loading legacy messages: ${formatError(error)}` };
     }
 }
 
@@ -103,13 +107,17 @@ export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): 
 
     try {
         const legacyConfig = parseLegacyConfig(raw);
-        const legacyMessages = readLegacyMessages(paths);
+        const legacyMessagesResult = readLegacyMessagesResult(paths);
 
-        if (!legacyMessages) {
+        if (legacyMessagesResult.kind === 'missing') {
             return { kind: 'invalid', error: 'Error loading legacy config: messages.json is required for legacy imports.' };
         }
 
-        return { kind: 'ok', config: normalizeLegacyConfig(legacyConfig, legacyMessages) };
+        if (legacyMessagesResult.kind === 'invalid') {
+            return { kind: 'invalid', error: legacyMessagesResult.error };
+        }
+
+        return { kind: 'ok', config: normalizeLegacyConfig(legacyConfig, legacyMessagesResult.messages) };
     } catch (error) {
         return { kind: 'invalid', error: `Error loading legacy config: ${formatError(error)}` };
     }

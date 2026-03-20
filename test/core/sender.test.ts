@@ -77,6 +77,14 @@ test('pickNextMessage supports single-message groups', () => {
     assert.equal(second, 'Only');
 });
 
+test('pickNextMessage terminates with deterministic random when one option remains', () => {
+    const sentCache = new Set<string>(['A']);
+
+    const next = pickNextMessage(['A', 'B'], sentCache, () => 0);
+
+    assert.equal(next, 'B');
+});
+
 test('pickNextMessage handles duplicate message content without looping', () => {
     const sentCache = new Set<string>();
 
@@ -85,6 +93,16 @@ test('pickNextMessage handles duplicate message content without looping', () => 
 
     assert.equal(first, 'A');
     assert.equal(second, 'A');
+});
+
+test('pickNextMessage preserves duplicate weighting among remaining unsent messages', () => {
+    const sentCache = new Set<string>();
+
+    const weightedPick = pickNextMessage(['A', 'A', 'B'], sentCache, () => 0.5);
+    const forcedRemainingPick = pickNextMessage(['A', 'A', 'B'], sentCache, () => 0);
+
+    assert.equal(weightedPick, 'A');
+    assert.equal(forcedRemainingPick, 'B');
 });
 
 test('runChannel stops exactly at the finite message count without an extra wait', async () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { readAppConfigResult, resolveConfigPaths } from '../../src/config/store';
+import { readAppConfigResult, readLegacyMessagesResult, resolveConfigPaths } from '../../src/config/store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-'));
@@ -39,4 +39,35 @@ test('readAppConfigResult reports legacy config without messages as invalid', ()
         kind: 'invalid',
         error: 'Error loading legacy config: messages.json is required for legacy imports.'
     });
+});
+
+test('readLegacyMessagesResult distinguishes missing messages from invalid messages', () => {
+    const missingDir = createTempDir();
+    const missingResult = readLegacyMessagesResult(resolveConfigPaths(missingDir));
+    assert.deepEqual(missingResult, { kind: 'missing' });
+
+    const invalidDir = createTempDir();
+    fs.writeFileSync(path.join(invalidDir, 'messages.json'), '{ invalid json');
+
+    const invalidResult = readLegacyMessagesResult(resolveConfigPaths(invalidDir));
+    assert.equal(invalidResult.kind, 'invalid');
+    assert.match(invalidResult.error, /Error loading legacy messages:/);
+});
+
+test('readAppConfigResult surfaces invalid legacy messages distinctly', () => {
+    const tempDir = createTempDir();
+    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
+        user_agent: 'UA',
+        channels: [
+            {
+                name: 'general',
+                id: '123456789012345678'
+            }
+        ]
+    }, null, 2));
+    fs.writeFileSync(path.join(tempDir, 'messages.json'), '{ invalid json');
+
+    const result = readAppConfigResult(resolveConfigPaths(tempDir));
+    assert.equal(result.kind, 'invalid');
+    assert.match(result.error, /Error loading legacy messages:/);
 });
