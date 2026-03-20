@@ -1,0 +1,9 @@
+{
+  "channels": [
+    {
+      "name": "general",
+      "id": "123456789012345678",
+      "message_group": "default"
+    }
+  ]
+}

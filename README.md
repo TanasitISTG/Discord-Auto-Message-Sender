@@ -1,95 +1,143 @@
 # Discord Auto Message Sender
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue) ![License](https://img.shields.io/badge/License-MIT-yellow)
+CLI tool for sending repeated text messages to one or more Discord channels through a supported Discord bot account.
 
-A powerful, multi-channel auto-messaging bot for Discord, built with **Node.js** and **TypeScript**. 
-Designed for performance, flexibility, and ease of use.
+## Security Model
 
-## 🚀 Features
+- Authentication uses `DISCORD_BOT_TOKEN` from your environment or local `.env`.
+- Secrets are not stored in `config.json`.
+- `config.json` is ignored by Git. Use `config.example.json` as the template.
+- This project only supports Discord bot authentication. User-token automation has been removed.
 
--   **Multi-Channel Support**: Send messages to unlimited channels simultaneously.
--   **Message Groups**: Target specific channels with specific message sets (e.g., "Trade", "General", "Spam").
--   **Smart Rate Limiting**: Automatically handles Discord's `429 Too Many Requests` with dynamic backoff.
--   **Interactive Configuration**: Built-in CLI Menu for easy setup—no manual JSON editing required.
--   **Infinite Loop Mode**: Run indefinitely or stop after a set number of messages.
+## Requirements
 
-## 🛠️ Prerequisites
+- Node.js 18+
+- npm
+- A Discord bot with access to the target server and channels
 
--   [Node.js](https://nodejs.org/) (v16 or higher)
--   [npm](https://www.npmjs.com/)
+Minimum bot permissions:
 
-## 📦 Installation
+- `View Channels`
+- `Send Messages`
 
-1.  **Clone the repository** (or download the source):
-    ```bash
-    git clone https://github.com/TanasitISTG/Discord-Auto-Message-Sender.git
-    cd Discord-Auto-Message-Sender
-    ```
-
-2.  **Install dependencies**:
-    ```bash
-    npm install
-    ```
-
-## ⚙️ Configuration
-
-You can configure the bot entirely through the interactive CLI.
+## Install
 
 ```bash
-npx ts-node src/bot.ts --configure
+npm install
 ```
 
-This will launch the **Configuration Wizard**, where you can:
-1.  **Edit Authentication**: Set your User Agent and Discord Token.
-2.  **Manage Channels**: Add, remove, or list target channels.
-3.  **Manage Messages**: Create message groups and add/remove messages.
+## Setup
 
-### Manual Configuration
-Alternatively, you can edit the JSON files directly:
+1. Create a Discord application and bot in the Discord Developer Portal.
+2. Invite the bot to your server with `View Channels` and `Send Messages`.
+3. Copy `config.example.json` to `config.json`.
+4. Copy `.env.example` to `.env`.
+5. Set `DISCORD_BOT_TOKEN` in `.env`.
+6. Update `config.json` and `messages.json`.
 
-**`config.json`**
+## Configuration
+
+### `.env`
+
+```bash
+DISCORD_BOT_TOKEN=your_bot_token_here
+```
+
+### `config.json`
+
 ```json
 {
-    "user_agent": "Mozilla/5.0 ...",
-    "discord_token": "YOUR_TOKEN",
-    "channels": [
-        {
-            "name": "Trade Channel",
-            "id": "123456789",
-            "referrer": "https://discord.com/channels/...",
-            "message_group": "trade"
-        }
-    ]
+  "channels": [
+    {
+      "name": "general",
+      "id": "123456789012345678",
+      "message_group": "default"
+    }
+  ]
 }
 ```
 
-**`messages.json`**
+Field reference:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `channels` | `Channel[]` | Yes | List of channels processed in parallel. |
+| `channels[].name` | `string` | Yes | Display label used in logs. |
+| `channels[].id` | `string` | Yes | Discord channel ID. Must be a valid snowflake. |
+| `channels[].message_group` | `string` | No | Falls back to `default` when omitted. |
+
+### `messages.json`
+
 ```json
 {
-    "default": ["Hello world"],
-    "trade": ["Selling items!", "Buying gold!"]
+  "default": [
+    "Hello from your Discord bot!"
+  ],
+  "announcements": [
+    "Daily update",
+    "Status check"
+  ]
 }
 ```
 
-## ▶️ Usage
+Each key is a group name and each value is a non-empty array of message strings. Messages must be 1 to 2000 characters long.
 
-Start the bot with a single command:
+## Wizard
+
+Run:
 
 ```bash
-npx ts-node src/bot.ts
+npm run configure
 ```
 
-1.  Select the **Number of Messages** (Enter `0` for infinite).
-2.  Set the **Base Wait Time** (in seconds).
-3.  Set the **Random Error Margin** (extra random seconds added to wait time).
+The wizard can:
 
-The bot will spawn concurrent workers for each channel and begin sending.
+- show the bot token setup instructions
+- list, add, and remove channels
+- list groups, create groups, add messages, and delete messages
 
-## ⚠️ Disclaimer
+The wizard never stores or displays your bot token.
 
-**Educational Purposes Only.**
-Automating user accounts (Self-Botting) is against [Discord's Terms of Service](https://discord.com/terms). Using this tool may result in account termination. The authors are not responsible for any consequences resulting from the use of this software.
+## Run
 
-## 📄 License
+```bash
+npm start
+```
 
-This project is licensed under the MIT License.
+At startup the app validates:
+
+- `DISCORD_BOT_TOKEN` exists
+- `config.json` is valid
+- every configured channel ID is a valid Discord snowflake
+- every referenced message group exists
+
+Then it:
+
+- authenticates a shared `discord.js` client
+- resolves each configured channel once
+- starts one worker per channel
+- retries transient send failures up to 3 times with exponential backoff and jitter
+- stops only the failing channel on fatal send errors such as missing access or unknown channel
+
+## Troubleshooting
+
+- `Environment error`
+  Set `DISCORD_BOT_TOKEN` in `.env` or your shell environment.
+- `Configuration not found or invalid`
+  Copy `config.example.json` to `config.json` and ensure it passes validation.
+- `Missing message groups referenced by config`
+  Add the missing groups to `messages.json` or update the channel configuration.
+- `Configured channel '...' is missing or does not support text messages`
+  Confirm the bot can access the channel and that the ID points to a text-sendable channel.
+- `Send attempt failed`
+  Review the logged status/code summary. The logger intentionally omits raw payloads and secrets.
+
+## Verification
+
+```bash
+npm run typecheck
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

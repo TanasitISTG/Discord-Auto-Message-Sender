@@ -1,24 +1,22 @@
-import { Channel, Config, Messages } from '../types';
-import { sendMessage } from './client';
+import { Messages } from '../types';
+import { ResolvedChannelTarget, sendMessage } from './client';
 import { log } from '../utils/logger';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function startChannelWorker(
-    channel: Channel,
+    target: ResolvedChannelTarget,
     numMessages: number,
     baseWait: number,
     margin: number,
-    config: Config,
     allMessages: Messages
 ) {
-    log(channel.name, 'Started.', 'green');
+    log(target.name, 'Started.', 'green', { group: target.messageGroup });
 
-    const group = channel.message_group || 'default';
-    const msgs = allMessages[group] || allMessages['default'];
+    const msgs = allMessages[target.messageGroup];
 
     if (!msgs || msgs.length === 0) {
-        log(channel.name, `No messages found for group '${group}'. Skipping.`, 'red');
+        log(target.name, 'No messages found for configured group. Skipping channel.', 'red', { group: target.messageGroup });
         return;
     }
 
@@ -37,24 +35,19 @@ export async function startChannelWorker(
             }
         }
 
-        while (true) {
-            const result = await sendMessage(channel, msg, config);
+        const result = await sendMessage(target, msg);
 
-            if (result.success) {
-                const counter = numMessages === 0 ? `Infinite` : `${sentCount + 1}/${numMessages}`;
-                log(channel.name, `Message Sent (${counter})`, 'cyan');
-                break;
-            } else if (result.wait) {
-                log(channel.name, `Rate Limit! Waiting ${result.wait}s...`, 'yellow');
-                await sleep((result.wait + 0.5) * 1000);
-            } else {
-                break; // Fatal error, skip message
-            }
+        if (!result.success) {
+            log(target.name, 'Stopping worker after repeated or fatal send failures.', 'red');
+            return;
         }
+
+        const counter = numMessages === 0 ? 'Infinite' : `${sentCount + 1}/${numMessages}`;
+        log(target.name, 'Message sent', 'cyan', { counter });
 
         const waitTime = (baseWait + Math.random() * margin) * 1000;
         await sleep(waitTime);
         sentCount++;
     }
-    log(channel.name, 'Finished.', 'green');
+    log(target.name, 'Finished.', 'green');
 }
