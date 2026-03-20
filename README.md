@@ -6,6 +6,7 @@ CLI tool for sending repeated text messages to one or more Discord channels usin
 
 - Authentication uses `DISCORD_TOKEN` from your environment or local `.env`.
 - Secrets are not stored in `config.json`.
+- `config.json` is ignored by Git. Use `config.example.json` as the tracked template.
 - Legacy `messages.json` files are only read for one-way compatibility with older configs.
 
 ## Requirements
