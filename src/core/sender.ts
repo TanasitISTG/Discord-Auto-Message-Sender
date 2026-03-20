@@ -42,18 +42,20 @@ export function pickNextMessage(messages: string[], sentCache: Set<string>, rand
         throw new Error('Cannot pick a message from an empty group.');
     }
 
-    if (sentCache.size >= messages.length) {
+    const uniqueMessages = [...new Set(messages)];
+
+    if (sentCache.size >= uniqueMessages.length) {
         sentCache.clear();
     }
 
-    if (messages.length === 1) {
-        sentCache.add(messages[0]);
-        return messages[0];
+    if (uniqueMessages.length === 1) {
+        sentCache.add(uniqueMessages[0]);
+        return uniqueMessages[0];
     }
 
-    let message = messages[Math.floor(random() * messages.length)];
+    let message = uniqueMessages[Math.floor(random() * uniqueMessages.length)];
     while (sentCache.has(message)) {
-        message = messages[Math.floor(random() * messages.length)];
+        message = uniqueMessages[Math.floor(random() * uniqueMessages.length)];
     }
 
     sentCache.add(message);

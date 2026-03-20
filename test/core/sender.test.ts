@@ -77,6 +77,16 @@ test('pickNextMessage supports single-message groups', () => {
     assert.equal(second, 'Only');
 });
 
+test('pickNextMessage handles duplicate message content without looping', () => {
+    const sentCache = new Set<string>();
+
+    const first = pickNextMessage(['A', 'A'], sentCache, () => 0);
+    const second = pickNextMessage(['A', 'A'], sentCache, () => 0);
+
+    assert.equal(first, 'A');
+    assert.equal(second, 'A');
+});
+
 test('runChannel stops exactly at the finite message count without an extra wait', async () => {
     let sends = 0;
     const sleepCalls: number[] = [];

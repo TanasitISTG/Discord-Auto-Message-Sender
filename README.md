@@ -64,7 +64,7 @@ Field reference:
 | `channels` | `AppChannel[]` | Yes | List of channels processed in parallel. |
 | `channels[].name` | `string` | Yes | Display label used in logs. |
 | `channels[].id` | `string` | Yes | Discord channel ID. Must be a valid snowflake. |
-| `channels[].referrer` | `string` | Yes | URL sent as HTTP Referer header. |
+| `channels[].referrer` | `string` | No | URL sent as HTTP Referer header. Defaults to `https://discord.com/channels/@me/{id}` when omitted. |
 | `channels[].messageGroup` | `string` | Yes | Must reference a key in `messageGroups`. |
 | `messageGroups` | `Record<string, string[]>` | Yes | Non-empty map of message groups. |
 
