@@ -16,6 +16,11 @@ import { log } from '../utils/logger';
 export const CONFIG_FILE = 'config.json';
 export const LEGACY_MESSAGES_FILE = 'messages.json';
 
+export type AppConfigReadResult =
+    | { kind: 'ok'; config: AppConfig }
+    | { kind: 'missing' }
+    | { kind: 'invalid'; error: string };
+
 export function resolveConfigPaths(baseDir: string = process.cwd()): ConfigPaths {
     return {
         configFile: path.join(baseDir, CONFIG_FILE),
@@ -71,32 +76,29 @@ export function readLegacyMessages(paths: ConfigPaths = resolveConfigPaths()): L
     }
 }
 
-export function readAppConfig(paths: ConfigPaths = resolveConfigPaths()): AppConfig | null {
+export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): AppConfigReadResult {
     let raw: unknown;
 
     try {
         raw = readJsonFile(paths.configFile);
     } catch (error) {
-        log('System', `Error reading config file: ${formatError(error)}`, 'red');
-        return null;
+        return { kind: 'invalid', error: `Error reading config file: ${formatError(error)}` };
     }
 
     if (raw === null) {
-        return null;
+        return { kind: 'missing' };
     }
 
     if (isCanonicalConfigShape(raw)) {
         try {
-            return parseAppConfig(raw);
+            return { kind: 'ok', config: parseAppConfig(raw) };
         } catch (error) {
-            log('System', `Error loading config: ${formatError(error)}`, 'red');
-            return null;
+            return { kind: 'invalid', error: `Error loading config: ${formatError(error)}` };
         }
     }
 
     if (!isLegacyConfigShape(raw)) {
-        log('System', 'Error loading config: unsupported config shape.', 'red');
-        return null;
+        return { kind: 'invalid', error: 'Error loading config: unsupported config shape.' };
     }
 
     try {
@@ -104,15 +106,24 @@ export function readAppConfig(paths: ConfigPaths = resolveConfigPaths()): AppCon
         const legacyMessages = readLegacyMessages(paths);
 
         if (!legacyMessages) {
-            log('System', 'Error loading legacy config: messages.json is required for legacy imports.', 'red');
-            return null;
+            return { kind: 'invalid', error: 'Error loading legacy config: messages.json is required for legacy imports.' };
         }
 
-        return normalizeLegacyConfig(legacyConfig, legacyMessages);
+        return { kind: 'ok', config: normalizeLegacyConfig(legacyConfig, legacyMessages) };
     } catch (error) {
-        log('System', `Error loading legacy config: ${formatError(error)}`, 'red');
+        return { kind: 'invalid', error: `Error loading legacy config: ${formatError(error)}` };
+    }
+}
+
+export function readAppConfig(paths: ConfigPaths = resolveConfigPaths()): AppConfig | null {
+    const result = readAppConfigResult(paths);
+
+    if (result.kind === 'invalid') {
+        log('System', result.error, 'red');
         return null;
     }
+
+    return result.kind === 'ok' ? result.config : null;
 }
 
 export function writeAppConfig(config: AppConfig, paths: ConfigPaths = resolveConfigPaths()): void {

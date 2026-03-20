@@ -2,7 +2,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ZodError } from 'zod';
 import { AppConfig } from '../types';
-import { readAppConfig, writeAppConfig } from '../config/store';
+import { readAppConfigResult, writeAppConfig } from '../config/store';
 import { buildDefaultReferrer, createDefaultAppConfig, formatZodError } from '../config/schema';
 
 function getErrorMessage(error: unknown): string {
@@ -105,11 +105,13 @@ async function configureChannels(current: AppConfig) {
             }]);
 
             if (toRemove.length > 0) {
+                const previousChannels = current.channels;
                 current.channels = current.channels.filter((_, i) => !toRemove.includes(i));
                 try {
                     writeAppConfig(current);
                     console.log(chalk.green('Channels removed!'));
                 } catch (error) {
+                    current.channels = previousChannels;
                     console.log(chalk.red(getErrorMessage(error)));
                 }
             }
@@ -202,6 +204,7 @@ async function configureMessages(current: AppConfig) {
                     }]);
 
                     if (indices.length > 0) {
+                        const previousMessages = current.messageGroups[group];
                         const updatedMessages = current.messageGroups[group].filter((_, i) => !indices.includes(i));
                         if (updatedMessages.length === 0) {
                             console.log(chalk.red('A group must contain at least one message.'));
@@ -213,6 +216,7 @@ async function configureMessages(current: AppConfig) {
                             writeAppConfig(current);
                             console.log(chalk.green('Messages deleted!'));
                         } catch (error) {
+                            current.messageGroups[group] = previousMessages;
                             console.log(chalk.red(getErrorMessage(error)));
                         }
                     }
@@ -223,7 +227,12 @@ async function configureMessages(current: AppConfig) {
 }
 
 export async function startWizard(): Promise<'start' | 'exit'> {
-    const current = readAppConfig() ?? createDefaultAppConfig();
+    const configResult = readAppConfigResult();
+    if (configResult.kind === 'invalid') {
+        throw new Error(configResult.error);
+    }
+
+    const current = configResult.kind === 'ok' ? configResult.config : createDefaultAppConfig();
 
     while (true) {
         console.clear();

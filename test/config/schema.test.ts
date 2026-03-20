@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeLegacyConfig, parseAppConfig } from '../../src/config/schema';
+import { ZodError } from 'zod';
 
 test('parseAppConfig accepts canonical config and preserves camelCase shape', () => {
     const config = parseAppConfig({
@@ -53,4 +54,25 @@ test('normalizeLegacyConfig converts snake_case config and external messages int
             default: ['Hello!']
         }
     });
+});
+
+test('parseAppConfig rejects duplicate channel IDs', () => {
+    assert.throws(() => parseAppConfig({
+        userAgent: 'UA',
+        channels: [
+            {
+                name: 'general-1',
+                id: '123456789012345678',
+                messageGroup: 'default'
+            },
+            {
+                name: 'general-2',
+                id: '123456789012345678',
+                messageGroup: 'default'
+            }
+        ],
+        messageGroups: {
+            default: ['Hello!']
+        }
+    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate channel ID')));
 });

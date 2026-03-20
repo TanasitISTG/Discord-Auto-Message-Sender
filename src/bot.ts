@@ -3,7 +3,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ZodError } from 'zod';
 import { startWizard } from './cli/wizard';
-import { readAppConfig } from './config/store';
+import { readAppConfigResult } from './config/store';
 import { formatZodError, parseEnvironment, parseRuntimeOptions } from './config/schema';
 import { runChannel } from './core/sender';
 
@@ -48,11 +48,16 @@ async function main() {
         throw new Error(`Environment error: ${message}`);
     }
 
-    const config = readAppConfig();
-    if (!config) {
-        throw new Error('Configuration not found or invalid. Review config.json or run with --configure.');
+    const configResult = readAppConfigResult();
+    if (configResult.kind === 'invalid') {
+        throw new Error(configResult.error);
     }
 
+    if (configResult.kind === 'missing') {
+        throw new Error('Configuration not found. Review config.json or run with --configure.');
+    }
+
+    const config = configResult.config;
     if (config.channels.length === 0) {
         throw new Error('At least one channel must be configured before starting.');
     }

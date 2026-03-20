@@ -41,6 +41,7 @@ const appConfigBaseSchema = z.object({
 
 export const appConfigSchema = appConfigBaseSchema.superRefine((config, ctx) => {
     const groups = new Set(Object.keys(config.messageGroups));
+    const channelIds = new Set<string>();
 
     for (const [index, channel] of config.channels.entries()) {
         if (!groups.has(channel.messageGroup)) {
@@ -49,6 +50,16 @@ export const appConfigSchema = appConfigBaseSchema.superRefine((config, ctx) => 
                 path: ['channels', index, 'messageGroup'],
                 message: `Unknown message group '${channel.messageGroup}'`
             });
+        }
+
+        if (channelIds.has(channel.id)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['channels', index, 'id'],
+                message: `Duplicate channel ID '${channel.id}'`
+            });
+        } else {
+            channelIds.add(channel.id);
         }
     }
 });
