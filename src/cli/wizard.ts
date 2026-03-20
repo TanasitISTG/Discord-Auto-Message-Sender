@@ -1,28 +1,29 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { Config, Messages } from '../types';
+import { ZodError } from 'zod';
+import { Config } from '../types';
 import { loadConfig, loadMessages, saveConfig, saveMessages } from '../config/manager';
+import { formatZodError, parseConfig } from '../config/schema';
 
-async function configureAuth(current: Config) {
-    console.log(chalk.cyan('\n--- Edit Authentication ---'));
-    const answers = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'user_agent',
-            message: 'User Agent:',
-            default: current.user_agent
-        },
-        {
-            type: 'input',
-            name: 'discord_token',
-            message: 'Discord Token:',
-            default: current.discord_token
-        }
-    ]);
-    current.user_agent = answers.user_agent;
-    current.discord_token = answers.discord_token;
-    saveConfig(current);
-    console.log(chalk.green('Authentication saved!'));
+function getErrorMessage(error: unknown): string {
+    if (error instanceof ZodError) {
+        return formatZodError(error);
+    }
+
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return 'Unable to save changes.';
+}
+
+async function showBotTokenSetup() {
+    console.log(chalk.cyan('\n--- Bot Token Setup ---'));
+    console.log('1. Create a Discord application and bot in the Discord Developer Portal.');
+    console.log('2. Copy `.env.example` to `.env`.');
+    console.log('3. Set `DISCORD_BOT_TOKEN` in `.env` or your shell environment.');
+    console.log('4. Invite the bot with at least `View Channels` and `Send Messages` permissions.');
+    await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Press Enter to return to the menu:' }]);
 }
 
 async function configureChannels(current: Config) {
@@ -43,28 +44,39 @@ async function configureChannels(current: Config) {
         if (action === 'Back to Main Menu') break;
 
         if (action === 'List Channels') {
+            if (current.channels.length === 0) {
+                console.log(chalk.yellow('No channels configured.'));
+                continue;
+            }
+
             current.channels.forEach(c => console.log(chalk.gray(`- ${c.name} (${c.id}) [Group: ${c.message_group || 'default'}]`)));
         }
         else if (action === 'Add Channel') {
             const chan = await inquirer.prompt([
-                { type: 'input', name: 'referrer', message: 'Channel URL (Reference):' },
+                { type: 'input', name: 'name', message: 'Channel Name:', default: `Channel ${current.channels.length + 1}` },
                 { type: 'input', name: 'id', message: 'Channel ID:' },
                 { type: 'input', name: 'message_group', message: 'Message Group:', default: 'default' }
             ]);
-            current.channels.push({
-                name: `Channel ${current.channels.length + 1}`,
-                id: chan.id,
-                referrer: chan.referrer,
-                message_group: chan.message_group
-            });
-            saveConfig(current);
-            console.log(chalk.green('Channel added!'));
+
+            try {
+                current.channels.push({
+                    name: chan.name,
+                    id: chan.id,
+                    message_group: chan.message_group
+                });
+                saveConfig(current);
+                console.log(chalk.green('Channel added!'));
+            } catch (error) {
+                current.channels.pop();
+                console.log(chalk.red(getErrorMessage(error)));
+            }
         }
         else if (action === 'Remove Channel') {
             if (current.channels.length === 0) {
                 console.log(chalk.yellow('No channels to remove.'));
                 continue;
             }
+
             const { toRemove } = await inquirer.prompt([{
                 type: 'checkbox',
                 name: 'toRemove',
@@ -74,7 +86,6 @@ async function configureChannels(current: Config) {
 
             if (toRemove.length > 0) {
                 current.channels = current.channels.filter((_, i) => !toRemove.includes(i));
-                current.channels.forEach((c, i) => c.name = `Channel ${i + 1}`);
                 saveConfig(current);
                 console.log(chalk.green('Channels removed!'));
             }
@@ -108,14 +119,24 @@ async function configureMessages() {
         else if (action === 'Add New Group') {
             const { name } = await inquirer.prompt([{ type: 'input', name: 'name', message: 'Group Name:' }]);
             if (name && !msgs[name]) {
-                msgs[name] = ["New Message"];
-                saveMessages(msgs);
-                console.log(chalk.green(`Group '${name}' created!`));
+                try {
+                    msgs[name] = ['New Message'];
+                    saveMessages(msgs);
+                    console.log(chalk.green(`Group '${name}' created!`));
+                } catch (error) {
+                    delete msgs[name];
+                    console.log(chalk.red(getErrorMessage(error)));
+                }
             } else {
                 console.log(chalk.red('Invalid name or group already exists.'));
             }
         }
         else if (action === 'Edit Group Messages') {
+            if (groups.length === 0) {
+                console.log(chalk.yellow('No groups available to edit.'));
+                continue;
+            }
+
             const { group } = await inquirer.prompt([{
                 type: 'list',
                 name: 'group',
@@ -139,9 +160,14 @@ async function configureMessages() {
                 if (msgAction === 'Add Message') {
                     const { text } = await inquirer.prompt([{ type: 'input', name: 'text', message: 'Message content:' }]);
                     if (text) {
-                        msgs[group].push(text);
-                        saveMessages(msgs);
-                        console.log(chalk.green('Message added!'));
+                        try {
+                            msgs[group].push(text);
+                            saveMessages(msgs);
+                            console.log(chalk.green('Message added!'));
+                        } catch (error) {
+                            msgs[group].pop();
+                            console.log(chalk.red(getErrorMessage(error)));
+                        }
                     }
                 }
                 else if (msgAction === 'Delete Message') {
@@ -153,9 +179,19 @@ async function configureMessages() {
                     }]);
 
                     if (indices.length > 0) {
-                        msgs[group] = msgs[group].filter((_, i) => !indices.includes(i));
-                        saveMessages(msgs);
-                        console.log(chalk.green('Messages deleted!'));
+                        const updatedMessages = msgs[group].filter((_, i) => !indices.includes(i));
+                        if (updatedMessages.length === 0) {
+                            console.log(chalk.red('A group must contain at least one message.'));
+                            continue;
+                        }
+
+                        try {
+                            msgs[group] = updatedMessages;
+                            saveMessages(msgs);
+                            console.log(chalk.green('Messages deleted!'));
+                        } catch (error) {
+                            console.log(chalk.red(getErrorMessage(error)));
+                        }
                     }
                 }
             }
@@ -168,7 +204,7 @@ export async function startWizard() {
         console.clear();
         console.log(chalk.bold.cyan('\n--- Configuration Wizard ---\n'));
 
-        const current = loadConfig() || { user_agent: '', discord_token: '', channels: [] };
+        const current = loadConfig() || parseConfig({ channels: [] });
 
         const { menu } = await inquirer.prompt([{
             type: 'list',
@@ -177,7 +213,7 @@ export async function startWizard() {
             choices: [
                 'Start Bot',
                 new inquirer.Separator(),
-                'Edit Authentication',
+                'Bot Token Setup',
                 'Manage Channels',
                 'Manage Messages',
                 new inquirer.Separator(),
@@ -186,16 +222,15 @@ export async function startWizard() {
         }]);
 
         if (menu === 'Start Bot') {
-            if (!current.discord_token || current.channels.length === 0) {
-                console.log(chalk.red('Error: You must configure Token and Channels first!'));
-                // Pause so they see error
+            if (current.channels.length === 0) {
+                console.log(chalk.red('Error: Configure at least one channel first.'));
                 await new Promise(r => setTimeout(r, 2000));
                 continue;
             }
             break;
         }
         else if (menu === 'Exit') process.exit(0);
-        else if (menu === 'Edit Authentication') await configureAuth(current);
+        else if (menu === 'Bot Token Setup') await showBotTokenSetup();
         else if (menu === 'Manage Channels') await configureChannels(current);
         else if (menu === 'Manage Messages') await configureMessages();
     }
