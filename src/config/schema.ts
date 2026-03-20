@@ -6,10 +6,12 @@ const DISCORD_SNOWFLAKE_REGEX = /^\d{17,20}$/;
 const channelSchema = z.object({
     name: z.string().trim().min(1, 'Channel name is required').max(100, 'Channel name is too long'),
     id: z.string().trim().regex(DISCORD_SNOWFLAKE_REGEX, 'Channel ID must be a valid Discord snowflake'),
+    referrer: z.string().trim().url('Referrer must be a valid URL').optional(),
     message_group: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long').optional()
 });
 
 const configSchema = z.object({
+    user_agent: z.string().trim().min(1, 'user_agent is required'),
     channels: z.array(channelSchema)
 });
 
@@ -28,7 +30,7 @@ const messagesSchema = z.record(
 });
 
 const envSchema = z.object({
-    DISCORD_BOT_TOKEN: z.string({ error: 'DISCORD_BOT_TOKEN is required' }).trim().min(1, 'DISCORD_BOT_TOKEN is required')
+    DISCORD_TOKEN: z.string({ error: 'DISCORD_TOKEN is required' }).trim().min(1, 'DISCORD_TOKEN is required')
 });
 
 const runtimeOptionsSchema = z.object({
@@ -54,7 +56,7 @@ export function parseMessages(value: unknown): Messages {
     return messagesSchema.parse(value) as Messages;
 }
 
-export function parseEnvironment(env: NodeJS.ProcessEnv): { DISCORD_BOT_TOKEN: string } {
+export function parseEnvironment(env: NodeJS.ProcessEnv): { DISCORD_TOKEN: string } {
     return envSchema.parse(env);
 }
 

@@ -5,7 +5,7 @@ import { ZodError } from 'zod';
 import { startWizard } from './cli/wizard';
 import { loadConfig, loadMessages } from './config/manager';
 import { formatZodError, getMissingMessageGroups, parseEnvironment, parseRuntimeOptions } from './config/schema';
-import { createDiscordClient, resolveConfiguredChannels } from './core/client';
+import { buildChannelTargets } from './core/client';
 import { startChannelWorker } from './core/worker';
 
 async function promptRuntimeOptions() {
@@ -59,7 +59,7 @@ async function main() {
     }
 
     if (config.channels.length === 0) {
-        console.log(chalk.red('At least one channel must be configured before starting the bot.'));
+        console.log(chalk.red('At least one channel must be configured before starting.'));
         process.exit(1);
     }
 
@@ -69,31 +69,35 @@ async function main() {
         process.exit(1);
     }
 
-    console.log(chalk.bold(`\n--- Discord Bot Auto Sender ---\n`));
+    console.log(chalk.bold(`\n--- Discord Auto Sender ---\n`));
     console.log(`Loaded ${config.channels.length} channels.`);
     console.log(`Loaded groups: ${Object.keys(messages).join(', ')}`);
 
     const runtime = await promptRuntimeOptions();
-    const client = await createDiscordClient(env.DISCORD_BOT_TOKEN);
+    const targets = buildChannelTargets(config.channels);
 
-    try {
-        const channels = await resolveConfiguredChannels(client, config);
-        const promises = channels.map(channel =>
-            startChannelWorker(channel, runtime.numMessages, runtime.baseWaitSeconds, runtime.marginSeconds, messages)
-        );
+    const promises = targets.map(target =>
+        startChannelWorker(
+            target,
+            runtime.numMessages,
+            runtime.baseWaitSeconds,
+            runtime.marginSeconds,
+            env.DISCORD_TOKEN,
+            config.user_agent,
+            messages
+        )
+    );
 
-        await Promise.all(promises);
-        console.log('\nSession complete.');
-    } finally {
-        client.destroy();
-    }
+    await Promise.all(promises);
+    console.log('\nSession complete.');
 }
 
 main().catch((error: unknown) => {
     if (error instanceof Error) {
         console.error(chalk.red(error.message));
-        process.exit(1);
+        process.exitCode = 1;
+        return;
     }
     console.error(chalk.red('Unexpected failure.'));
-    process.exit(1);
+    process.exitCode = 1;
 });

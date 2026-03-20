@@ -17,12 +17,11 @@ function getErrorMessage(error: unknown): string {
     return 'Unable to save changes.';
 }
 
-async function showBotTokenSetup() {
-    console.log(chalk.cyan('\n--- Bot Token Setup ---'));
-    console.log('1. Create a Discord application and bot in the Discord Developer Portal.');
-    console.log('2. Copy `.env.example` to `.env`.');
-    console.log('3. Set `DISCORD_BOT_TOKEN` in `.env` or your shell environment.');
-    console.log('4. Invite the bot with at least `View Channels` and `Send Messages` permissions.');
+async function showTokenSetup() {
+    console.log(chalk.cyan('\n--- Token Setup ---'));
+    console.log('1. Copy `.env.example` to `.env`.');
+    console.log('2. Set `DISCORD_TOKEN` in `.env` or your shell environment.');
+    console.log('3. Set `user_agent` in `config.json` to a valid browser User-Agent string.');
     await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Press Enter to return to the menu:' }]);
 }
 
@@ -55,6 +54,7 @@ async function configureChannels(current: Config) {
             const chan = await inquirer.prompt([
                 { type: 'input', name: 'name', message: 'Channel Name:', default: `Channel ${current.channels.length + 1}` },
                 { type: 'input', name: 'id', message: 'Channel ID:' },
+                { type: 'input', name: 'referrer', message: 'Referrer URL (optional):' },
                 { type: 'input', name: 'message_group', message: 'Message Group:', default: 'default' }
             ]);
 
@@ -62,6 +62,7 @@ async function configureChannels(current: Config) {
                 current.channels.push({
                     name: chan.name,
                     id: chan.id,
+                    referrer: chan.referrer || undefined,
                     message_group: chan.message_group
                 });
                 saveConfig(current);
@@ -213,7 +214,7 @@ export async function startWizard() {
             choices: [
                 'Start Bot',
                 new inquirer.Separator(),
-                'Bot Token Setup',
+                'Token Setup',
                 'Manage Channels',
                 'Manage Messages',
                 new inquirer.Separator(),
@@ -230,7 +231,7 @@ export async function startWizard() {
             break;
         }
         else if (menu === 'Exit') process.exit(0);
-        else if (menu === 'Bot Token Setup') await showBotTokenSetup();
+        else if (menu === 'Token Setup') await showTokenSetup();
         else if (menu === 'Manage Channels') await configureChannels(current);
         else if (menu === 'Manage Messages') await configureMessages();
     }

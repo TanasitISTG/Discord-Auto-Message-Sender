@@ -1,80 +1,21 @@
-import { once } from 'events';
-import {
-    Channel,
-    Client,
-    DiscordAPIError,
-    Events,
-    GatewayIntentBits,
-    TextBasedChannel
-} from 'discord.js';
-import { Config } from '../types';
+import axios from 'axios';
+import { Channel } from '../types';
 import { log } from '../utils/logger';
 
+const API_BASE = 'https://discord.com/api/v10';
 const MAX_SEND_ATTEMPTS = 3;
-const FATAL_DISCORD_ERROR_CODES = new Set([10003, 50001, 50013, 50035]);
 
-type SendableChannel = TextBasedChannel & {
-    send: (options: { content: string }) => Promise<unknown>;
-};
-
-export interface ResolvedChannelTarget {
+export interface ChannelTarget {
     id: string;
     name: string;
+    referrer: string;
     messageGroup: string;
-    channel: SendableChannel;
 }
 
-interface SendFailure {
-    code?: number;
+export interface SendResult {
+    success: boolean;
     fatal: boolean;
-    status?: number;
-    summary: string;
-}
-
-function resolveSendableChannel(channel: Channel | null): SendableChannel | null {
-    if (!channel?.isTextBased() || !('send' in channel) || typeof channel.send !== 'function') {
-        return null;
-    }
-
-    return channel as SendableChannel;
-}
-
-function classifySendFailure(error: unknown): SendFailure {
-    if (error instanceof DiscordAPIError) {
-        const code = typeof error.code === 'number' ? error.code : undefined;
-
-        if (code === 10003) {
-            return { code, fatal: true, status: error.status, summary: 'unknown channel' };
-        }
-        if (code === 50001) {
-            return { code, fatal: true, status: error.status, summary: 'missing access' };
-        }
-        if (code === 50013) {
-            return { code, fatal: true, status: error.status, summary: 'missing permissions' };
-        }
-        if (code === 50035) {
-            return { code, fatal: true, status: error.status, summary: 'invalid request' };
-        }
-        if (error.status === 429) {
-            return { code, fatal: false, status: error.status, summary: 'rate limited' };
-        }
-        if (error.status >= 500) {
-            return { code, fatal: false, status: error.status, summary: 'discord service error' };
-        }
-
-        return {
-            code,
-            fatal: code !== undefined && FATAL_DISCORD_ERROR_CODES.has(code),
-            status: error.status,
-            summary: 'discord api error'
-        };
-    }
-
-    if (error instanceof Error) {
-        return { fatal: false, summary: error.name || 'runtime error' };
-    }
-
-    return { fatal: false, summary: 'unexpected runtime error' };
+    wait?: number;
 }
 
 function getBackoffDelayMs(attempt: number): number {
@@ -83,70 +24,74 @@ function getBackoffDelayMs(attempt: number): number {
     return baseDelay + jitter;
 }
 
-export async function createDiscordClient(token: string): Promise<Client<true>> {
-    const client = new Client({
-        intents: [GatewayIntentBits.Guilds]
-    });
-
-    const ready = once(client, Events.ClientReady);
-
-    try {
-        await client.login(token);
-        await ready;
-        return client as Client<true>;
-    } catch (error) {
-        client.destroy();
-        log('DiscordClient', 'Failed to authenticate with Discord', 'red', { error });
-        if (error instanceof Error) {
-            throw new Error('Failed to authenticate with Discord. Check DISCORD_BOT_TOKEN and bot access.', {
-                cause: error
-            });
-        }
-        throw new Error('Failed to authenticate with Discord. Check DISCORD_BOT_TOKEN and bot access.');
-    }
+export function buildChannelTargets(channels: Channel[]): ChannelTarget[] {
+    return channels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        referrer: ch.referrer || `https://discord.com/channels/@me/${ch.id}`,
+        messageGroup: ch.message_group ?? 'default'
+    }));
 }
 
-export async function resolveConfiguredChannels(client: Client<true>, config: Config): Promise<ResolvedChannelTarget[]> {
-    const resolved: ResolvedChannelTarget[] = [];
-
-    for (const channelConfig of config.channels) {
-        const fetchedChannel = await client.channels.fetch(channelConfig.id);
-        const channel = resolveSendableChannel(fetchedChannel);
-
-        if (!channel) {
-            throw new Error(`Configured channel '${channelConfig.name}' is missing or does not support text messages.`);
-        }
-
-        resolved.push({
-            id: channelConfig.id,
-            name: channelConfig.name,
-            messageGroup: channelConfig.message_group ?? 'default',
-            channel
-        });
-    }
-
-    return resolved;
-}
-
-export async function sendMessage(target: ResolvedChannelTarget, content: string): Promise<{ fatal: boolean; success: boolean }> {
+export async function sendMessage(
+    target: ChannelTarget,
+    content: string,
+    token: string,
+    userAgent: string
+): Promise<SendResult> {
     for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
         try {
-            await target.channel.send({ content });
+            await axios.post(
+                `${API_BASE}/channels/${target.id}/messages`,
+                { content, tts: false },
+                {
+                    headers: {
+                        'Authorization': token,
+                        'User-Agent': userAgent,
+                        'Content-Type': 'application/json',
+                        'Referer': target.referrer
+                    }
+                }
+            );
             return { success: true, fatal: false };
-        } catch (error) {
-            const failure = classifySendFailure(error);
-            const shouldStop = failure.fatal || attempt === MAX_SEND_ATTEMPTS;
+        } catch (error: unknown) {
+            if (axios.isAxiosError(error) && error.response) {
+                const status = error.response.status;
+                const code = error.response.data?.code;
 
-            log(target.name, 'Send attempt failed', shouldStop ? 'red' : 'yellow', {
-                attempt,
-                code: failure.code,
-                fatal: shouldStop,
-                status: failure.status,
-                summary: failure.summary
-            });
+                if (status === 429) {
+                    const retryAfter = error.response.data?.retry_after || 5;
+                    log(target.name, `Rate limited, retry after ${retryAfter}s`, 'yellow', {
+                        attempt,
+                        status,
+                        retryAfter
+                    });
+                    return { success: false, fatal: false, wait: retryAfter };
+                }
 
-            if (shouldStop) {
-                return { success: false, fatal: true };
+                const isFatal = status === 401 || status === 403 || status === 404;
+                const shouldStop = isFatal || attempt === MAX_SEND_ATTEMPTS;
+
+                log(target.name, `HTTP ${status}: ${JSON.stringify(error.response.data)}`, shouldStop ? 'red' : 'yellow', {
+                    attempt,
+                    code,
+                    status,
+                    fatal: shouldStop
+                });
+
+                if (shouldStop) {
+                    return { success: false, fatal: true };
+                }
+            } else {
+                const msg = error instanceof Error ? error.message : String(error);
+                log(target.name, `Error: ${msg}`, attempt === MAX_SEND_ATTEMPTS ? 'red' : 'yellow', {
+                    attempt,
+                    fatal: attempt === MAX_SEND_ATTEMPTS
+                });
+
+                if (attempt === MAX_SEND_ATTEMPTS) {
+                    return { success: false, fatal: true };
+                }
             }
 
             const delay = getBackoffDelayMs(attempt);
