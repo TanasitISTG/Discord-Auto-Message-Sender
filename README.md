@@ -1,24 +1,18 @@
 # Discord Auto Message Sender
 
-CLI tool for sending repeated text messages to one or more Discord channels through a supported Discord bot account.
+CLI tool for sending repeated text messages to one or more Discord channels using a personal Discord account token.
 
 ## Security Model
 
-- Authentication uses `DISCORD_BOT_TOKEN` from your environment or local `.env`.
+- Authentication uses `DISCORD_TOKEN` from your environment or local `.env`.
 - Secrets are not stored in `config.json`.
 - `config.json` is ignored by Git. Use `config.example.json` as the template.
-- This project only supports Discord bot authentication. User-token automation has been removed.
 
 ## Requirements
 
 - Node.js 18+
 - npm
-- A Discord bot with access to the target server and channels
-
-Minimum bot permissions:
-
-- `View Channels`
-- `Send Messages`
+- A personal Discord account token
 
 ## Install
 
@@ -28,29 +22,30 @@ npm install
 
 ## Setup
 
-1. Create a Discord application and bot in the Discord Developer Portal.
-2. Invite the bot to your server with `View Channels` and `Send Messages`.
-3. Copy `config.example.json` to `config.json`.
-4. Copy `.env.example` to `.env`.
-5. Set `DISCORD_BOT_TOKEN` in `.env`.
-6. Update `config.json` and `messages.json`.
+1. Copy `config.example.json` to `config.json`.
+2. Copy `.env.example` to `.env`.
+3. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
+4. Set `user_agent` in `config.json` to a browser User-Agent string.
+5. Update channel IDs and `messages.json`.
 
 ## Configuration
 
 ### `.env`
 
 ```bash
-DISCORD_BOT_TOKEN=your_bot_token_here
+DISCORD_TOKEN=your_token_here
 ```
 
 ### `config.json`
 
 ```json
 {
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   "channels": [
     {
       "name": "general",
       "id": "123456789012345678",
+      "referrer": "https://discord.com/channels/@me/123456789012345678",
       "message_group": "default"
     }
   ]
@@ -61,9 +56,11 @@ Field reference:
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
+| `user_agent` | `string` | Yes | Browser User-Agent sent in every request. |
 | `channels` | `Channel[]` | Yes | List of channels processed in parallel. |
 | `channels[].name` | `string` | Yes | Display label used in logs. |
 | `channels[].id` | `string` | Yes | Discord channel ID. Must be a valid snowflake. |
+| `channels[].referrer` | `string` | No | URL sent as HTTP Referer header. Defaults to `https://discord.com/channels/@me/{id}`. |
 | `channels[].message_group` | `string` | No | Falls back to `default` when omitted. |
 
 ### `messages.json`
@@ -71,7 +68,7 @@ Field reference:
 ```json
 {
   "default": [
-    "Hello from your Discord bot!"
+    "Hello!"
   ],
   "announcements": [
     "Daily update",
@@ -84,19 +81,15 @@ Each key is a group name and each value is a non-empty array of message strings.
 
 ## Wizard
 
-Run:
-
 ```bash
 npm run configure
 ```
 
 The wizard can:
 
-- show the bot token setup instructions
+- show token setup instructions
 - list, add, and remove channels
 - list groups, create groups, add messages, and delete messages
-
-The wizard never stores or displays your bot token.
 
 ## Run
 
@@ -106,31 +99,30 @@ npm start
 
 At startup the app validates:
 
-- `DISCORD_BOT_TOKEN` exists
+- `DISCORD_TOKEN` exists
 - `config.json` is valid
 - every configured channel ID is a valid Discord snowflake
 - every referenced message group exists
 
 Then it:
 
-- authenticates a shared `discord.js` client
-- resolves each configured channel once
+- builds channel targets from `config.json`
 - starts one worker per channel
 - retries transient send failures up to 3 times with exponential backoff and jitter
-- stops only the failing channel on fatal send errors such as missing access or unknown channel
+- handles 429 rate limits by waiting the `retry_after` duration
 
 ## Troubleshooting
 
 - `Environment error`
-  Set `DISCORD_BOT_TOKEN` in `.env` or your shell environment.
+  Set `DISCORD_TOKEN` in `.env` or your shell environment.
 - `Configuration not found or invalid`
-  Copy `config.example.json` to `config.json` and ensure it passes validation.
+  Copy `config.example.json` to `config.json`. Make sure `user_agent` is present.
 - `Missing message groups referenced by config`
   Add the missing groups to `messages.json` or update the channel configuration.
-- `Configured channel '...' is missing or does not support text messages`
-  Confirm the bot can access the channel and that the ID points to a text-sendable channel.
-- `Send attempt failed`
-  Review the logged status/code summary. The logger intentionally omits raw payloads and secrets.
+- `HTTP 401`
+  Your token is invalid or expired. Re-copy it from Discord.
+- `HTTP 403`
+  You don't have access to send messages in that channel.
 
 ## Verification
 
