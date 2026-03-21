@@ -34,9 +34,18 @@ export function NumberField({ label, value, onChange }: { label: string; value: 
 
 export function StateRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="font-medium text-foreground">{value}</span>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/40 px-3 py-2">
+            <span className="min-w-0 text-muted-foreground">{label}</span>
+            <span className="min-w-0 break-words text-right font-medium text-foreground">{value}</span>
+        </div>
+    );
+}
+
+export function DetailBlock({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-xl border border-border bg-background/40 p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
+            <div className="mt-2 break-all font-mono text-xs leading-relaxed text-foreground">{value}</div>
         </div>
     );
 }

@@ -1609,8 +1609,55 @@ fn open_data_directory(app: AppHandle) -> Result<String, String> {
     open_path_in_file_manager(&data_dir)
 }
 
-fn diagnostics_cli_requested() -> bool {
-    env::args().any(|arg| arg == "--print-release-diagnostics-json")
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CliCommand {
+    PrintReleaseDiagnosticsJson,
+    ExportSupportBundleJson,
+    ResetRuntimeStateJson,
+}
+
+fn cli_command_from_iter<I>(args: I) -> Option<CliCommand>
+where
+    I: IntoIterator<Item = String>,
+{
+    args.into_iter().find_map(|arg| match arg.as_str() {
+        "--print-release-diagnostics-json" => Some(CliCommand::PrintReleaseDiagnosticsJson),
+        "--export-support-bundle-json" => Some(CliCommand::ExportSupportBundleJson),
+        "--reset-runtime-state-json" => Some(CliCommand::ResetRuntimeStateJson),
+        _ => None,
+    })
+}
+
+fn cli_command_requested() -> Option<CliCommand> {
+    cli_command_from_iter(env::args())
+}
+
+fn print_cli_json<T: Serialize>(payload: &T) -> Result<(), String> {
+    println!(
+        "{}",
+        serde_json::to_string(payload).map_err(|error| format!("Failed to serialize CLI payload: {error}"))?
+    );
+    std::io::stdout()
+        .flush()
+        .map_err(|error| format!("Failed to flush CLI output: {error}"))?;
+    Ok(())
+}
+
+fn handle_cli_command(app: &AppHandle, command: CliCommand) -> Result<(), String> {
+    match command {
+        CliCommand::PrintReleaseDiagnosticsJson => {
+            let diagnostics = load_release_diagnostics_state(app)?;
+            print_cli_json(&diagnostics)
+        }
+        CliCommand::ExportSupportBundleJson => {
+            let bundle = export_support_bundle(app.clone())?;
+            print_cli_json(&bundle)
+        }
+        CliCommand::ResetRuntimeStateJson => {
+            let result = reset_runtime_state_at_paths(&runtime_paths(app)?)?;
+            print_cli_json(&result)
+        }
+    }
 }
 
 fn main() {
@@ -1619,14 +1666,8 @@ fn main() {
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;
             migrate_plaintext_token_to_secure_store(&app.handle())?;
-            if diagnostics_cli_requested() {
-                let diagnostics = load_release_diagnostics_state(&app.handle())?;
-                println!(
-                    "{}",
-                    serde_json::to_string(&diagnostics)
-                        .map_err(|error| format!("Failed to serialize release diagnostics: {error}"))?
-                );
-                let _ = std::io::stdout().flush();
+            if let Some(command) = cli_command_requested() {
+                handle_cli_command(&app.handle(), command)?;
                 std::process::exit(0);
             }
             start_sidecar_process(&app.handle())?;
@@ -1720,6 +1761,23 @@ mod tests {
 
         std::env::remove_var(APPDATA_OVERRIDE_ENV);
         assert_eq!(resolved, Some(override_path));
+    }
+
+    #[test]
+    fn cli_command_parser_recognizes_release_cli_flags() {
+        assert_eq!(
+            cli_command_from_iter(["app.exe".to_string(), "--print-release-diagnostics-json".to_string()]),
+            Some(CliCommand::PrintReleaseDiagnosticsJson)
+        );
+        assert_eq!(
+            cli_command_from_iter(["app.exe".to_string(), "--export-support-bundle-json".to_string()]),
+            Some(CliCommand::ExportSupportBundleJson)
+        );
+        assert_eq!(
+            cli_command_from_iter(["app.exe".to_string(), "--reset-runtime-state-json".to_string()]),
+            Some(CliCommand::ResetRuntimeStateJson)
+        );
+        assert_eq!(cli_command_from_iter(["app.exe".to_string()]), None);
     }
 
     #[test]
