@@ -16,19 +16,10 @@ export const DEFAULT_MESSAGE = 'Hello from your Discord bot!';
 const messageSchema = z.string().trim().min(1, 'Messages cannot be empty').max(2000, 'Discord messages are limited to 2000 characters');
 const messageGroupNameSchema = z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long');
 const messageListSchema = z.array(messageSchema).min(1, 'Each group must contain at least one message');
-const rawMessageGroupsSchema = z.record(z.string(), z.unknown());
-
-const messageGroupsSchema = z.record(
-    messageGroupNameSchema,
-    messageListSchema
-).superRefine((groups, ctx) => {
-    if (Object.keys(groups).length === 0) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'At least one message group is required'
-        });
-    }
-});
+const normalizedMessageGroupsSchema = z.custom<MessageGroups>(
+    (value): value is MessageGroups => value !== null && typeof value === 'object' && !Array.isArray(value),
+    'messageGroups must be an object'
+);
 
 const appChannelSchema = z.object({
     name: z.string().trim().min(1, 'Channel name is required').max(100, 'Channel name is too long'),
@@ -40,7 +31,7 @@ const appChannelSchema = z.object({
 const appConfigBaseSchema = z.object({
     userAgent: z.string().trim().min(1, 'userAgent is required'),
     channels: z.array(appChannelSchema),
-    messageGroups: messageGroupsSchema
+    messageGroups: normalizedMessageGroupsSchema
 });
 
 export const appConfigSchema = appConfigBaseSchema.superRefine((config, ctx) => {
@@ -163,19 +154,18 @@ export function formatZodError(error: z.ZodError): string {
 }
 
 function parseMessageGroups(value: unknown, pathPrefix: Array<string | number>): MessageGroups {
-    const rawGroups = rawMessageGroupsSchema.safeParse(value);
-    if (!rawGroups.success) {
-        throw new z.ZodError(
-            rawGroups.error.issues.map((issue) => ({
-                ...issue,
-                path: [...pathPrefix, ...issue.path]
-            }))
-        );
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        throw new z.ZodError([{
+            code: z.ZodIssueCode.custom,
+            path: pathPrefix,
+            message: 'messageGroups must be an object'
+        }]);
     }
 
     const issues: z.ZodIssue[] = [];
-    const groups: MessageGroups = {};
-    const entries = Object.entries(rawGroups.data);
+    const groups = Object.create(null) as MessageGroups;
+    const seenGroupNames = new Set<string>();
+    const entries = Object.entries(value);
 
     if (entries.length === 0) {
         issues.push({
@@ -196,7 +186,7 @@ function parseMessageGroups(value: unknown, pathPrefix: Array<string | number>):
         }
 
         const normalizedName = parsedName.data;
-        if (normalizedName in groups) {
+        if (seenGroupNames.has(normalizedName)) {
             issues.push({
                 code: z.ZodIssueCode.custom,
                 path: [...pathPrefix, rawName],
@@ -214,6 +204,7 @@ function parseMessageGroups(value: unknown, pathPrefix: Array<string | number>):
             continue;
         }
 
+        seenGroupNames.add(normalizedName);
         groups[normalizedName] = parsedMessages.data;
     }
 

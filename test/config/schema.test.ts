@@ -95,3 +95,19 @@ test('parseRuntimeOptions rejects blank string inputs instead of coercing them t
         marginSeconds: ' '
     }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('is required')));
 });
+
+test('parseAppConfig accepts message group names that overlap with Object prototype properties', () => {
+    const config = parseAppConfig({
+        userAgent: 'UA',
+        channels: [],
+        messageGroups: JSON.parse('{"toString":["Alpha"],"constructor":["Beta"],"__proto__":["Gamma"]}')
+    });
+
+    assert.deepEqual(Object.keys(config.messageGroups).sort(), ['__proto__', 'constructor', 'toString']);
+    assert.equal(Object.prototype.hasOwnProperty.call(config.messageGroups, 'toString'), true);
+    assert.equal(Object.prototype.hasOwnProperty.call(config.messageGroups, 'constructor'), true);
+    assert.equal(Object.prototype.hasOwnProperty.call(config.messageGroups, '__proto__'), true);
+    assert.deepEqual(config.messageGroups.toString, ['Alpha']);
+    assert.deepEqual(config.messageGroups.constructor, ['Beta']);
+    assert.deepEqual(config.messageGroups['__proto__'], ['Gamma']);
+});
