@@ -11,9 +11,11 @@ import type {
     LogLoadResult,
     LogEntry,
     PreflightResult,
+    ReleaseDiagnostics,
     RuntimeOptions,
     SaveConfigResult,
     SaveEnvironmentRequest,
+    SidecarStatus,
     SenderStateRecord,
     SessionSnapshot
 } from '../../../src/desktop/contracts';
@@ -27,8 +29,10 @@ export type {
     LogLoadResult,
     LogEntry,
     PreflightResult,
+    ReleaseDiagnostics,
     RuntimeOptions,
     SaveConfigResult,
+    SidecarStatus,
     SenderStateRecord,
     SessionSnapshot
 } from '../../../src/desktop/contracts';
@@ -98,8 +102,16 @@ export async function saveEnvironment(request: SaveEnvironmentRequest): Promise<
     return desktopInvoke('save_environment', request);
 }
 
+export async function clearSecureToken(): Promise<DesktopSetupState> {
+    return desktopInvoke('clear_secure_token', {});
+}
+
 export async function discardResumeSession(): Promise<SenderStateRecord> {
     return desktopInvoke('discard_resume_session', {});
+}
+
+export async function loadReleaseDiagnostics(): Promise<ReleaseDiagnostics> {
+    return desktopInvoke('load_release_diagnostics', {});
 }
 
 export async function openLogFile(sessionId: string): Promise<string> {

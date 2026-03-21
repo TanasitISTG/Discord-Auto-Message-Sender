@@ -27,6 +27,7 @@ use windows::{
 const RUNTIME_LOG_DIR: &str = "logs";
 const SIDECAR_RESOURCE_DIR: &str = "sidecar";
 const SECURE_TOKEN_FILE: &str = "discord-token.secure";
+const APPDATA_OVERRIDE_ENV: &str = "DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR";
 const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
     "desktop-sidecar.exe"
 } else {
@@ -338,6 +339,28 @@ struct DesktopSetupState {
     warning: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum SidecarStatus {
+    Connecting,
+    Ready,
+    Restarting,
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseDiagnostics {
+    app_version: String,
+    data_dir: String,
+    logs_dir: String,
+    config_path: String,
+    state_path: String,
+    secure_store_path: String,
+    token_storage: String,
+    sidecar_status: SidecarStatus,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct SidecarRequest<T: Serialize> {
     id: String,
@@ -373,6 +396,8 @@ struct ManagedSidecar {
     child: Option<Child>,
     stdin: Option<ChildStdin>,
     session_state: Option<SessionSnapshot>,
+    status: SidecarStatus,
+    last_error: Option<String>,
     pending: HashMap<String, Sender<PendingResponse>>,
 }
 
@@ -382,6 +407,8 @@ impl ManagedSidecar {
             child: None,
             stdin: None,
             session_state: None,
+            status: SidecarStatus::Connecting,
+            last_error: None,
             pending: HashMap::new(),
         }
     }
@@ -415,10 +442,13 @@ fn project_root() -> PathBuf {
 }
 
 fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?;
+    let data_dir = match env::var_os(APPDATA_OVERRIDE_ENV) {
+        Some(path) if !path.is_empty() => PathBuf::from(path),
+        _ => app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("Failed to resolve app data directory: {error}"))?,
+    };
     let logs_dir = data_dir.join(RUNTIME_LOG_DIR);
 
     fs::create_dir_all(&logs_dir)
@@ -478,6 +508,25 @@ fn scrub_discord_token_from_env_file(path: &Path) -> Result<(), String> {
 
     let contents = fs::read_to_string(path)
         .map_err(|error| format!("Failed to read '{}': {error}", path.display()))?;
+    let Some(next_contents) = scrub_discord_token_from_env_contents(&contents) else {
+        if contents.lines().count() == 0 {
+            return Ok(());
+        }
+
+        fs::remove_file(path)
+            .map_err(|error| format!("Failed to remove '{}' after token migration: {error}", path.display()))?;
+        return Ok(());
+    };
+
+    if next_contents == contents {
+        return Ok(());
+    }
+
+    fs::write(path, next_contents)
+        .map_err(|error| format!("Failed to update '{}' after token migration: {error}", path.display()))
+}
+
+fn scrub_discord_token_from_env_contents(contents: &str) -> Option<String> {
     let next_lines = contents
         .lines()
         .filter(|line| {
@@ -486,18 +535,21 @@ fn scrub_discord_token_from_env_file(path: &Path) -> Result<(), String> {
         })
         .collect::<Vec<_>>();
 
-    if next_lines.len() == contents.lines().count() {
-        return Ok(());
-    }
-
     if next_lines.is_empty() {
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove '{}' after token migration: {error}", path.display()))?;
-        return Ok(());
+        return None;
     }
 
-    fs::write(path, format!("{}\n", next_lines.join("\n")))
-        .map_err(|error| format!("Failed to update '{}' after token migration: {error}", path.display()))
+    Some(format!("{}\n", next_lines.join("\n")))
+}
+
+fn token_storage_mode(secure_present: bool, environment_present: bool) -> &'static str {
+    if secure_present {
+        "secure"
+    } else if environment_present {
+        "environment"
+    } else {
+        "missing"
+    }
 }
 
 fn process_environment_token() -> Option<String> {
@@ -593,6 +645,16 @@ fn write_secure_token(paths: &RuntimePaths, token: &str) -> Result<(), String> {
         .map_err(|error| format!("Failed to write the secure Discord token store: {error}"))
 }
 
+fn clear_secure_token_files(paths: &RuntimePaths) -> Result<(), String> {
+    let secure_path = secure_token_path(paths);
+    if secure_path.exists() {
+        fs::remove_file(&secure_path)
+            .map_err(|error| format!("Failed to remove '{}': {error}", secure_path.display()))?;
+    }
+
+    scrub_discord_token_from_env_file(&environment_path(paths))
+}
+
 fn resolve_effective_token(app: &AppHandle) -> Result<Option<String>, String> {
     let paths = runtime_paths(app)?;
     if let Some(token) = read_secure_token(&paths)? {
@@ -606,8 +668,11 @@ fn resolve_effective_token(app: &AppHandle) -> Result<Option<String>, String> {
     Ok(process_environment_token())
 }
 
-fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupState, String> {
-    let paths = runtime_paths(app)?;
+fn read_desktop_setup_state(paths: &RuntimePaths) -> Result<DesktopSetupState, String> {
+    read_desktop_setup_state_with_process_token(paths, process_environment_token())
+}
+
+fn read_desktop_setup_state_with_process_token(paths: &RuntimePaths, process_token: Option<String>) -> Result<DesktopSetupState, String> {
     let secure_store_path = secure_token_path(&paths);
     let env_path = environment_path(&paths);
 
@@ -616,15 +681,10 @@ fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupState, String
         Err(error) => (None, Some(error)),
     };
     let environment_token = read_plaintext_token_from_env_file(&env_path)?
-        .or_else(process_environment_token);
+        .or(process_token);
 
-    let (token_present, token_storage) = if secure_token.is_some() {
-        (true, "secure")
-    } else if environment_token.is_some() {
-        (true, "environment")
-    } else {
-        (false, "missing")
-    };
+    let token_present = secure_token.is_some() || environment_token.is_some();
+    let token_storage = token_storage_mode(secure_token.is_some(), environment_token.is_some());
 
     Ok(DesktopSetupState {
         token_present,
@@ -639,13 +699,58 @@ fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupState, String
     })
 }
 
+fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupState, String> {
+    let paths = runtime_paths(app)?;
+    read_desktop_setup_state(&paths)
+}
+
 fn save_secure_environment(app: &AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
     let normalized_token = normalize_token(request.discord_token)
         .ok_or_else(|| "DISCORD_TOKEN cannot be empty.".to_string())?;
     let paths = runtime_paths(app)?;
     write_secure_token(&paths, &normalized_token)?;
     scrub_discord_token_from_env_file(&environment_path(&paths))?;
-    load_desktop_setup_state(app)
+    read_desktop_setup_state(&paths)
+}
+
+fn clear_secure_environment(app: &AppHandle) -> Result<DesktopSetupState, String> {
+    let paths = runtime_paths(app)?;
+    clear_secure_token_files(&paths)?;
+    read_desktop_setup_state(&paths)
+}
+
+fn sidecar_status_value(app: &AppHandle) -> Result<SidecarStatus, String> {
+    let state = app.state::<AppRuntime>();
+    let sidecar = state
+        .sidecar
+        .lock()
+        .map_err(|_| "Failed to lock desktop sidecar.".to_string())?;
+    Ok(sidecar.status.clone())
+}
+
+fn build_release_diagnostics(paths: &RuntimePaths, app_version: &str, token_storage: &str, sidecar_status: SidecarStatus) -> ReleaseDiagnostics {
+    ReleaseDiagnostics {
+        app_version: app_version.to_string(),
+        data_dir: paths.data_dir.to_string_lossy().to_string(),
+        logs_dir: paths.logs_dir.to_string_lossy().to_string(),
+        config_path: paths.data_dir.join("config.json").to_string_lossy().to_string(),
+        state_path: paths.data_dir.join(".sender-state.json").to_string_lossy().to_string(),
+        secure_store_path: secure_token_path(paths).to_string_lossy().to_string(),
+        token_storage: token_storage.to_string(),
+        sidecar_status,
+    }
+}
+
+fn load_release_diagnostics_state(app: &AppHandle) -> Result<ReleaseDiagnostics, String> {
+    let paths = runtime_paths(app)?;
+    let setup_state = read_desktop_setup_state(&paths)?;
+    let sidecar_status = sidecar_status_value(app)?;
+    Ok(build_release_diagnostics(
+        &paths,
+        &app.package_info().version.to_string(),
+        &setup_state.token_storage,
+        sidecar_status,
+    ))
 }
 
 fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
@@ -734,6 +839,10 @@ fn migrate_legacy_runtime_data(app: &AppHandle) -> Result<(), String> {
 
 fn migrate_plaintext_token_to_secure_store(app: &AppHandle) -> Result<(), String> {
     let paths = runtime_paths(app)?;
+    migrate_plaintext_token_to_secure_store_at_paths(&paths, &legacy_runtime_roots())
+}
+
+fn migrate_plaintext_token_to_secure_store_at_paths(paths: &RuntimePaths, legacy_roots: &[PathBuf]) -> Result<(), String> {
     let data_env_path = environment_path(&paths);
     let secure_token = read_secure_token(&paths).ok().flatten();
 
@@ -741,7 +850,7 @@ fn migrate_plaintext_token_to_secure_store(app: &AppHandle) -> Result<(), String
         if let Some(token) = read_plaintext_token_from_env_file(&data_env_path)? {
             write_secure_token(&paths, &token)?;
         } else {
-            for legacy_root in legacy_runtime_roots() {
+            for legacy_root in legacy_roots {
                 let legacy_env_path = legacy_root.join(".env");
                 if let Some(token) = read_plaintext_token_from_env_file(&legacy_env_path)? {
                     write_secure_token(&paths, &token)?;
@@ -785,10 +894,16 @@ fn take_pending(sidecar: &mut ManagedSidecar, id: &str) -> Option<Sender<Pending
     sidecar.pending.remove(id)
 }
 
-fn clear_sidecar(sidecar: &mut ManagedSidecar, error: &str) {
+fn mark_sidecar_status(sidecar: &mut ManagedSidecar, status: SidecarStatus, message: Option<String>) {
+    sidecar.status = status;
+    sidecar.last_error = message;
+}
+
+fn clear_sidecar(sidecar: &mut ManagedSidecar, error: &str, status: SidecarStatus) {
     sidecar.child = None;
     sidecar.stdin = None;
     sidecar.session_state = None;
+    mark_sidecar_status(sidecar, status, Some(error.to_string()));
     for (_, responder) in sidecar.pending.drain() {
         let _ = responder.send(PendingResponse {
             ok: false,
@@ -851,6 +966,9 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                         let state = app.state::<AppRuntime>();
                         if let Ok(mut sidecar) = state.sidecar.lock() {
                             update_cached_session_state(&mut sidecar, &event.event);
+                            if event.event.get("type").and_then(Value::as_str) == Some("sidecar_ready") {
+                                mark_sidecar_status(&mut sidecar, SidecarStatus::Ready, None);
+                            }
                         };
                     }
                     let _ = app.emit("app-event", event.event);
@@ -858,10 +976,21 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                 }
             }
 
+            {
+                let state = app.state::<AppRuntime>();
+                if let Ok(mut sidecar) = state.sidecar.lock() {
+                    mark_sidecar_status(
+                        &mut sidecar,
+                        SidecarStatus::Failed,
+                        Some(format!("Desktop sidecar produced an invalid message: {trimmed}")),
+                    );
+                };
+            }
             let _ = app.emit(
                 "app-event",
                 json!({
                     "type": "sidecar_error",
+                    "status": "failed",
                     "message": format!("Desktop sidecar produced an invalid message: {trimmed}")
                 }),
             );
@@ -878,10 +1007,17 @@ fn attach_stderr_reader(app: AppHandle, reader: ChildStderr) {
                 continue;
             }
 
+            {
+                let state = app.state::<AppRuntime>();
+                if let Ok(mut sidecar) = state.sidecar.lock() {
+                    mark_sidecar_status(&mut sidecar, SidecarStatus::Failed, Some(trimmed.clone()));
+                };
+            }
             let _ = app.emit(
                 "app-event",
                 json!({
                     "type": "sidecar_error",
+                    "status": "failed",
                     "message": trimmed
                 }),
             );
@@ -901,9 +1037,13 @@ fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
             match child.try_wait() {
                 Ok(None) => return Ok(()),
                 Ok(Some(_)) | Err(_) => {
-                    clear_sidecar(&mut sidecar, "Desktop sidecar stopped.");
+                    clear_sidecar(&mut sidecar, "Desktop sidecar stopped.", SidecarStatus::Restarting);
                 }
             }
+        }
+
+        if sidecar.status != SidecarStatus::Restarting {
+            mark_sidecar_status(&mut sidecar, SidecarStatus::Connecting, None);
         }
     }
 
@@ -927,7 +1067,16 @@ fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("Failed to start desktop sidecar: {error}"))?;
+        .map_err(|error| {
+            if let Ok(mut sidecar) = app.state::<AppRuntime>().sidecar.lock() {
+                mark_sidecar_status(
+                    &mut sidecar,
+                    SidecarStatus::Failed,
+                    Some(format!("Failed to start desktop sidecar: {error}")),
+                );
+            }
+            format!("Failed to start desktop sidecar: {error}")
+        })?;
 
     let stdin = child
         .stdin
@@ -950,6 +1099,9 @@ fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
             .map_err(|_| "Failed to lock desktop sidecar.".to_string())?;
         sidecar.stdin = Some(stdin);
         sidecar.child = Some(child);
+        if sidecar.status != SidecarStatus::Restarting {
+            mark_sidecar_status(&mut sidecar, SidecarStatus::Connecting, None);
+        }
     }
 
     attach_stdout_reader(app.clone(), stdout);
@@ -971,12 +1123,12 @@ fn start_sidecar_watcher(app: AppHandle) {
             match sidecar.child.as_mut() {
                 Some(child) => match child.try_wait() {
                     Ok(Some(_status)) => {
-                        clear_sidecar(&mut sidecar, "Desktop sidecar stopped unexpectedly.");
+                        clear_sidecar(&mut sidecar, "Desktop sidecar stopped unexpectedly.", SidecarStatus::Restarting);
                         true
                     }
                     Ok(None) => false,
                     Err(_) => {
-                        clear_sidecar(&mut sidecar, "Desktop sidecar status could not be read.");
+                        clear_sidecar(&mut sidecar, "Desktop sidecar status could not be read.", SidecarStatus::Restarting);
                         true
                     }
                 },
@@ -989,10 +1141,23 @@ fn start_sidecar_watcher(app: AppHandle) {
                 "app-event",
                 json!({
                     "type": "sidecar_error",
+                    "status": "restarting",
                     "message": "Desktop runtime restarted after an unexpected sidecar exit."
                 }),
             );
-            let _ = start_sidecar_process(&app);
+            if let Err(error) = start_sidecar_process(&app) {
+                if let Ok(mut sidecar) = app.state::<AppRuntime>().sidecar.lock() {
+                    mark_sidecar_status(&mut sidecar, SidecarStatus::Failed, Some(error.clone()));
+                }
+                let _ = app.emit(
+                    "app-event",
+                    json!({
+                        "type": "sidecar_error",
+                        "status": "failed",
+                        "message": error
+                    }),
+                );
+            }
         }
     });
 }
@@ -1139,8 +1304,18 @@ fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<D
 }
 
 #[tauri::command]
+fn clear_secure_token(app: AppHandle) -> Result<DesktopSetupState, String> {
+    clear_secure_environment(&app)
+}
+
+#[tauri::command]
 fn discard_resume_session(app: AppHandle) -> Result<SenderStateRecord, String> {
     send_sidecar_request(&app, "discard_resume_session", json!({}))
+}
+
+#[tauri::command]
+fn load_release_diagnostics(app: AppHandle) -> Result<ReleaseDiagnostics, String> {
+    load_release_diagnostics_state(&app)
 }
 
 #[tauri::command]
@@ -1191,12 +1366,26 @@ fn open_data_directory(app: AppHandle) -> Result<String, String> {
     Ok(data_dir.to_string_lossy().to_string())
 }
 
+fn diagnostics_cli_requested() -> bool {
+    env::args().any(|arg| arg == "--print-release-diagnostics-json")
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppRuntime::new())
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;
             migrate_plaintext_token_to_secure_store(&app.handle())?;
+            if diagnostics_cli_requested() {
+                let diagnostics = load_release_diagnostics_state(&app.handle())?;
+                println!(
+                    "{}",
+                    serde_json::to_string(&diagnostics)
+                        .map_err(|error| format!("Failed to serialize release diagnostics: {error}"))?
+                );
+                let _ = std::io::stdout().flush();
+                std::process::exit(0);
+            }
             start_sidecar_process(&app.handle())?;
             start_sidecar_watcher(app.handle().clone());
             Ok(())
@@ -1233,10 +1422,90 @@ fn main() {
             load_state,
             load_setup_state,
             save_environment,
+            clear_secure_token,
             discard_resume_session,
+            load_release_diagnostics,
             open_log_file,
             open_data_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_runtime_paths(prefix: &str) -> RuntimePaths {
+        let root = std::env::temp_dir().join(format!("{prefix}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let data_dir = root.join("data");
+        let logs_dir = data_dir.join(RUNTIME_LOG_DIR);
+        fs::create_dir_all(&logs_dir).expect("create logs dir");
+        RuntimePaths { data_dir, logs_dir }
+    }
+
+    #[test]
+    fn scrub_discord_token_from_env_contents_removes_only_token_lines() {
+        let contents = "FOO=1\nDISCORD_TOKEN=test-token\nBAR=2\n";
+        let scrubbed = scrub_discord_token_from_env_contents(contents).expect("scrubbed contents");
+        assert_eq!(scrubbed, "FOO=1\nBAR=2\n");
+    }
+
+    #[test]
+    fn build_release_diagnostics_reports_runtime_paths() {
+        let paths = temp_runtime_paths("discord-release-diagnostics");
+        let diagnostics = build_release_diagnostics(&paths, "1.2.3", "secure", SidecarStatus::Ready);
+
+        assert_eq!(diagnostics.app_version, "1.2.3");
+        assert_eq!(diagnostics.token_storage, "secure");
+        assert_eq!(diagnostics.sidecar_status, SidecarStatus::Ready);
+        assert!(diagnostics.data_dir.ends_with("data"));
+        assert!(diagnostics.secure_store_path.ends_with(SECURE_TOKEN_FILE));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn clear_secure_token_files_removes_secure_store_and_scrubs_env() {
+        let paths = temp_runtime_paths("discord-clear-token");
+        write_secure_token(&paths, "secret-token").expect("write secure token");
+        fs::write(environment_path(&paths), "DISCORD_TOKEN=secret-token\nOTHER_FLAG=1\n").expect("write env");
+
+        clear_secure_token_files(&paths).expect("clear secure token files");
+
+        assert!(!secure_token_path(&paths).exists());
+        let env_contents = fs::read_to_string(environment_path(&paths)).expect("read scrubbed env");
+        assert_eq!(env_contents, "OTHER_FLAG=1\n");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn migrate_plaintext_token_to_secure_store_copies_from_legacy_root_once() {
+        let paths = temp_runtime_paths("discord-token-migrate");
+        let legacy_root = paths.data_dir.parent().expect("runtime parent").join("legacy");
+        fs::create_dir_all(&legacy_root).expect("create legacy root");
+        fs::write(legacy_root.join(".env"), "DISCORD_TOKEN=legacy-token\n").expect("write legacy env");
+
+        migrate_plaintext_token_to_secure_store_at_paths(&paths, &[legacy_root]).expect("migrate token");
+
+        assert!(secure_token_path(&paths).exists());
+        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup state");
+        assert_eq!(setup.token_storage, "secure");
+        assert_eq!(setup.token_present, true);
+        assert!(!environment_path(&paths).exists());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn read_desktop_setup_state_surfaces_warning_for_corrupted_secure_store() {
+        let paths = temp_runtime_paths("discord-token-warning");
+        fs::write(secure_token_path(&paths), [0_u8, 1, 2, 3]).expect("write corrupted secure token");
+
+        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup state");
+
+        assert_eq!(setup.token_present, false);
+        assert_eq!(setup.token_storage, "missing");
+        assert!(setup.warning.is_some());
+    }
 }

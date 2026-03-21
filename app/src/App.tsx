@@ -9,6 +9,20 @@ import { PreviewScreen } from '@/features/preview/preview-screen';
 import { SessionScreen } from '@/features/session/session-screen';
 import { navigation, Screen } from '@/shared/screens';
 import { toneFromStatus, useDesktopController } from '@/shared/use-desktop-controller';
+import { describeBlockingIssue } from '@/shared/readiness';
+
+function toneFromSidecarStatus(status: ReturnType<typeof useDesktopController>['sidecarStatus']) {
+    switch (status) {
+        case 'ready':
+            return 'success';
+        case 'restarting':
+            return 'warning';
+        case 'failed':
+            return 'danger';
+        default:
+            return 'neutral';
+    }
+}
 
 export default function App() {
     const [screen, setScreen] = useState<Screen>('dashboard');
@@ -55,6 +69,13 @@ export default function App() {
                     <div>
                         <div className="mb-2 flex items-center gap-3">
                             <Badge tone={toneFromStatus(controller.session?.status)}>{controller.session?.status ?? 'idle'}</Badge>
+                            <Badge tone={toneFromSidecarStatus(controller.sidecarStatus)}>runtime {controller.sidecarStatus}</Badge>
+                            <Badge tone={controller.appReadiness.token.status === 'missing' ? 'danger' : controller.appReadiness.token.status === 'warning' ? 'warning' : 'success'}>
+                                token {controller.appReadiness.token.status}
+                            </Badge>
+                            <Badge tone={controller.appReadiness.config.status === 'invalid' || controller.appReadiness.config.status === 'missing' ? 'warning' : 'success'}>
+                                config {controller.appReadiness.config.status}
+                            </Badge>
                             {controller.session?.id ? <span className="font-mono text-xs text-muted-foreground">{controller.session.id}</span> : null}
                             {controller.draft.validationErrors.length > 0 ? <Badge tone="warning">{controller.draft.validationErrors.length} validation issue{controller.draft.validationErrors.length === 1 ? '' : 's'}</Badge> : null}
                         </div>
@@ -89,10 +110,13 @@ export default function App() {
                                 {controller.session?.status === 'stopping' ? 'Stopping...' : 'Stop Session'}
                             </Button>
                         ) : (
-                            <Button onClick={async () => {
+                            <Button
+                                disabled={!controller.appReadiness.canStartSession}
+                                onClick={async () => {
                                 await controller.startSessionCommand();
                                 setScreen('session');
-                            }}>
+                            }}
+                            >
                                 <Play className="mr-2 h-4 w-4" />
                                 {controller.senderState.resumeSession ? 'Resume Session' : 'Start Session'}
                             </Button>
@@ -100,12 +124,26 @@ export default function App() {
                     </div>
                 </div>
 
+                {controller.appReadiness.blockingIssues.length > 0 || controller.sidecarMessage ? (
+                    <div className="mb-6 rounded-2xl border border-border bg-background/40 p-4 text-sm">
+                        <div className="mb-2 font-medium">Desktop Readiness</div>
+                        <div className="space-y-2 text-muted-foreground">
+                            {controller.appReadiness.blockingIssues.map((issue) => (
+                                <div key={issue}>{describeBlockingIssue(issue)}</div>
+                            ))}
+                            {controller.sidecarMessage ? <div>{controller.sidecarMessage}</div> : null}
+                        </div>
+                    </div>
+                ) : null}
+
                 {screen === 'dashboard' ? (
                     <DashboardScreen
                         groupedMetrics={controller.groupedMetrics}
                         latestSummary={controller.latestSummary}
                         senderState={controller.senderState}
                         hasActiveSession={controller.hasActiveSession}
+                        appReadiness={controller.appReadiness}
+                        runtimeMessage={controller.sidecarMessage}
                         onOpenConfig={() => setScreen('config')}
                         onRunDryRun={async () => {
                             await controller.runDryRunCommand();
@@ -138,6 +176,9 @@ export default function App() {
                         onEnvironmentDraftChange={controller.setEnvironmentDraft}
                         onSaveEnvironment={async () => {
                             await controller.saveEnvironmentDraft();
+                        }}
+                        onClearSecureToken={async () => {
+                            await controller.clearSecureToken();
                         }}
                         onOpenDataDirectory={async () => {
                             await controller.openDesktopDataDirectory();
@@ -172,8 +213,13 @@ export default function App() {
                         hasActiveSession={controller.hasActiveSession}
                         senderState={controller.senderState}
                         preflight={controller.preflight}
+                        appReadiness={controller.appReadiness}
+                        runtimeMessage={controller.sidecarMessage}
                         onStart={async () => {
                             await controller.startSessionCommand();
+                        }}
+                        onRunPreflight={async () => {
+                            await controller.runPreflightCommand();
                         }}
                         onPauseResume={async () => {
                             await controller.togglePauseResume();
@@ -184,6 +230,7 @@ export default function App() {
                         onDiscardCheckpoint={async () => {
                             await controller.discardResumeCheckpoint();
                         }}
+                        onOpenConfig={() => setScreen('config')}
                     />
                 ) : null}
 

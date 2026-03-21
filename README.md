@@ -34,7 +34,8 @@ bun install
 2. Optional: copy `config.example.json` to `config.json` if you want a starting template.
 3. Launch the desktop app.
 4. Open `Config -> Desktop Setup` and use `Save Token Securely` to store `DISCORD_TOKEN` for the local Windows user profile.
-5. Build or edit the config in the GUI.
+5. Use `Remove Token` from the same screen if you need to revoke the stored token for future runs.
+6. Build or edit the config in the GUI.
 
 The app stores runtime data in the OS app-data directory. On Windows that is typically `%AppData%\\com.local.discord-auto-message-sender`. Older repo-root files are migrated there automatically on first launch if the app-data copy does not exist yet, and legacy plaintext tokens are moved into the secure store.
 
@@ -60,6 +61,8 @@ Desktop runtime architecture:
 4. Start a session from the header or the Session screen.
 5. Use `Pause`, `Resume`, or `Stop` from the Session screen while the run is active.
 6. Review `Logs` and the dashboard summary after the run finishes.
+
+The app blocks `Start Session` when the token is missing, the saved config is missing or invalid, or the desktop runtime is reconnecting after a crash. `Preflight` stays available in those states so the UI can still explain what is wrong.
 
 ## Configuration
 
@@ -123,14 +126,24 @@ The desktop runtime keeps everything local to the OS app-data directory:
 | `logs/<session-id>.jsonl` | Structured per-session logs used by the Logs screen and export/open actions. |
 | `messages.json` | Legacy import-only compatibility file for older configs. |
 
+The packaged app can report these paths directly through a typed release diagnostics command. The packaged executable also supports:
+
+```bash
+discord-auto-message-sender.exe --print-release-diagnostics-json
+```
+
+That prints JSON with the current app version, app-data paths, token storage mode, and current sidecar status.
+
 ## Recovery And Reset
 
 - If a run is interrupted safely enough to resume, the dashboard and Session screen show `Resume Session` and `Discard Checkpoint`.
+- If the desktop runtime restarts or fails, the dashboard, Session screen, and app shell show a persistent runtime status banner instead of hiding the interruption.
 - If `.sender-state.json` is corrupted, the app logs a warning and starts from a fresh local state.
 - To fully reset local runtime state, stop the app and remove `.sender-state.json` plus any old files in `logs/`.
 - Removing `.sender-state.json` does not delete `config.json` or the secure token store.
 - If you previously used the repo-root desktop build, the app copies `.env`, `config.json`, `messages.json`, `.sender-state.json`, and missing log files into the app-data directory on startup.
 - After migration, the packaged app removes plaintext `DISCORD_TOKEN` values from the app-data `.env`.
+- Removing the token from `Config -> Desktop Setup` deletes `discord-token.secure` and scrubs `DISCORD_TOKEN` from the app-data `.env`. It does not terminate a session that is already running.
 
 ## Troubleshooting
 
@@ -169,18 +182,28 @@ Current packaging target:
 
 The packaged executable and installer artifacts are written under `src-tauri/target/release/`.
 
+For a non-mutating packaged smoke pass:
+
+```bash
+bun run smoke:desktop
+```
+
+That launches the packaged `.exe` with an isolated `%APPDATA%` root, checks the diagnostics JSON, verifies runtime directory creation, and confirms the app stays alive long enough to be considered booted.
+
 ## Suggested Smoke Test
 
 After a release build, verify this flow in the packaged desktop app:
 
 1. Launch the app.
-2. Load or create config in the GUI.
-3. Save config.
-4. Run dry run.
-5. Run preflight.
-6. Start a session, then pause, resume, and stop.
-7. Restart the app and verify resume/discard checkpoint behavior.
-8. Open the log file from the Logs screen.
+2. Save a token securely from `Config -> Desktop Setup`.
+3. Run preflight and confirm it sees the token immediately.
+4. Load or create config in the GUI.
+5. Save config.
+6. Run dry run.
+7. Start a session, then pause, resume, and stop.
+8. Restart the app and verify resume/discard checkpoint behavior.
+9. Remove the token and confirm preflight now reports the missing-token setup state.
+10. Open the data folder and a log file from the Logs screen.
 
 ## License
 

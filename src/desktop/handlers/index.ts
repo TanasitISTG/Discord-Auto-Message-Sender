@@ -14,7 +14,12 @@ export function createDesktopHandlers() {
     const handlers: {
         [K in Exclude<
             DesktopCommandName,
-            'open_log_file' | 'open_data_directory' | 'load_setup_state' | 'save_environment'
+            | 'open_log_file'
+            | 'open_data_directory'
+            | 'load_setup_state'
+            | 'save_environment'
+            | 'clear_secure_token'
+            | 'load_release_diagnostics'
         >]: Handler<K>
     } = {
         load_config: handleLoadConfig,

@@ -68,7 +68,12 @@ async function main() {
 
             const handler = handlers[request.command as Exclude<
                 DesktopCommandName,
-                'open_log_file' | 'open_data_directory' | 'load_setup_state' | 'save_environment'
+                | 'open_log_file'
+                | 'open_data_directory'
+                | 'load_setup_state'
+                | 'save_environment'
+                | 'clear_secure_token'
+                | 'load_release_diagnostics'
             >] as (
                 runtime: DesktopRuntime,
                 payload: unknown
@@ -94,6 +99,7 @@ async function main() {
 main().catch((error) => {
     emitEvent({
         type: 'sidecar_error',
+        status: 'failed',
         message: error instanceof Error ? error.message : String(error)
     });
     process.exitCode = 1;

@@ -10,6 +10,7 @@
     "dev": "vite --config vite.config.mts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "smoke:desktop": "bun run ./scripts/smoke-packaged-app.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json",
     "test:core": "node scripts/run-tests.js",
     "test:ui": "vitest run --config vitest.config.mts",

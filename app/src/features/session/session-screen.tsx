@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { PreflightResult, RuntimeOptions, SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
 import { NumberField, StateRow } from '@/shared/components';
+import type { AppReadiness } from '@/shared/readiness';
+import { describeBlockingIssue } from '@/shared/readiness';
 
 interface SessionScreenProps {
     runtime: RuntimeOptions;
@@ -12,13 +14,32 @@ interface SessionScreenProps {
     hasActiveSession: boolean;
     senderState: SenderStateRecord;
     preflight: PreflightResult | null;
+    appReadiness: AppReadiness;
+    runtimeMessage?: string | null;
     onStart(): void | Promise<void>;
+    onRunPreflight(): void | Promise<void>;
     onPauseResume(): void | Promise<void>;
     onStop(): void | Promise<void>;
     onDiscardCheckpoint(): void | Promise<void>;
+    onOpenConfig(): void;
 }
 
-export function SessionScreen({ runtime, setRuntime, session, hasActiveSession, senderState, preflight, onStart, onPauseResume, onStop, onDiscardCheckpoint }: SessionScreenProps) {
+export function SessionScreen({
+    runtime,
+    setRuntime,
+    session,
+    hasActiveSession,
+    senderState,
+    preflight,
+    appReadiness,
+    runtimeMessage,
+    onStart,
+    onRunPreflight,
+    onPauseResume,
+    onStop,
+    onDiscardCheckpoint,
+    onOpenConfig
+}: SessionScreenProps) {
     const healthEntries = Object.values(session?.channelHealth ?? senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const resumeSession = senderState.resumeSession;
 
@@ -37,18 +58,41 @@ export function SessionScreen({ runtime, setRuntime, session, hasActiveSession, 
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-                        <Button onClick={onStart} disabled={hasActiveSession}>
+                        <Button onClick={onStart} disabled={hasActiveSession || !appReadiness.canStartSession}>
                             <Play className="mr-2 h-4 w-4" />
                             {resumeSession && !session ? 'Resume' : 'Start'}
                         </Button>
-                        <Button variant="secondary" onClick={onPauseResume} disabled={!session || !['running', 'paused'].includes(session.status)}>
+                        <Button variant="secondary" onClick={onRunPreflight}>
+                            Run Preflight
+                        </Button>
+                        <Button variant="secondary" onClick={onPauseResume} disabled={appReadiness.sidecar !== 'ready' || !session || !['running', 'paused'].includes(session.status)}>
                             {session?.status === 'paused' ? 'Resume' : 'Pause'}
                         </Button>
-                        <Button variant="danger" onClick={onStop} disabled={!session || ['completed', 'failed', 'stopping'].includes(session.status)}>
+                        <Button variant="danger" onClick={onStop} disabled={appReadiness.sidecar !== 'ready' || !session || ['completed', 'failed', 'stopping'].includes(session.status)}>
                             <Square className="mr-2 h-4 w-4" />
                             {session?.status === 'stopping' ? 'Stopping...' : 'Stop'}
                         </Button>
                     </div>
+
+                    {appReadiness.blockingIssues.length > 0 || runtimeMessage ? (
+                        <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                            {appReadiness.blockingIssues.map((issue) => (
+                                <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-amber-100">
+                                    <div>{describeBlockingIssue(issue)}</div>
+                                    {(issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid') ? (
+                                        <Button size="sm" className="mt-3" onClick={onOpenConfig}>
+                                            Open Config
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            ))}
+                            {runtimeMessage ? (
+                                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-100">
+                                    {runtimeMessage}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
 
                     {preflight ? (
                         <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4">
@@ -94,7 +138,7 @@ export function SessionScreen({ runtime, setRuntime, session, hasActiveSession, 
                                 Start will continue with {resumeSession.runtime.numMessages === 0 ? 'infinite' : resumeSession.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
                             </div>
                             <div className="mt-4 flex flex-wrap gap-3">
-                                <Button size="sm" onClick={onStart}>
+                                <Button size="sm" onClick={onStart} disabled={!appReadiness.canStartSession}>
                                     <Play className="mr-2 h-4 w-4" />
                                     Resume Session
                                 </Button>

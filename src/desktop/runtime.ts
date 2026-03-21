@@ -182,6 +182,7 @@ export class DesktopRuntime {
             .catch((error) => {
                 this.publish({
                     type: 'sidecar_error',
+                    status: 'failed',
                     message: error instanceof Error ? error.message : String(error)
                 });
                 throw error;

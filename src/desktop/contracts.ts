@@ -31,9 +31,11 @@ export type LogLoadResult = {
     entries: LogEntry[];
 };
 export type StateLoadResult = SenderStateRecord;
+export type TokenStorageMode = 'secure' | 'environment' | 'missing';
+export type SidecarStatus = 'connecting' | 'ready' | 'restarting' | 'failed';
 export interface DesktopSetupState {
     tokenPresent: boolean;
-    tokenStorage: 'secure' | 'environment' | 'missing';
+    tokenStorage: TokenStorageMode;
     dataDir: string;
     secureStorePath: string;
     envPath: string;
@@ -41,6 +43,16 @@ export interface DesktopSetupState {
     statePath: string;
     logsDir: string;
     warning?: string;
+}
+export interface ReleaseDiagnostics {
+    appVersion: string;
+    dataDir: string;
+    logsDir: string;
+    configPath: string;
+    statePath: string;
+    secureStorePath: string;
+    tokenStorage: TokenStorageMode;
+    sidecarStatus: SidecarStatus;
 }
 
 export interface EmptyRequest {}
@@ -131,9 +143,17 @@ export interface DesktopCommandMap {
         request: SaveEnvironmentRequest;
         response: DesktopSetupState;
     };
+    clear_secure_token: {
+        request: EmptyRequest;
+        response: DesktopSetupState;
+    };
     discard_resume_session: {
         request: EmptyRequest;
         response: StateLoadResult;
+    };
+    load_release_diagnostics: {
+        request: EmptyRequest;
+        response: ReleaseDiagnostics;
     };
     open_log_file: {
         request: OpenLogFileRequest;
@@ -150,7 +170,7 @@ export type DesktopCommandName = keyof DesktopCommandMap;
 export type DesktopEvent =
     | AppEvent
     | { type: 'close_blocked'; message: string; state: SessionSnapshot | null }
-    | { type: 'sidecar_error'; message: string }
+    | { type: 'sidecar_error'; message: string; status: Extract<SidecarStatus, 'restarting' | 'failed'> }
     | { type: 'sidecar_ready' };
 
 export interface DesktopRpcRequest<K extends DesktopCommandName = DesktopCommandName> {

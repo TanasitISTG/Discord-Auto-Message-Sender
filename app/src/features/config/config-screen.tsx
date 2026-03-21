@@ -15,6 +15,7 @@ interface ConfigScreenProps {
     runtime: RuntimeOptions;
     onEnvironmentDraftChange(nextValue: string): void;
     onSaveEnvironment(): void | Promise<void>;
+    onClearSecureToken(): void | Promise<void>;
     onOpenDataDirectory(): void | Promise<void>;
     onSaveConfig(): void | Promise<void>;
     onPreviewDryRun(): void | Promise<void>;
@@ -27,6 +28,7 @@ export function ConfigScreen({
     runtime,
     onEnvironmentDraftChange,
     onSaveEnvironment,
+    onClearSecureToken,
     onOpenDataDirectory,
     onSaveConfig,
     onPreviewDryRun
@@ -70,6 +72,12 @@ export function ConfigScreen({
                                     <Save className="mr-2 h-4 w-4" />
                                     Save Token Securely
                                 </Button>
+                                {setup?.tokenPresent ? (
+                                    <Button variant="secondary" onClick={onClearSecureToken}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Remove Token
+                                    </Button>
+                                ) : null}
                                 <Button variant="secondary" onClick={onOpenDataDirectory}>
                                     <FolderOpen className="mr-2 h-4 w-4" />
                                     Open Data Folder

@@ -2,6 +2,8 @@ import { ActionTile, MetricCard, StateRow } from '@/shared/components';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
+import type { AppReadiness } from '@/shared/readiness';
+import { describeBlockingIssue } from '@/shared/readiness';
 
 interface DashboardScreenProps {
     groupedMetrics: {
@@ -12,6 +14,8 @@ interface DashboardScreenProps {
     latestSummary: SessionSnapshot['summary'] | undefined;
     senderState: SenderStateRecord;
     hasActiveSession: boolean;
+    appReadiness: AppReadiness;
+    runtimeMessage?: string | null;
     onOpenConfig(): void;
     onRunDryRun(): void | Promise<void>;
     onRunPreflight(): void | Promise<void>;
@@ -25,6 +29,8 @@ export function DashboardScreen({
     latestSummary,
     senderState,
     hasActiveSession,
+    appReadiness,
+    runtimeMessage,
     onOpenConfig,
     onRunDryRun,
     onRunPreflight,
@@ -37,6 +43,39 @@ export function DashboardScreen({
 
     return (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {appReadiness.blockingIssues.length > 0 || appReadiness.warnings.length > 0 || runtimeMessage ? (
+                <Card className="md:col-span-2 xl:col-span-4">
+                    <CardHeader>
+                        <CardTitle>Release Readiness</CardTitle>
+                        <CardDescription>Packaged-app prerequisites and runtime recovery are surfaced here before you start a session.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {appReadiness.blockingIssues.map((issue) => (
+                            <div key={issue} className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                                <div className="font-medium">{describeBlockingIssue(issue)}</div>
+                                {(issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid') ? (
+                                    <Button size="sm" className="mt-3" onClick={onOpenConfig}>
+                                        Open Config
+                                    </Button>
+                                ) : null}
+                            </div>
+                        ))}
+                        {runtimeMessage ? (
+                            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                                {runtimeMessage}
+                            </div>
+                        ) : null}
+                        {appReadiness.warnings
+                            .filter((warning) => warning !== runtimeMessage)
+                            .map((warning) => (
+                                <div key={warning} className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+                                    {warning}
+                                </div>
+                            ))}
+                    </CardContent>
+                </Card>
+            ) : null}
+
             <MetricCard label="Configured Channels" value={String(groupedMetrics.channelCount)} detail="Ready for desktop sessions." />
             <MetricCard label="Message Groups" value={String(groupedMetrics.groupCount)} detail={`${groupedMetrics.messageCount} total messages`} />
             <MetricCard label="Last Run" value={latestSummary ? `${latestSummary.sentMessages}` : '0'} detail={latestSummary ? `${latestSummary.completedChannels}/${latestSummary.totalChannels} channels completed` : 'No session summary yet.'} />
@@ -93,7 +132,7 @@ export function DashboardScreen({
                             <div className="mt-4 flex flex-wrap gap-3">
                                 <Button
                                     size="sm"
-                                    disabled={hasActiveSession}
+                                    disabled={hasActiveSession || !appReadiness.canStartSession}
                                     onClick={() => void onResumeSession()}
                                 >
                                     Resume Session

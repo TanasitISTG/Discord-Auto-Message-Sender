@@ -60,6 +60,26 @@ const desktopMock = vi.hoisted(() => {
             channelHealth: {},
             resumeSession
         } as any,
+        setup: {
+            tokenPresent: true,
+            tokenStorage: 'secure',
+            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
+            envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
+            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+        } as any,
+        diagnostics: {
+            appVersion: '0.1.0',
+            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
+            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
+            tokenStorage: 'secure',
+            sidecarStatus: 'ready'
+        } as any,
         eventHandler: null as ((event: any) => void) | null
     };
 
@@ -67,27 +87,24 @@ const desktopMock = vi.hoisted(() => {
         loadConfig: vi.fn(async () => ({ kind: 'ok', config: structuredClone(baseConfig) })),
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
-        loadSetupState: vi.fn(async () => ({
-            tokenPresent: true,
-            tokenStorage: 'secure',
-            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
-            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
-            envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
-            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
-            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
-        })),
+        loadSetupState: vi.fn(async () => structuredClone(state.setup)),
+        loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
         saveEnvironment: vi.fn(async () => ({
-            tokenPresent: true,
-            tokenStorage: 'secure',
-            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
-            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
-            envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
-            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
-            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+            ...state.setup
         })),
+        clearSecureToken: vi.fn(async () => {
+            state.setup = {
+                ...state.setup,
+                tokenPresent: false,
+                tokenStorage: 'missing'
+            };
+            state.diagnostics = {
+                ...state.diagnostics,
+                tokenStorage: 'missing'
+            };
+            return structuredClone(state.setup);
+        }),
         runPreflight: vi.fn(async () => ({
             ok: true,
             checkedAt: '2026-03-21T10:00:00.000Z',
@@ -178,6 +195,26 @@ function resetDesktopState() {
         channelHealth: {},
         resumeSession: structuredClone(desktopMock.resumeSession)
     };
+    desktopMock.state.setup = {
+        tokenPresent: true,
+        tokenStorage: 'secure',
+        dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+        secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
+        envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
+        configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+        statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+        logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+    };
+    desktopMock.state.diagnostics = {
+        appVersion: '0.1.0',
+        dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+        logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
+        configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+        statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+        secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
+        tokenStorage: 'secure',
+        sidecarStatus: 'ready'
+    };
 
     for (const mock of Object.values(desktopMock.mocks)) {
         mock.mockClear();
@@ -254,4 +291,107 @@ test('App reacts to streamed session events in the rendered flow', async () => {
 
     await screen.findByRole('button', { name: 'Resume' });
     expect(screen.getAllByText('paused').length).toBeGreaterThan(0);
+});
+
+test('App can remove the secure token and block new session starts', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Config' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove Token' }));
+
+    await waitFor(() => {
+        expect(desktopMock.mocks.clearSecureToken).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByText('Save a Discord token securely before starting a session.');
+
+    const startButton = screen.getByRole('button', { name: 'Resume Session' });
+    expect((startButton as HTMLButtonElement).disabled).toBe(true);
+
+    confirmSpy.mockRestore();
+});
+
+test('App keeps an active session running after the secure token is removed', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+    });
+    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
+        .find((button) => button.className.includes('h-10'));
+    expect(headerResumeButton).toBeTruthy();
+    await user.click(headerResumeButton!);
+    await screen.findByRole('button', { name: 'Stop Session' });
+
+    await user.click(screen.getByRole('button', { name: 'Config' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove Token' }));
+
+    await waitFor(() => {
+        expect(desktopMock.mocks.clearSecureToken).toHaveBeenCalledTimes(1);
+    });
+
+    await screen.findByText('Save a Discord token securely before starting a session.');
+    expect(screen.getByRole('button', { name: 'Stop Session' })).toBeTruthy();
+
+    confirmSpy.mockRestore();
+});
+
+test('App keeps preflight available when token readiness is blocked', async () => {
+    resetDesktopState();
+    desktopMock.state.setup = {
+        ...desktopMock.state.setup,
+        tokenPresent: false,
+        tokenStorage: 'missing'
+    };
+    desktopMock.state.diagnostics = {
+        ...desktopMock.state.diagnostics,
+        tokenStorage: 'missing'
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Preflight' }));
+
+    await waitFor(() => {
+        expect(desktopMock.mocks.runPreflight).toHaveBeenCalledTimes(1);
+    });
+});
+
+test('App shows a sidecar restart banner and clears it when the runtime recovers', async () => {
+    resetDesktopState();
+
+    render(<App />);
+    await waitFor(() => {
+        expect(desktopMock.state.eventHandler).toBeTruthy();
+    });
+
+    await act(async () => {
+        desktopMock.state.eventHandler?.({
+            type: 'sidecar_error',
+            status: 'restarting',
+            message: 'Desktop runtime restarted after an unexpected sidecar exit.'
+        });
+    });
+
+    await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
+    await screen.findByText('runtime restarting');
+
+    await act(async () => {
+        desktopMock.state.eventHandler?.({
+            type: 'sidecar_ready'
+        });
+    });
+
+    await waitFor(() => {
+        expect(screen.queryAllByText('Desktop runtime restarted after an unexpected sidecar exit.')).toHaveLength(0);
+    });
+    await screen.findByText('runtime ready');
 });
