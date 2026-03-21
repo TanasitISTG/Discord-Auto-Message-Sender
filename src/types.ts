@@ -214,6 +214,7 @@ export interface ConfigPaths {
 }
 
 export interface SenderStateRecord {
+    schemaVersion: number;
     lastSession?: SessionState;
     summaries: SessionSummary[];
     recentFailures: Array<{

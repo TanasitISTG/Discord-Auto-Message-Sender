@@ -6,6 +6,7 @@ import path from 'path';
 import readline from 'readline';
 import { spawn } from 'child_process';
 import { createDefaultAppConfig } from '../../src/config/schema';
+import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-sidecar-'));
@@ -79,8 +80,43 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
 
         const stateResponse = await request('load_state', {});
         assert.equal(stateResponse.ok, true);
-        const senderState = stateResponse.result as { summaries: unknown[] };
+        const senderState = stateResponse.result as { schemaVersion: number; summaries: unknown[] };
+        assert.equal(senderState.schemaVersion, STATE_SCHEMA_VERSION);
         assert.ok(Array.isArray(senderState.summaries));
+
+        fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+            schemaVersion: STATE_SCHEMA_VERSION,
+            summaries: [],
+            recentFailures: [],
+            resumeSession: {
+                sessionId: 'session-resume',
+                updatedAt: '2026-03-21T10:00:00.000Z',
+                runtime: {
+                    numMessages: 1,
+                    baseWaitSeconds: 5,
+                    marginSeconds: 2
+                },
+                configSignature: JSON.stringify(JSON.parse(fs.readFileSync(path.join(tempDir, 'config.json'), 'utf8'))),
+                state: {
+                    id: 'session-resume',
+                    status: 'running',
+                    updatedAt: '2026-03-21T10:00:00.000Z',
+                    activeChannels: ['123456789012345678'],
+                    completedChannels: [],
+                    failedChannels: [],
+                    sentMessages: 1
+                },
+                recentMessageHistory: {
+                    '123456789012345678': ['hello']
+                }
+            }
+        }, null, 2), 'utf8');
+
+        const discardResponse = await request('discard_resume_session', {});
+        assert.equal(discardResponse.ok, true);
+        const discardedState = discardResponse.result as { resumeSession?: unknown; schemaVersion: number };
+        assert.equal(discardedState.schemaVersion, STATE_SCHEMA_VERSION);
+        assert.equal(discardedState.resumeSession, undefined);
     } finally {
         child.kill();
     }

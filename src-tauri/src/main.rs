@@ -223,6 +223,7 @@ struct RecentFailure {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SenderStateRecord {
+    schema_version: u32,
     last_session: Option<SessionSnapshot>,
     summaries: Vec<SessionSummary>,
     recent_failures: Vec<RecentFailure>,

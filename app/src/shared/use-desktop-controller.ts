@@ -51,7 +51,7 @@ export function toneFromStatus(status?: SessionSnapshot['status']) {
 export function useDesktopController() {
     const draft = useConfigDraft(emptyConfig);
     const [session, setSession] = useState<SessionSnapshot | null>(null);
-    const [senderState, setSenderState] = useState<SenderStateRecord>({ summaries: [], recentFailures: [], recentMessageHistory: {}, channelHealth: {} });
+    const [senderState, setSenderState] = useState<SenderStateRecord>({ schemaVersion: 1, summaries: [], recentFailures: [], recentMessageHistory: {}, channelHealth: {} });
     const [preflight, setPreflight] = useState<PreflightResult | null>(null);
     const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
     const [logs, setLogs] = useState<LogEntry[]>([]);

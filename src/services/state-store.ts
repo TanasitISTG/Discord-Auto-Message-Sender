@@ -10,9 +10,15 @@ import {
 } from '../types';
 
 export const STATE_FILE = '.sender-state.json';
+export const STATE_SCHEMA_VERSION = 1;
+
+type RawSenderState = Partial<SenderStateRecord> & {
+    schemaVersion?: unknown;
+};
 
 export function getDefaultSenderState(): SenderStateRecord {
     return {
+        schemaVersion: STATE_SCHEMA_VERSION,
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {},
@@ -31,23 +37,20 @@ export function loadSenderState(baseDir: string): SenderStateRecord {
     }
 
     try {
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<SenderStateRecord>;
-        return {
-            lastSession: normalizeSessionState(raw.lastSession),
-            summaries: Array.isArray(raw.summaries) ? raw.summaries : [],
-            recentFailures: Array.isArray(raw.recentFailures) ? raw.recentFailures : [],
-            recentMessageHistory: raw.recentMessageHistory && typeof raw.recentMessageHistory === 'object'
-                ? Object.fromEntries(
-                    Object.entries(raw.recentMessageHistory).map(([channelId, messages]) => [
-                        channelId,
-                        Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : []
-                    ])
-                )
-                : {},
-            channelHealth: normalizeChannelHealthMap(raw.channelHealth),
-            resumeSession: normalizeResumeSession(raw.resumeSession),
-            warning: typeof raw.warning === 'string' ? raw.warning : undefined
-        };
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as RawSenderState;
+        const { state, migrated, warning } = normalizeSenderState(raw);
+
+        if (migrated) {
+            saveSenderState(baseDir, state);
+            return {
+                ...state,
+                warning
+            };
+        }
+
+        return warning
+            ? { ...state, warning }
+            : state;
     } catch {
         return {
             ...getDefaultSenderState(),
@@ -60,6 +63,7 @@ export function saveSenderState(baseDir: string, state: SenderStateRecord) {
     const filePath = resolveStateFile(baseDir);
     const nextState: SenderStateRecord = {
         ...state,
+        schemaVersion: STATE_SCHEMA_VERSION,
         warning: undefined
     };
     fs.writeFileSync(filePath, JSON.stringify(nextState, null, 2), 'utf8');
@@ -70,6 +74,51 @@ export function clearResumeSession(baseDir: string): SenderStateRecord {
     state.resumeSession = undefined;
     saveSenderState(baseDir, state);
     return loadSenderState(baseDir);
+}
+
+function normalizeSenderState(raw: RawSenderState): {
+    state: SenderStateRecord;
+    migrated: boolean;
+    warning?: string;
+} {
+    const rawVersion = typeof raw.schemaVersion === 'number' && Number.isFinite(raw.schemaVersion)
+        ? raw.schemaVersion
+        : 0;
+    const migrated = rawVersion !== STATE_SCHEMA_VERSION;
+    const warning = rawVersion === 0
+        ? 'Local sender state was migrated to the latest format.'
+        : rawVersion > STATE_SCHEMA_VERSION
+            ? `Local sender state was created by a newer app version (${rawVersion}). Continuing with compatible fields.`
+            : rawVersion < STATE_SCHEMA_VERSION
+                ? `Local sender state was upgraded from schema v${rawVersion} to v${STATE_SCHEMA_VERSION}.`
+                : undefined;
+
+    return {
+        state: {
+            schemaVersion: STATE_SCHEMA_VERSION,
+            lastSession: normalizeSessionState(raw.lastSession),
+            summaries: Array.isArray(raw.summaries) ? raw.summaries : [],
+            recentFailures: Array.isArray(raw.recentFailures) ? raw.recentFailures : [],
+            recentMessageHistory: normalizeMessageHistory(raw.recentMessageHistory),
+            channelHealth: normalizeChannelHealthMap(raw.channelHealth),
+            resumeSession: normalizeResumeSession(raw.resumeSession)
+        },
+        migrated,
+        warning
+    };
+}
+
+function normalizeMessageHistory(value: unknown): Record<string, string[]> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return {};
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).map(([channelId, messages]) => [
+            channelId,
+            Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : []
+        ])
+    );
 }
 
 function normalizeRuntimeOptions(value: unknown): RuntimeOptions | undefined {
@@ -239,14 +288,7 @@ function normalizeResumeSession(value: unknown): SenderStateRecord['resumeSessio
     const record = value as NonNullable<SenderStateRecord['resumeSession']>;
     const runtime = normalizeRuntimeOptions(record.runtime);
     const state = normalizeSessionState(record.state);
-    const recentMessageHistory = record.recentMessageHistory && typeof record.recentMessageHistory === 'object'
-        ? Object.fromEntries(
-            Object.entries(record.recentMessageHistory).map(([channelId, messages]) => [
-                channelId,
-                Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : []
-            ])
-        )
-        : {};
+    const recentMessageHistory = normalizeMessageHistory(record.recentMessageHistory);
 
     if (typeof record.sessionId !== 'string'
         || typeof record.updatedAt !== 'string'

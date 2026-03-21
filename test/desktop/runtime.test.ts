@@ -6,6 +6,7 @@ import path from 'path';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { DesktopRuntime } from '../../src/desktop/runtime';
 import { SessionServiceOptions } from '../../src/services/session';
+import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 import { SessionState } from '../../src/types';
 
 function createTempDir(): string {
@@ -131,6 +132,7 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);
     fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+        schemaVersion: STATE_SCHEMA_VERSION,
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {
@@ -187,6 +189,7 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);
     fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+        schemaVersion: STATE_SCHEMA_VERSION,
         summaries: [],
         recentFailures: [],
         resumeSession: {
@@ -220,4 +223,53 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
     const state = runtime.discardResumeSession();
 
     assert.equal(state.resumeSession, undefined);
+});
+
+test('DesktopRuntime does not restore a checkpoint when the requested runtime no longer matches', async () => {
+    const tempDir = createTempDir();
+    const config = writeDesktopFiles(tempDir);
+    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+        schemaVersion: STATE_SCHEMA_VERSION,
+        summaries: [],
+        recentFailures: [],
+        resumeSession: {
+            sessionId: 'session-resume',
+            updatedAt: '2026-03-21T10:00:00.000Z',
+            runtime: {
+                numMessages: 1,
+                baseWaitSeconds: 1,
+                marginSeconds: 0
+            },
+            configSignature: JSON.stringify(config),
+            state: {
+                id: 'session-resume',
+                status: 'running',
+                updatedAt: '2026-03-21T10:00:00.000Z',
+                activeChannels: ['123456789012345678'],
+                completedChannels: [],
+                failedChannels: [],
+                sentMessages: 1
+            },
+            recentMessageHistory: {
+                '123456789012345678': ['hello']
+            }
+        }
+    }, null, 2), 'utf8');
+
+    let receivedResumeSessionId: string | undefined;
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        sessionFactory: (options) => {
+            receivedResumeSessionId = options.resumeSession?.sessionId;
+            return new FakeSession(options);
+        }
+    });
+
+    await runtime.startSession({
+        numMessages: 2,
+        baseWaitSeconds: 1,
+        marginSeconds: 0
+    });
+
+    assert.equal(receivedResumeSessionId, undefined);
 });
