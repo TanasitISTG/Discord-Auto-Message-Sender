@@ -10,7 +10,9 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json",
-    "test": "node scripts/run-tests.js"
+    "test:core": "node scripts/run-tests.js",
+    "test:ui": "vitest run --config vitest.config.mts",
+    "test": "bun run test:core && bun run test:ui"
   },
   "keywords": [],
   "author": "",
@@ -33,13 +35,17 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^26.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }
