@@ -259,7 +259,7 @@ export function parseRuntimeOptions(value: unknown): RuntimeOptions {
 }
 
 export function createDefaultAppConfig(): AppConfig {
-    return appConfigSchema.parse({
+    return parseAppConfig({
         userAgent: DEFAULT_USER_AGENT,
         channels: [],
         messageGroups: {

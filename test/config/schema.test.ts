@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeLegacyConfig, parseAppConfig, parseRuntimeOptions } from '../../src/config/schema';
+import { createDefaultAppConfig, normalizeLegacyConfig, parseAppConfig, parseRuntimeOptions } from '../../src/config/schema';
 import { ZodError } from 'zod';
 
 test('parseAppConfig accepts canonical config and preserves camelCase shape', () => {
@@ -110,4 +110,16 @@ test('parseAppConfig accepts message group names that overlap with Object protot
     assert.deepEqual(config.messageGroups.toString, ['Alpha']);
     assert.deepEqual(config.messageGroups.constructor, ['Beta']);
     assert.deepEqual(config.messageGroups['__proto__'], ['Gamma']);
+});
+
+test('createDefaultAppConfig returns a null-prototype messageGroups object safe for special group names', () => {
+    const config = createDefaultAppConfig();
+
+    assert.equal(Object.getPrototypeOf(config.messageGroups), null);
+
+    config.messageGroups['__proto__'] = ['Injected'];
+
+    assert.equal(Object.prototype.hasOwnProperty.call(config.messageGroups, '__proto__'), true);
+    assert.deepEqual(config.messageGroups['__proto__'], ['Injected']);
+    assert.deepEqual(config.messageGroups.default, ['Hello from your Discord bot!']);
 });
