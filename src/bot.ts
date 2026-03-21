@@ -1,18 +1,61 @@
-import 'dotenv/config';
+import path from 'path';
+import dotenv from 'dotenv';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ZodError } from 'zod';
 import { startWizard } from './cli/wizard';
-import { loadConfig, loadMessages } from './config/manager';
-import { formatZodError, getMissingMessageGroups, parseEnvironment, parseRuntimeOptions } from './config/schema';
-import { buildChannelTargets } from './core/client';
-import { startChannelWorker } from './core/worker';
+import { DEFAULT_CONFIG_BASE_DIR, readAppConfigResult } from './config/store';
+import { formatZodError, parseEnvironment, parseRuntimeOptions } from './config/schema';
+import { createSenderCoordinator, runChannel } from './core/sender';
+
+dotenv.config({ path: path.join(DEFAULT_CONFIG_BASE_DIR, '.env') });
+
+function validateRuntimeNumberInput(label: string, options: { integer?: boolean } = {}) {
+    return (value: string) => {
+        if (value.trim().length === 0) {
+            return `${label} is required.`;
+        }
+
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return `${label} must be a valid number.`;
+        }
+
+        if (options.integer && !Number.isInteger(numericValue)) {
+            return `${label} must be a whole number.`;
+        }
+
+        if (numericValue < 0) {
+            return `${label} must be zero or greater.`;
+        }
+
+        return true;
+    };
+}
 
 async function promptRuntimeOptions() {
     const answers = await inquirer.prompt([
-        { type: 'input', name: 'numMessages', message: 'Messages to send per channel (0 = infinite):', default: '0' },
-        { type: 'input', name: 'baseWaitSeconds', message: 'Base wait time in seconds:', default: '5' },
-        { type: 'input', name: 'marginSeconds', message: 'Random margin in seconds:', default: '2' }
+        {
+            type: 'input',
+            name: 'numMessages',
+            message: 'Messages to send per channel (0 = infinite):',
+            default: '0',
+            validate: validateRuntimeNumberInput('Number of messages', { integer: true })
+        },
+        {
+            type: 'input',
+            name: 'baseWaitSeconds',
+            message: 'Base wait time in seconds:',
+            default: '5',
+            validate: validateRuntimeNumberInput('Base wait time')
+        },
+        {
+            type: 'input',
+            name: 'marginSeconds',
+            message: 'Random margin in seconds:',
+            default: '2',
+            validate: validateRuntimeNumberInput('Random margin')
+        }
     ]);
 
     try {
@@ -31,7 +74,10 @@ async function promptRuntimeOptions() {
 async function main() {
     const args = process.argv.slice(2);
     if (args.includes('--configure')) {
-        await startWizard();
+        const wizardAction = await startWizard();
+        if (wizardAction === 'exit') {
+            return;
+        }
     }
 
     let env;
@@ -43,56 +89,53 @@ async function main() {
             : error instanceof Error
                 ? error.message
                 : 'Invalid environment configuration.';
-        console.log(chalk.red(`Environment error: ${message}`));
-        process.exit(1);
+        throw new Error(`Environment error: ${message}`);
     }
 
-    const config = loadConfig();
-    if (!config) {
-        console.log(chalk.red('Configuration not found or invalid. Copy config.example.json to config.json or run with --configure.'));
-        process.exit(1);
-    }
-    const messages = loadMessages();
-    if (Object.keys(messages).length === 0) {
-        console.log(chalk.red('Messages configuration is missing or invalid. Review messages.json.'));
-        process.exit(1);
+    const configResult = readAppConfigResult();
+    if (configResult.kind === 'invalid') {
+        throw new Error(configResult.error);
     }
 
+    if (configResult.kind === 'missing') {
+        throw new Error('Configuration not found. Review config.json or run with --configure.');
+    }
+
+    const config = configResult.config;
     if (config.channels.length === 0) {
-        console.log(chalk.red('At least one channel must be configured before starting.'));
-        process.exit(1);
-    }
-
-    const missingGroups = getMissingMessageGroups(config, messages);
-    if (missingGroups.length > 0) {
-        console.log(chalk.red(`Missing message groups referenced by config: ${missingGroups.join(', ')}`));
-        process.exit(1);
+        throw new Error('At least one channel must be configured before starting.');
     }
 
     console.log(chalk.bold(`\n--- Discord Auto Sender ---\n`));
     console.log(`Loaded ${config.channels.length} channels.`);
-    console.log(`Loaded groups: ${Object.keys(messages).join(', ')}`);
+    console.log(`Loaded groups: ${Object.keys(config.messageGroups).join(', ')}`);
 
     const runtime = await promptRuntimeOptions();
-    const targets = buildChannelTargets(config.channels);
+    const coordinator = createSenderCoordinator();
+    await Promise.all(config.channels.map((target) => runChannel({
+        target,
+        numMessages: runtime.numMessages,
+        baseWaitSeconds: runtime.baseWaitSeconds,
+        marginSeconds: runtime.marginSeconds,
+        token: env.DISCORD_TOKEN,
+        userAgent: config.userAgent,
+        messageGroups: config.messageGroups,
+        coordinator
+    })));
 
-    const promises = targets.map(target =>
-        startChannelWorker(
-            target,
-            runtime.numMessages,
-            runtime.baseWaitSeconds,
-            runtime.marginSeconds,
-            env.DISCORD_TOKEN,
-            config.user_agent,
-            messages
-        )
-    );
+    if (coordinator.isAborted()) {
+        throw new Error(coordinator.getAbortReason() ?? 'Sending aborted.');
+    }
 
-    await Promise.all(promises);
     console.log('\nSession complete.');
 }
 
 main().catch((error: unknown) => {
+    if (error instanceof ZodError) {
+        console.error(chalk.red(`Configuration error: ${formatZodError(error)}`));
+        process.exitCode = 1;
+        return;
+    }
     if (error instanceof Error) {
         console.error(chalk.red(error.message));
         process.exitCode = 1;
