@@ -50,3 +50,57 @@ test('loadSenderState preserves recent message history for restart-safe anti-rep
         '123': ['hello', 'world']
     });
 });
+
+test('loadSenderState preserves resume checkpoints and channel health snapshots', () => {
+    const tempDir = createTempDir();
+
+    saveSenderState(tempDir, {
+        summaries: [],
+        recentFailures: [],
+        recentMessageHistory: {
+            '123': ['hello']
+        },
+        channelHealth: {
+            '123': {
+                channelId: '123',
+                channelName: 'general',
+                status: 'suppressed',
+                consecutiveRateLimits: 4,
+                consecutiveFailures: 1,
+                suppressionCount: 2,
+                suppressedUntil: '2026-03-21T10:00:00.000Z'
+            }
+        },
+        resumeSession: {
+            sessionId: 'session-1',
+            updatedAt: '2026-03-21T09:59:00.000Z',
+            runtime: {
+                numMessages: 5,
+                baseWaitSeconds: 10,
+                marginSeconds: 2
+            },
+            configSignature: '{"channels":[]}',
+            state: {
+                id: 'session-1',
+                status: 'running',
+                updatedAt: '2026-03-21T09:59:00.000Z',
+                activeChannels: ['123'],
+                completedChannels: [],
+                failedChannels: [],
+                sentMessages: 1
+            },
+            recentMessageHistory: {
+                '123': ['hello']
+            }
+        }
+    });
+
+    const state = loadSenderState(tempDir);
+
+    assert.equal(state.channelHealth?.['123']?.status, 'suppressed');
+    assert.equal(state.resumeSession?.sessionId, 'session-1');
+    assert.equal(state.resumeSession?.runtime.baseWaitSeconds, 10);
+    assert.deepEqual(state.resumeSession?.recentMessageHistory, {
+        '123': ['hello']
+    });
+});

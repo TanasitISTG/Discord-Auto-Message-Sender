@@ -2,20 +2,24 @@ import { AlertCircle, Play, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { PreflightResult, RuntimeOptions, SessionSnapshot } from '@/lib/desktop';
+import type { PreflightResult, RuntimeOptions, SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
 import { NumberField, StateRow } from '@/shared/components';
 
 interface SessionScreenProps {
     runtime: RuntimeOptions;
     setRuntime(next: RuntimeOptions): void;
     session: SessionSnapshot | null;
+    senderState: SenderStateRecord;
     preflight: PreflightResult | null;
     onStart(): void | Promise<void>;
     onPauseResume(): void | Promise<void>;
     onStop(): void | Promise<void>;
 }
 
-export function SessionScreen({ runtime, setRuntime, session, preflight, onStart, onPauseResume, onStop }: SessionScreenProps) {
+export function SessionScreen({ runtime, setRuntime, session, senderState, preflight, onStart, onPauseResume, onStop }: SessionScreenProps) {
+    const healthEntries = Object.values(session?.channelHealth ?? senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
+    const resumeSession = senderState.resumeSession;
+
     return (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <Card>
@@ -33,7 +37,7 @@ export function SessionScreen({ runtime, setRuntime, session, preflight, onStart
                     <div className="flex flex-wrap gap-3">
                         <Button onClick={onStart}>
                             <Play className="mr-2 h-4 w-4" />
-                            Start
+                            {resumeSession && !session ? 'Continue' : 'Start'}
                         </Button>
                         <Button variant="secondary" onClick={onPauseResume} disabled={!session || !['running', 'paused'].includes(session.status)}>
                             {session?.status === 'paused' ? 'Resume' : 'Pause'}
@@ -77,39 +81,82 @@ export function SessionScreen({ runtime, setRuntime, session, preflight, onStart
                             </div>
                         </div>
                     ) : null}
+
+                    {resumeSession && !session ? (
+                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+                            <div className="font-semibold">Interrupted session available</div>
+                            <div className="mt-1 text-cyan-50/80">
+                                Last checkpoint: {new Date(resumeSession.updatedAt).toLocaleString()}
+                            </div>
+                            <div className="mt-1 text-cyan-50/80">
+                                Start will continue with {resumeSession.runtime.numMessages === 0 ? 'infinite' : resumeSession.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
+                            </div>
+                        </div>
+                    ) : null}
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Session State</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    <StateRow label="Status" value={session?.status ?? 'idle'} />
-                    <StateRow label="Sent messages" value={String(session?.sentMessages ?? 0)} />
-                    <StateRow label="Active channels" value={String(session?.activeChannels.length ?? 0)} />
-                    <StateRow label="Completed channels" value={String(session?.completedChannels.length ?? 0)} />
-                    <StateRow label="Failed channels" value={String(session?.failedChannels.length ?? 0)} />
-                    {session?.summary ? (
-                        <div className="rounded-xl border border-border bg-background/40 p-3">
-                            <div className="mb-2 text-sm font-semibold">Final Summary</div>
-                            <div className="space-y-2 text-muted-foreground">
-                                <div>{session.summary.completedChannels}/{session.summary.totalChannels} channels completed</div>
-                                <div>{session.summary.sentMessages} messages sent</div>
+            <div className="grid gap-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Session State</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                        <StateRow label="Status" value={session?.status ?? 'idle'} />
+                        <StateRow label="Sent messages" value={String(session?.sentMessages ?? 0)} />
+                        <StateRow label="Active channels" value={String(session?.activeChannels.length ?? 0)} />
+                        <StateRow label="Completed channels" value={String(session?.completedChannels.length ?? 0)} />
+                        <StateRow label="Failed channels" value={String(session?.failedChannels.length ?? 0)} />
+                        <StateRow label="Pacing" value={session?.pacing ? `${session.pacing.currentRequestIntervalMs} ms` : 'Baseline'} />
+                        <StateRow label="Peak pacing" value={session?.pacing ? `${session.pacing.maxRequestIntervalMs} ms` : 'Baseline'} />
+                        <StateRow label="Rate-limit count" value={String(session?.pacing?.recentRateLimitCount ?? 0)} />
+                        {session?.summary ? (
+                            <div className="rounded-xl border border-border bg-background/40 p-3">
+                                <div className="mb-2 text-sm font-semibold">Final Summary</div>
+                                <div className="space-y-2 text-muted-foreground">
+                                    <div>{session.summary.completedChannels}/{session.summary.totalChannels} channels completed</div>
+                                    <div>{session.summary.sentMessages} messages sent</div>
+                                    <div>{session.summary.rateLimitEvents ?? 0} rate-limit events</div>
+                                </div>
                             </div>
-                        </div>
-                    ) : null}
-                    {session?.stopReason ? (
-                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-200">
-                            <div className="mb-1 flex items-center gap-2 font-medium">
-                                <AlertCircle className="h-4 w-4" />
-                                Stop reason
+                        ) : null}
+                        {session?.stopReason ? (
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-200">
+                                <div className="mb-1 flex items-center gap-2 font-medium">
+                                    <AlertCircle className="h-4 w-4" />
+                                    Stop reason
+                                </div>
+                                <div>{session.stopReason}</div>
                             </div>
-                            <div>{session.stopReason}</div>
-                        </div>
-                    ) : null}
-                </CardContent>
-            </Card>
+                        ) : null}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Channel Health</CardTitle>
+                        <CardDescription>Suppressed channels cool down instead of thrashing the session with repeated failures.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {healthEntries.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">All tracked channels are healthy.</div>
+                        ) : healthEntries.map((entry) => (
+                            <div key={entry.channelId} className="rounded-xl border border-border bg-background/40 p-3 text-sm">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="font-medium">{entry.channelName}</div>
+                                    <Badge tone={entry.status === 'suppressed' ? 'warning' : entry.status === 'failed' ? 'danger' : 'neutral'}>
+                                        {entry.status}
+                                    </Badge>
+                                </div>
+                                <div className="mt-2 text-muted-foreground">{entry.lastReason ?? 'No reason recorded.'}</div>
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                    {entry.suppressedUntil ? `Suppressed until ${new Date(entry.suppressedUntil).toLocaleString()}` : `${entry.consecutiveRateLimits} rate limits, ${entry.consecutiveFailures} failures`}
+                                </div>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            </div>
         </section>
     );
 }

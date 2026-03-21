@@ -23,6 +23,7 @@ function writeDesktopFiles(baseDir: string) {
 
     fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(config, null, 2), 'utf8');
     fs.writeFileSync(path.join(baseDir, '.env'), 'DISCORD_TOKEN=test-token', 'utf8');
+    return config;
 }
 
 class FakeSession {
@@ -124,4 +125,60 @@ test('DesktopRuntime uses a single in-process session controller for lifecycle c
     assert.ok(events.includes('session_paused'));
     assert.ok(events.includes('session_resumed'));
     assert.ok(events.includes('session_stopping'));
+});
+
+test('DesktopRuntime restores a resumable checkpoint when config and runtime still match', async () => {
+    const tempDir = createTempDir();
+    const config = writeDesktopFiles(tempDir);
+    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+        summaries: [],
+        recentFailures: [],
+        recentMessageHistory: {
+            '123456789012345678': ['hello']
+        },
+        resumeSession: {
+            sessionId: 'session-resume',
+            updatedAt: '2026-03-21T10:00:00.000Z',
+            runtime: {
+                numMessages: 1,
+                baseWaitSeconds: 1,
+                marginSeconds: 0
+            },
+            configSignature: JSON.stringify(config),
+            state: {
+                id: 'session-resume',
+                status: 'running',
+                updatedAt: '2026-03-21T10:00:00.000Z',
+                activeChannels: ['123456789012345678'],
+                completedChannels: [],
+                failedChannels: [],
+                sentMessages: 1,
+                runtime: {
+                    numMessages: 1,
+                    baseWaitSeconds: 1,
+                    marginSeconds: 0
+                }
+            },
+            recentMessageHistory: {
+                '123456789012345678': ['hello']
+            }
+        }
+    }, null, 2), 'utf8');
+
+    let receivedResumeSessionId: string | undefined;
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        sessionFactory: (options) => {
+            receivedResumeSessionId = options.resumeSession?.sessionId;
+            return new FakeSession(options);
+        }
+    });
+
+    await runtime.startSession({
+        numMessages: 1,
+        baseWaitSeconds: 1,
+        marginSeconds: 0
+    });
+
+    assert.equal(receivedResumeSessionId, 'session-resume');
 });

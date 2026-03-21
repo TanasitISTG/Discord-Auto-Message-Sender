@@ -40,6 +40,46 @@ export interface LogEntry {
     sessionId?: string;
 }
 
+export interface AdaptivePacingState {
+    baseRequestIntervalMs: number;
+    currentRequestIntervalMs: number;
+    maxRequestIntervalMs: number;
+    penaltyLevel: number;
+    recentRateLimitCount: number;
+    lastRateLimitAt?: string;
+    lastRecoveryAt?: string;
+}
+
+export type ChannelHealthStatus = 'healthy' | 'degraded' | 'suppressed' | 'recovering' | 'failed';
+
+export interface ChannelHealthRecord {
+    channelId: string;
+    channelName: string;
+    status: ChannelHealthStatus;
+    consecutiveRateLimits: number;
+    consecutiveFailures: number;
+    suppressionCount: number;
+    lastReason?: string;
+    lastFailureAt?: string;
+    lastSuccessAt?: string;
+    suppressedUntil?: string;
+}
+
+export type ChannelProgressStatus = 'pending' | 'running' | 'suppressed' | 'completed' | 'failed';
+
+export interface ChannelProgressRecord {
+    channelId: string;
+    channelName: string;
+    status: ChannelProgressStatus;
+    sentMessages: number;
+    sentToday: number;
+    consecutiveRateLimits: number;
+    lastMessage?: string;
+    lastSentAt?: string;
+    lastError?: string;
+    suppressedUntil?: string;
+}
+
 export type SessionStatus =
     | 'idle'
     | 'running'
@@ -47,6 +87,15 @@ export type SessionStatus =
     | 'stopping'
     | 'completed'
     | 'failed';
+
+export interface SessionChannelOutcome {
+    channelId: string;
+    channelName: string;
+    status: Extract<ChannelProgressStatus, 'completed' | 'failed' | 'suppressed'>;
+    sentMessages: number;
+    lastError?: string;
+    suppressedUntil?: string;
+}
 
 export interface SessionSummary {
     totalChannels: number;
@@ -56,6 +105,11 @@ export interface SessionSummary {
     startedAt: string;
     finishedAt?: string;
     stopReason?: string;
+    rateLimitEvents?: number;
+    suppressedChannels?: number;
+    resumedFromCheckpoint?: boolean;
+    maxPacingIntervalMs?: number;
+    channelOutcomes?: SessionChannelOutcome[];
 }
 
 export interface SessionState {
@@ -69,6 +123,11 @@ export interface SessionState {
     sentMessages: number;
     stopReason?: string;
     summary?: SessionSummary;
+    runtime?: RuntimeOptions;
+    channelProgress?: Record<string, ChannelProgressRecord>;
+    channelHealth?: Record<string, ChannelHealthRecord>;
+    pacing?: AdaptivePacingState;
+    resumedFromCheckpoint?: boolean;
 }
 
 export interface ChannelPreflightResult {
@@ -119,6 +178,7 @@ export type AppEvent =
     | { type: 'session_resumed'; state: SessionState }
     | { type: 'session_stopping'; state: SessionState }
     | { type: 'channel_state_changed'; state: SessionState; channelId: string; phase: 'started' | 'completed' | 'failed' }
+    | { type: 'session_state_updated'; state: SessionState; reason: 'message_sent' | 'pacing_changed' | 'health_changed' | 'checkpoint_restored' }
     | { type: 'log_event_emitted'; entry: LogEntry }
     | { type: 'summary_ready'; summary: SessionSummary; state: SessionState }
     | { type: 'preflight_result_emitted'; result: PreflightResult }
@@ -163,5 +223,14 @@ export interface SenderStateRecord {
         timestamp: string;
     }>;
     recentMessageHistory?: Record<string, string[]>;
+    channelHealth?: Record<string, ChannelHealthRecord>;
+    resumeSession?: {
+        sessionId: string;
+        updatedAt: string;
+        runtime: RuntimeOptions;
+        configSignature: string;
+        state: SessionState;
+        recentMessageHistory: Record<string, string[]>;
+    };
     warning?: string;
 }

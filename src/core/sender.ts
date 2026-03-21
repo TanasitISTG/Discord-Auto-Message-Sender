@@ -1,4 +1,4 @@
-import { AppChannel, MessageGroups } from '../types';
+import { AdaptivePacingState, AppChannel, ChannelProgressRecord, MessageGroups } from '../types';
 import { defaultLogger, emitLog, StructuredLogger } from '../utils/logger';
 import { renderMessageTemplate } from '../services/message-template';
 
@@ -6,8 +6,11 @@ const API_BASE = 'https://discord.com/api/v10';
 const MAX_SEND_ATTEMPTS = 3;
 const DEFAULT_MAX_RATE_LIMIT_WAITS = 10;
 const DEFAULT_GLOBAL_REQUEST_INTERVAL_MS = 250;
+const DEFAULT_MAX_REQUEST_INTERVAL_MS = 5000;
 const ABORT_POLL_INTERVAL_MS = 250;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+const MIN_SUPPRESSION_MS = 30000;
+const MAX_SUPPRESSION_MS = 15 * 60 * 1000;
 
 type FetchImpl = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
@@ -26,6 +29,9 @@ export interface SenderCoordinator {
     isAborted(): boolean;
     getAbortReason(): string | null;
     scheduleRequest<T>(sleep: SleepFn, task: () => Promise<T>): Promise<T>;
+    recordRateLimit(waitSeconds: number): AdaptivePacingState;
+    recordSuccess(): AdaptivePacingState;
+    getPacingState(): AdaptivePacingState;
 }
 
 export interface SenderDependencies {
@@ -48,6 +54,7 @@ export interface RunChannelOptions extends SenderDependencies {
     userAgent: string;
     messageGroups: MessageGroups;
     maxRateLimitWaits?: number;
+    resumeProgress?: ChannelProgressRecord;
 }
 
 export interface SenderLifecycle {
@@ -58,6 +65,10 @@ export interface SenderLifecycle {
     onChannelEvent?(target: AppChannel, phase: 'started' | 'completed' | 'failed'): void;
     onMessageSent?(target: AppChannel, message: string): void;
     getRecentMessages?(target: AppChannel): string[];
+    onRateLimit?(target: AppChannel, waitSeconds: number, consecutiveRateLimits: number): void;
+    onChannelSuppressed?(target: AppChannel, details: { waitMs: number; suppressedUntil: string; reason: string }): void;
+    onChannelRecovered?(target: AppChannel): void;
+    onChannelFailure?(target: AppChannel, reason: string): void;
 }
 
 interface ZonedDateParts {
@@ -86,6 +97,11 @@ export function getBackoffDelayMs(attempt: number, random: RandomFn = Math.rando
     const baseDelay = 500 * Math.pow(2, attempt - 1);
     const jitter = Math.floor(random() * 250);
     return baseDelay + jitter;
+}
+
+export function getSuppressionDelayMs(waitSeconds: number, consecutiveRateLimits: number): number {
+    const baseDelay = Math.ceil(waitSeconds * 1000 * Math.max(2, consecutiveRateLimits));
+    return Math.min(MAX_SUPPRESSION_MS, Math.max(MIN_SUPPRESSION_MS, baseDelay));
 }
 
 function parseClockTime(value: string): { hour: number; minute: number } | null {
@@ -247,10 +263,22 @@ async function sleepWithAbort(
     return !(coordinator?.isAborted() ?? false) && !(lifecycle?.isStopping() ?? false);
 }
 
-export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_GLOBAL_REQUEST_INTERVAL_MS): SenderCoordinator {
+export function createSenderCoordinator(
+    minRequestIntervalMs: number = DEFAULT_GLOBAL_REQUEST_INTERVAL_MS,
+    initialState?: Partial<AdaptivePacingState>
+): SenderCoordinator {
     let abortedReason: string | null = null;
     let nextRequestAt = 0;
     let requestQueue = Promise.resolve();
+    const pacingState: AdaptivePacingState = {
+        baseRequestIntervalMs: minRequestIntervalMs,
+        currentRequestIntervalMs: Math.max(minRequestIntervalMs, initialState?.currentRequestIntervalMs ?? minRequestIntervalMs),
+        maxRequestIntervalMs: Math.max(minRequestIntervalMs, initialState?.maxRequestIntervalMs ?? minRequestIntervalMs),
+        penaltyLevel: initialState?.penaltyLevel ?? 0,
+        recentRateLimitCount: initialState?.recentRateLimitCount ?? 0,
+        lastRateLimitAt: initialState?.lastRateLimitAt,
+        lastRecoveryAt: initialState?.lastRecoveryAt
+    };
 
     const coordinator: SenderCoordinator = {
         abort(reason: string) {
@@ -263,6 +291,36 @@ export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_G
         },
         getAbortReason() {
             return abortedReason;
+        },
+        recordRateLimit(waitSeconds: number) {
+            const penaltyBoost = Math.max(250, Math.ceil(waitSeconds * 250));
+            pacingState.penaltyLevel += 1;
+            pacingState.recentRateLimitCount += 1;
+            pacingState.currentRequestIntervalMs = Math.min(
+                DEFAULT_MAX_REQUEST_INTERVAL_MS,
+                Math.max(
+                    pacingState.baseRequestIntervalMs + (pacingState.penaltyLevel * 125),
+                    pacingState.currentRequestIntervalMs + penaltyBoost
+                )
+            );
+            pacingState.maxRequestIntervalMs = Math.max(pacingState.maxRequestIntervalMs, pacingState.currentRequestIntervalMs);
+            pacingState.lastRateLimitAt = new Date().toISOString();
+            return { ...pacingState };
+        },
+        recordSuccess() {
+            if (pacingState.currentRequestIntervalMs > pacingState.baseRequestIntervalMs) {
+                const decayStep = Math.max(125, Math.ceil((pacingState.currentRequestIntervalMs - pacingState.baseRequestIntervalMs) / 2));
+                pacingState.currentRequestIntervalMs = Math.max(
+                    pacingState.baseRequestIntervalMs,
+                    pacingState.currentRequestIntervalMs - decayStep
+                );
+                pacingState.lastRecoveryAt = new Date().toISOString();
+            }
+            pacingState.penaltyLevel = Math.max(0, pacingState.penaltyLevel - 1);
+            return { ...pacingState };
+        },
+        getPacingState() {
+            return { ...pacingState };
         },
         async scheduleRequest<T>(sleep: SleepFn, task: () => Promise<T>): Promise<T> {
             let releaseQueue: (() => void) | undefined;
@@ -295,7 +353,7 @@ export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_G
                 return await task();
             } finally {
                 if (startedRequest) {
-                    nextRequestAt = Date.now() + minRequestIntervalMs;
+                    nextRequestAt = Date.now() + pacingState.currentRequestIntervalMs;
                 }
                 releaseQueue?.();
             }
@@ -477,16 +535,21 @@ export async function sendDiscordMessage(
                 }, requestTimeoutMs);
 
             if (response.ok) {
+                coordinator?.recordSuccess();
                 return { type: 'success' };
             }
 
             const body = await readResponseBody(response);
             if (response.status === 429) {
                 const waitSeconds = getRetryAfterSeconds(body);
+                const pacing = coordinator?.recordRateLimit(waitSeconds);
                 emitLog(logger, target.name, `Rate limited, retry after ${waitSeconds}s`, 'yellow', {
+                    channelId: target.id,
+                    event: 'rate_limited',
                     attempt,
                     status: response.status,
-                    retryAfter: waitSeconds
+                    retryAfter: waitSeconds,
+                    pacingMs: pacing?.currentRequestIntervalMs
                 });
                 return { type: 'wait', waitSeconds };
             }
@@ -499,6 +562,8 @@ export async function sendDiscordMessage(
                                 : null;
             const shouldStop = fatalReason !== null;
             emitLog(logger, target.name, `HTTP ${response.status}: ${stringifyBody(body)}`, shouldStop ? 'red' : 'yellow', {
+                channelId: target.id,
+                event: 'http_error',
                 attempt,
                 code: getResponseCode(body),
                 status: response.status,
@@ -521,6 +586,8 @@ export async function sendDiscordMessage(
             const isFatal = attempt === MAX_SEND_ATTEMPTS;
 
             emitLog(logger, target.name, `Error: ${message}`, isFatal ? 'red' : 'yellow', {
+                channelId: target.id,
+                event: 'request_error',
                 attempt,
                 fatal: isFatal
             });
@@ -556,7 +623,8 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         coordinator,
         requestTimeoutMs,
         maxRateLimitWaits = DEFAULT_MAX_RATE_LIMIT_WAITS,
-        lifecycle
+        lifecycle,
+        resumeProgress
     } = options;
 
     if (coordinator?.isAborted() || lifecycle?.isStopping()) {
@@ -564,24 +632,55 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         return;
     }
 
-    emitLog(logger, target.name, 'Started.', 'green', { group: target.messageGroup });
+    emitLog(logger, target.name, 'Started.', 'green', {
+        channelId: target.id,
+        event: 'channel_started',
+        group: target.messageGroup
+    });
     lifecycle?.onChannelEvent?.(target, 'started');
 
     const messages = messageGroups[target.messageGroup];
     if (!messages || messages.length === 0) {
-        emitLog(logger, target.name, 'No messages found for configured group. Skipping channel.', 'red', { group: target.messageGroup });
+        emitLog(logger, target.name, 'No messages found for configured group. Skipping channel.', 'red', {
+            channelId: target.id,
+            event: 'channel_missing_messages',
+            group: target.messageGroup
+        });
+        lifecycle?.onChannelFailure?.(target, 'missing_messages');
         lifecycle?.onChannelEvent?.(target, 'failed');
         return;
     }
 
-    let sentCount = 0;
+    let sentCount = resumeProgress?.sentMessages ?? 0;
     const sentCache = new Set<string>();
-    let consecutiveRateLimitWaits = 0;
-    let sentToday = 0;
+    let consecutiveRateLimitWaits = resumeProgress?.consecutiveRateLimits ?? 0;
+    let sentToday = resumeProgress?.sentToday ?? 0;
     const maxSendsPerDay = target.schedule?.maxSendsPerDay ?? null;
     const intervalSeconds = target.schedule?.intervalSeconds ?? baseWaitSeconds;
     const marginForChannel = target.schedule?.randomMarginSeconds ?? marginSeconds;
     const cooldownWindowSize = target.schedule?.cooldownWindowSize ?? 3;
+    let recoveringFromSuppression = resumeProgress?.status === 'suppressed';
+
+    if (resumeProgress?.status === 'suppressed' && resumeProgress.suppressedUntil) {
+        const resumeAt = Date.parse(resumeProgress.suppressedUntil);
+        if (Number.isFinite(resumeAt)) {
+            const remainingSuppressionMs = Math.max(0, resumeAt - now().getTime());
+            if (remainingSuppressionMs > 0) {
+                emitLog(logger, target.name, `Resuming from saved suppression. Waiting ${Math.ceil(remainingSuppressionMs / 1000)}s before retrying.`, 'yellow', {
+                    channelId: target.id,
+                    event: 'resume_suppression_wait',
+                    suppressedUntil: resumeProgress.suppressedUntil
+                });
+                const completedSavedWait = await sleepWithAbort(remainingSuppressionMs, sleep, coordinator, lifecycle);
+                if (!completedSavedWait) {
+                    emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                    lifecycle?.onChannelEvent?.(target, 'failed');
+                    return;
+                }
+            }
+            lifecycle?.onChannelRecovered?.(target);
+        }
+    }
 
     while (numMessages === 0 || sentCount < numMessages) {
         if (coordinator?.isAborted() || lifecycle?.isStopping()) {
@@ -591,14 +690,21 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         }
 
         if (maxSendsPerDay !== null && sentToday >= maxSendsPerDay) {
-            emitLog(logger, target.name, `Max sends per day reached (${maxSendsPerDay}). Stopping worker.`, 'yellow');
+            emitLog(logger, target.name, `Max sends per day reached (${maxSendsPerDay}). Stopping worker.`, 'yellow', {
+                channelId: target.id,
+                event: 'channel_daily_cap'
+            });
             lifecycle?.onChannelEvent?.(target, 'completed');
             return;
         }
 
         const quietHoursDelayMs = getQuietHoursDelayMs(target, now());
         if (quietHoursDelayMs > 0) {
-            emitLog(logger, target.name, `Inside quiet hours. Waiting ${Math.ceil(quietHoursDelayMs / 60000)} minute(s) before the next send.`, 'yellow');
+            emitLog(logger, target.name, `Inside quiet hours. Waiting ${Math.ceil(quietHoursDelayMs / 60000)} minute(s) before the next send.`, 'yellow', {
+                channelId: target.id,
+                event: 'quiet_hours_wait',
+                waitMinutes: Math.ceil(quietHoursDelayMs / 60000)
+            });
             const completedQuietWait = await sleepWithAbort(quietHoursDelayMs, sleep, coordinator, lifecycle);
             if (!completedQuietWait) {
                 emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
@@ -632,20 +738,54 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 sentCount += 1;
                 sentToday += 1;
                 const counter = numMessages === 0 ? 'Infinite' : `${sentCount}/${numMessages}`;
-                emitLog(logger, target.name, 'Message sent', 'cyan', { counter });
+                emitLog(logger, target.name, 'Message sent', 'cyan', {
+                    channelId: target.id,
+                    event: 'message_sent',
+                    counter,
+                    pacingMs: coordinator?.getPacingState().currentRequestIntervalMs
+                });
+                if (recoveringFromSuppression) {
+                    lifecycle?.onChannelRecovered?.(target);
+                    recoveringFromSuppression = false;
+                }
                 lifecycle?.onMessageSent?.(target, message);
                 break;
             }
 
             if (result.type === 'wait') {
                 consecutiveRateLimitWaits += 1;
+                lifecycle?.onRateLimit?.(target, result.waitSeconds, consecutiveRateLimitWaits);
                 if (consecutiveRateLimitWaits > maxRateLimitWaits) {
-                    emitLog(logger, target.name, `Stopping worker after ${consecutiveRateLimitWaits} consecutive rate limits.`, 'red');
-                    lifecycle?.onChannelEvent?.(target, 'failed');
-                    return;
+                    const suppressionMs = getSuppressionDelayMs(result.waitSeconds, consecutiveRateLimitWaits);
+                    const suppressedUntil = new Date(now().getTime() + suppressionMs).toISOString();
+                    emitLog(logger, target.name, `Suppressing channel for ${Math.ceil(suppressionMs / 1000)}s after ${consecutiveRateLimitWaits} consecutive rate limits.`, 'yellow', {
+                        channelId: target.id,
+                        event: 'channel_suppressed',
+                        consecutiveRateLimits: consecutiveRateLimitWaits,
+                        suppressedUntil
+                    });
+                    lifecycle?.onChannelSuppressed?.(target, {
+                        waitMs: suppressionMs,
+                        suppressedUntil,
+                        reason: `Suppressed after ${consecutiveRateLimitWaits} consecutive rate limits.`
+                    });
+                    const completedSuppressionWait = await sleepWithAbort(suppressionMs, sleep, coordinator, lifecycle);
+                    if (!completedSuppressionWait) {
+                        emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                        lifecycle?.onChannelEvent?.(target, 'failed');
+                        return;
+                    }
+                    consecutiveRateLimitWaits = 0;
+                    recoveringFromSuppression = true;
+                    lifecycle?.onChannelRecovered?.(target);
+                    continue;
                 }
 
-                emitLog(logger, target.name, `Rate Limit! Waiting ${result.waitSeconds}s...`, 'yellow');
+                emitLog(logger, target.name, `Rate Limit! Waiting ${result.waitSeconds}s...`, 'yellow', {
+                    channelId: target.id,
+                    event: 'rate_limit_wait',
+                    consecutiveRateLimits: consecutiveRateLimitWaits
+                });
                 const completedWait = await sleepWithAbort((result.waitSeconds + 0.5) * 1000, sleep, coordinator, lifecycle);
                 if (!completedWait) {
                     emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
@@ -662,12 +802,22 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             }
 
             if (result.reason === 'unauthorized') {
-                emitLog(logger, target.name, 'Stopping all workers after HTTP 401 indicated an invalid or expired token.', 'red');
+                emitLog(logger, target.name, 'Stopping all workers after HTTP 401 indicated an invalid or expired token.', 'red', {
+                    channelId: target.id,
+                    event: 'channel_failed',
+                    reason: 'unauthorized'
+                });
+                lifecycle?.onChannelFailure?.(target, 'unauthorized');
                 lifecycle?.onChannelEvent?.(target, 'failed');
                 return;
             }
 
-            emitLog(logger, target.name, 'Stopping worker after repeated or fatal send failures.', 'red');
+            emitLog(logger, target.name, 'Stopping worker after repeated or fatal send failures.', 'red', {
+                channelId: target.id,
+                event: 'channel_failed',
+                reason: result.reason
+            });
+            lifecycle?.onChannelFailure?.(target, result.reason);
             lifecycle?.onChannelEvent?.(target, 'failed');
             return;
         }
@@ -685,6 +835,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         }
     }
 
-    emitLog(logger, target.name, 'Finished.', 'green');
+    emitLog(logger, target.name, 'Finished.', 'green', {
+        channelId: target.id,
+        event: 'channel_completed',
+        sentMessages: sentCount
+    });
     lifecycle?.onChannelEvent?.(target, 'completed');
 }

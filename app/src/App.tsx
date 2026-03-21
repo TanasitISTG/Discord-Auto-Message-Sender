@@ -81,7 +81,7 @@ export default function App() {
                             setScreen('session');
                         }}>
                             <Play className="mr-2 h-4 w-4" />
-                            Start Session
+                            {controller.senderState.resumeSession && !controller.session ? 'Continue Session' : 'Start Session'}
                         </Button>
                     </div>
                 </div>
@@ -138,6 +138,7 @@ export default function App() {
                         runtime={controller.runtime}
                         setRuntime={controller.setRuntime}
                         session={controller.session}
+                        senderState={controller.senderState}
                         preflight={controller.preflight}
                         onStart={async () => {
                             await controller.startSessionCommand();

@@ -50,7 +50,7 @@ export function toneFromStatus(status?: SessionSnapshot['status']) {
 export function useDesktopController() {
     const draft = useConfigDraft(emptyConfig);
     const [session, setSession] = useState<SessionSnapshot | null>(null);
-    const [senderState, setSenderState] = useState<SenderStateRecord>({ summaries: [], recentFailures: [], recentMessageHistory: {} });
+    const [senderState, setSenderState] = useState<SenderStateRecord>({ summaries: [], recentFailures: [], recentMessageHistory: {}, channelHealth: {} });
     const [preflight, setPreflight] = useState<PreflightResult | null>(null);
     const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
     const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -104,6 +104,9 @@ export function useDesktopController() {
             applyConfigResult(configResult);
             setSession(activeSession);
             setSenderState(persistedState);
+            if (!activeSession && persistedState.resumeSession) {
+                setRuntime(persistedState.resumeSession.runtime);
+            }
             if (persistedState.warning) {
                 setNotice(persistedState.warning);
             }
@@ -138,6 +141,7 @@ export function useDesktopController() {
             case 'session_resumed':
             case 'session_stopping':
             case 'channel_state_changed':
+            case 'session_state_updated':
             case 'summary_ready':
                 setSession(event.state);
                 void refreshState();

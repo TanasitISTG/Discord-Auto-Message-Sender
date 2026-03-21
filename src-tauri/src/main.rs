@@ -65,6 +65,59 @@ struct LogEntry {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct AdaptivePacingState {
+    base_request_interval_ms: u32,
+    current_request_interval_ms: u32,
+    max_request_interval_ms: u32,
+    penalty_level: u32,
+    recent_rate_limit_count: u32,
+    last_rate_limit_at: Option<String>,
+    last_recovery_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChannelHealthRecord {
+    channel_id: String,
+    channel_name: String,
+    status: String,
+    consecutive_rate_limits: u32,
+    consecutive_failures: u32,
+    suppression_count: u32,
+    last_reason: Option<String>,
+    last_failure_at: Option<String>,
+    last_success_at: Option<String>,
+    suppressed_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChannelProgressRecord {
+    channel_id: String,
+    channel_name: String,
+    status: String,
+    sent_messages: u32,
+    sent_today: u32,
+    consecutive_rate_limits: u32,
+    last_message: Option<String>,
+    last_sent_at: Option<String>,
+    last_error: Option<String>,
+    suppressed_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionChannelOutcome {
+    channel_id: String,
+    channel_name: String,
+    status: String,
+    sent_messages: u32,
+    last_error: Option<String>,
+    suppressed_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionSummary {
     total_channels: usize,
     completed_channels: usize,
@@ -73,6 +126,11 @@ struct SessionSummary {
     started_at: String,
     finished_at: Option<String>,
     stop_reason: Option<String>,
+    rate_limit_events: Option<u32>,
+    suppressed_channels: Option<usize>,
+    resumed_from_checkpoint: Option<bool>,
+    max_pacing_interval_ms: Option<u32>,
+    channel_outcomes: Option<Vec<SessionChannelOutcome>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -88,6 +146,11 @@ struct SessionSnapshot {
     sent_messages: u32,
     stop_reason: Option<String>,
     summary: Option<SessionSummary>,
+    runtime: Option<RuntimeOptionsRequest>,
+    channel_progress: Option<HashMap<String, ChannelProgressRecord>>,
+    channel_health: Option<HashMap<String, ChannelHealthRecord>>,
+    pacing: Option<AdaptivePacingState>,
+    resumed_from_checkpoint: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -164,7 +227,20 @@ struct SenderStateRecord {
     summaries: Vec<SessionSummary>,
     recent_failures: Vec<RecentFailure>,
     recent_message_history: Option<HashMap<String, Vec<String>>>,
+    channel_health: Option<HashMap<String, ChannelHealthRecord>>,
+    resume_session: Option<ResumeSessionRecord>,
     warning: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResumeSessionRecord {
+    session_id: String,
+    updated_at: String,
+    runtime: RuntimeOptionsRequest,
+    config_signature: String,
+    state: SessionSnapshot,
+    recent_message_history: HashMap<String, Vec<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSenderCoordinator, getQuietHoursDelayMs, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
+import { createSenderCoordinator, getQuietHoursDelayMs, getSuppressionDelayMs, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
 import { AppChannel } from '../../src/types';
 
 const channel: AppChannel = {
@@ -88,6 +88,19 @@ test('sendDiscordMessage aborts later sends after a shared 401 response', async 
     assert.deepEqual(unauthorizedResult, { type: 'fatal', reason: 'unauthorized' });
     assert.deepEqual(abortedResult, { type: 'fatal', reason: 'aborted' });
     assert.equal(attempts, 1);
+});
+
+test('shared sender coordinator increases pacing after rate limits and decays after success', () => {
+    const coordinator = createSenderCoordinator(250);
+
+    const afterRateLimit = coordinator.recordRateLimit(2);
+    const afterRecovery = coordinator.recordSuccess();
+
+    assert.equal(afterRateLimit.baseRequestIntervalMs, 250);
+    assert.ok(afterRateLimit.currentRequestIntervalMs > 250);
+    assert.ok(afterRateLimit.maxRequestIntervalMs >= afterRateLimit.currentRequestIntervalMs);
+    assert.ok(afterRecovery.currentRequestIntervalMs <= afterRateLimit.currentRequestIntervalMs);
+    assert.ok(afterRecovery.currentRequestIntervalMs >= 250);
 });
 
 test('shared sender coordinator serializes concurrent requests across channels', async () => {
@@ -358,9 +371,10 @@ test('runChannel stops exactly at the finite message count without an extra wait
     assert.deepEqual(sleepCalls, []);
 });
 
-test('runChannel stops after repeated consecutive rate limits instead of waiting forever', async () => {
+test('runChannel suppresses a channel after repeated consecutive rate limits and retries later', async () => {
     let sends = 0;
     const sleepCalls: number[] = [];
+    const suppressed: string[] = [];
 
     await runChannel({
         target: channel,
@@ -375,14 +389,28 @@ test('runChannel stops after repeated consecutive rate limits instead of waiting
         maxRateLimitWaits: 2,
         fetchImpl: async () => {
             sends += 1;
-            return createResponse(429, { retry_after: 1 });
+            if (sends <= 3) {
+                return createResponse(429, { retry_after: 1 });
+            }
+
+            return createResponse(200, {});
         },
         sleep: async (ms) => {
             sleepCalls.push(ms);
         },
-        random: () => 0
+        random: () => 0,
+        lifecycle: {
+            isPaused: () => false,
+            waitUntilResumed: async () => true,
+            isStopping: () => false,
+            getStopReason: () => null,
+            onChannelSuppressed: (_target, details) => {
+                suppressed.push(details.suppressedUntil);
+            }
+        }
     });
 
-    assert.equal(sends, 3);
-    assert.deepEqual(sleepCalls, [1500, 1500]);
+    assert.equal(sends, 4);
+    assert.equal(suppressed.length, 1);
+    assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1500 + 1500 + getSuppressionDelayMs(1, 3));
 });

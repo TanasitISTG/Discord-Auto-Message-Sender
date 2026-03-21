@@ -5,7 +5,7 @@ import { readAppConfigResult, writeAppConfig } from '../config/store';
 import { parseEnvironment } from '../config/schema';
 import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
-import { SessionService, SessionServiceOptions } from '../services/session';
+import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
 import { loadSenderState } from '../services/state-store';
 import { createFileSink, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import {
@@ -147,7 +147,11 @@ export class DesktopRuntime {
             throw new Error(configResult.kind === 'invalid' ? configResult.error : 'Configuration is missing.');
         }
 
-        const sessionId = `session-${Date.now()}`;
+        const persistedState = loadSenderState(this.baseDir);
+        const resumeSession = canResumeSession(persistedState.resumeSession, configResult.config, runtime)
+            ? persistedState.resumeSession
+            : undefined;
+        const sessionId = resumeSession?.sessionId ?? `session-${Date.now()}`;
         const logger = this.createSessionLogger(sessionId);
         const session = this.sessionFactory({
             baseDir: this.baseDir,
@@ -156,6 +160,7 @@ export class DesktopRuntime {
             runtime,
             sessionId,
             logger,
+            resumeSession,
             emitEvent: (event) => {
                 if ('state' in event) {
                     this.sessionState = event.state;
@@ -268,7 +273,13 @@ export class DesktopRuntime {
     }
 
     private publish(event: DesktopEvent) {
-        if (event.type === 'session_started' || event.type === 'session_paused' || event.type === 'session_resumed' || event.type === 'session_stopping' || event.type === 'summary_ready' || event.type === 'channel_state_changed') {
+        if (event.type === 'session_started'
+            || event.type === 'session_paused'
+            || event.type === 'session_resumed'
+            || event.type === 'session_stopping'
+            || event.type === 'summary_ready'
+            || event.type === 'channel_state_changed'
+            || event.type === 'session_state_updated') {
             this.sessionState = event.state;
         }
 

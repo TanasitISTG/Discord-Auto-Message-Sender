@@ -2,7 +2,7 @@
 name = "discord-auto-message-sender"
 version = "0.1.0"
 description = "Local-first desktop shell for Discord Auto Message Sender"
-authors = ["OpenAI"]
+authors = ["tana"]
 edition = "2021"
 
 [package.metadata]

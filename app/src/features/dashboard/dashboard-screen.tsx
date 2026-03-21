@@ -25,12 +25,15 @@ export function DashboardScreen({
     onRunPreflight,
     onOpenLogs
 }: DashboardScreenProps) {
+    const healthEntries = Object.values(senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
+    const suppressedCount = healthEntries.filter((entry) => entry.status === 'suppressed').length;
+
     return (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Configured Channels" value={String(groupedMetrics.channelCount)} detail="Ready for desktop sessions." />
             <MetricCard label="Message Groups" value={String(groupedMetrics.groupCount)} detail={`${groupedMetrics.messageCount} total messages`} />
             <MetricCard label="Last Run" value={latestSummary ? `${latestSummary.sentMessages}` : '0'} detail={latestSummary ? `${latestSummary.completedChannels}/${latestSummary.totalChannels} channels completed` : 'No session summary yet.'} />
-            <MetricCard label="Recent Failures" value={String(senderState.recentFailures.length)} detail="Tracked locally for the dashboard." />
+            <MetricCard label="Suppressed Channels" value={String(suppressedCount)} detail={senderState.resumeSession ? 'Checkpoint available for continuation.' : 'No saved recovery checkpoint.'} />
 
             <Card className="md:col-span-2 xl:col-span-2">
                 <CardHeader>
@@ -56,10 +59,49 @@ export function DashboardScreen({
                             <StateRow label="Finished" value={latestSummary.finishedAt ? new Date(latestSummary.finishedAt).toLocaleString() : 'In progress'} />
                             <StateRow label="Sent messages" value={String(latestSummary.sentMessages)} />
                             <StateRow label="Channel outcome" value={`${latestSummary.completedChannels} complete / ${latestSummary.failedChannels} failed`} />
+                            <StateRow label="Rate-limit events" value={String(latestSummary.rateLimitEvents ?? 0)} />
+                            <StateRow label="Peak pacing" value={latestSummary.maxPacingIntervalMs ? `${latestSummary.maxPacingIntervalMs} ms` : 'Baseline'} />
                         </>
                     ) : (
                         <div>No session summary recorded yet.</div>
                     )}
+                </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2">
+                <CardHeader>
+                    <CardTitle>Recovery Snapshot</CardTitle>
+                    <CardDescription>Suppressed and degraded channels are persisted locally so the dashboard can explain current runtime posture.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {senderState.resumeSession ? (
+                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm">
+                            <div className="font-medium text-cyan-100">Resume checkpoint available</div>
+                            <div className="mt-1 text-cyan-50/80">
+                                Updated {new Date(senderState.resumeSession.updatedAt).toLocaleString()}
+                            </div>
+                            <div className="mt-2 text-cyan-50/80">
+                                Runtime: {senderState.resumeSession.runtime.numMessages === 0 ? 'infinite' : senderState.resumeSession.runtime.numMessages} messages, {senderState.resumeSession.runtime.baseWaitSeconds}s base wait, {senderState.resumeSession.runtime.marginSeconds}s margin
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-muted-foreground">No interrupted session needs continuation.</div>
+                    )}
+
+                    {healthEntries.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">All tracked channels are healthy.</div>
+                    ) : healthEntries.map((entry) => (
+                        <div key={entry.channelId} className="rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="font-medium">{entry.channelName}</div>
+                                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{entry.status}</div>
+                            </div>
+                            <div className="mt-2 text-muted-foreground">{entry.lastReason ?? 'No reason recorded.'}</div>
+                            <div className="mt-2 text-xs text-muted-foreground">
+                                {entry.suppressedUntil ? `Suppressed until ${new Date(entry.suppressedUntil).toLocaleString()}` : `${entry.consecutiveRateLimits} recent rate limits, ${entry.consecutiveFailures} recent failures`}
+                            </div>
+                        </div>
+                    ))}
                 </CardContent>
             </Card>
 
