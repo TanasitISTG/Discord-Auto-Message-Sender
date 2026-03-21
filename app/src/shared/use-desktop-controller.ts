@@ -11,6 +11,7 @@ import {
     loadConfig,
     loadLogs,
     loadState,
+    discardResumeSession,
     openLogFile,
     pauseSession,
     resumeSession,
@@ -92,6 +93,7 @@ export function useDesktopController() {
     }), [draft.state.config]);
 
     const latestSummary = senderState.summaries[0] ?? senderState.lastSession?.summary;
+    const hasActiveSession = Boolean(session && ['running', 'paused', 'stopping'].includes(session.status));
 
     async function refreshAll() {
         try {
@@ -184,6 +186,7 @@ export function useDesktopController() {
         runtime,
         groupedMetrics,
         latestSummary,
+        hasActiveSession,
         preferredScreen,
         setNotice,
         setRuntime,
@@ -235,7 +238,7 @@ export function useDesktopController() {
             try {
                 const nextState = await startSession(runtime);
                 setSession(nextState);
-                setNotice('Session started from the desktop shell.');
+                setNotice(nextState.resumedFromCheckpoint ? 'Session resumed from the saved checkpoint.' : 'Session started from the desktop shell.');
                 return nextState;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));
@@ -272,6 +275,32 @@ export function useDesktopController() {
             try {
                 const nextState = await stopSession();
                 setSession(nextState);
+                setNotice('Stopping the active session after the current send finishes.');
+                return nextState;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async discardResumeCheckpoint() {
+            if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
+                setNotice('Stop the active session before discarding the saved checkpoint.');
+                return null;
+            }
+
+            if (!senderState.resumeSession) {
+                setNotice('No saved checkpoint is available.');
+                return null;
+            }
+
+            if (!window.confirm('Discard the saved resume checkpoint? This cannot be undone.')) {
+                return null;
+            }
+
+            try {
+                const nextState = await discardResumeSession();
+                setSenderState(nextState);
+                setNotice('Saved checkpoint discarded.');
                 return nextState;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));

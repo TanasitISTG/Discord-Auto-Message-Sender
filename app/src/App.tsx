@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Shuffle, TimerReset } from 'lucide-react';
+import { Play, Shuffle, Square, TimerReset } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfigScreen } from '@/features/config/config-screen';
@@ -76,13 +76,27 @@ export default function App() {
                             <TimerReset className="mr-2 h-4 w-4" />
                             Preflight
                         </Button>
-                        <Button onClick={async () => {
-                            await controller.startSessionCommand();
-                            setScreen('session');
-                        }}>
-                            <Play className="mr-2 h-4 w-4" />
-                            {controller.senderState.resumeSession && !controller.session ? 'Continue Session' : 'Start Session'}
-                        </Button>
+                        {controller.hasActiveSession ? (
+                            <Button
+                                variant="danger"
+                                disabled={controller.session?.status === 'stopping'}
+                                onClick={async () => {
+                                    await controller.stopCurrentSession();
+                                    setScreen('session');
+                                }}
+                            >
+                                <Square className="mr-2 h-4 w-4" />
+                                {controller.session?.status === 'stopping' ? 'Stopping...' : 'Stop Session'}
+                            </Button>
+                        ) : (
+                            <Button onClick={async () => {
+                                await controller.startSessionCommand();
+                                setScreen('session');
+                            }}>
+                                <Play className="mr-2 h-4 w-4" />
+                                {controller.senderState.resumeSession ? 'Resume Session' : 'Start Session'}
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -91,6 +105,7 @@ export default function App() {
                         groupedMetrics={controller.groupedMetrics}
                         latestSummary={controller.latestSummary}
                         senderState={controller.senderState}
+                        hasActiveSession={controller.hasActiveSession}
                         onOpenConfig={() => setScreen('config')}
                         onRunDryRun={async () => {
                             await controller.runDryRunCommand();
@@ -103,6 +118,13 @@ export default function App() {
                         onOpenLogs={async () => {
                             await controller.loadCurrentLogs();
                             setScreen('logs');
+                        }}
+                        onResumeSession={async () => {
+                            await controller.startSessionCommand();
+                            setScreen('session');
+                        }}
+                        onDiscardCheckpoint={async () => {
+                            await controller.discardResumeCheckpoint();
                         }}
                     />
                 ) : null}
@@ -138,6 +160,7 @@ export default function App() {
                         runtime={controller.runtime}
                         setRuntime={controller.setRuntime}
                         session={controller.session}
+                        hasActiveSession={controller.hasActiveSession}
                         senderState={controller.senderState}
                         preflight={controller.preflight}
                         onStart={async () => {
@@ -148,6 +171,9 @@ export default function App() {
                         }}
                         onStop={async () => {
                             await controller.stopCurrentSession();
+                        }}
+                        onDiscardCheckpoint={async () => {
+                            await controller.discardResumeCheckpoint();
                         }}
                     />
                 ) : null}

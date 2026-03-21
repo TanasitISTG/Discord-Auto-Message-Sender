@@ -701,6 +701,11 @@ fn load_state(app: AppHandle) -> Result<SenderStateRecord, String> {
 }
 
 #[tauri::command]
+fn discard_resume_session(app: AppHandle) -> Result<SenderStateRecord, String> {
+    send_sidecar_request(&app, "discard_resume_session", json!({}))
+}
+
+#[tauri::command]
 fn open_log_file(request: OpenLogFileRequest) -> Result<String, String> {
     let log_path = project_root().join("logs").join(format!("{}.jsonl", request.session_id));
     if cfg!(target_os = "windows") {
@@ -761,6 +766,7 @@ fn main() {
             get_session_state,
             load_logs,
             load_state,
+            discard_resume_session,
             open_log_file
         ])
         .run(tauri::generate_context!())

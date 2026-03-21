@@ -182,3 +182,42 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
 
     assert.equal(receivedResumeSessionId, 'session-resume');
 });
+
+test('DesktopRuntime can discard a saved resume checkpoint when no session is active', () => {
+    const tempDir = createTempDir();
+    const config = writeDesktopFiles(tempDir);
+    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
+        summaries: [],
+        recentFailures: [],
+        resumeSession: {
+            sessionId: 'session-resume',
+            updatedAt: '2026-03-21T10:00:00.000Z',
+            runtime: {
+                numMessages: 1,
+                baseWaitSeconds: 1,
+                marginSeconds: 0
+            },
+            configSignature: JSON.stringify(config),
+            state: {
+                id: 'session-resume',
+                status: 'running',
+                updatedAt: '2026-03-21T10:00:00.000Z',
+                activeChannels: ['123456789012345678'],
+                completedChannels: [],
+                failedChannels: [],
+                sentMessages: 1
+            },
+            recentMessageHistory: {
+                '123456789012345678': ['hello']
+            }
+        }
+    }, null, 2), 'utf8');
+
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir
+    });
+
+    const state = runtime.discardResumeSession();
+
+    assert.equal(state.resumeSession, undefined);
+});

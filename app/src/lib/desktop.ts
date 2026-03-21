@@ -87,6 +87,10 @@ export async function loadState(): Promise<SenderStateRecord> {
     return desktopInvoke('load_state', {});
 }
 
+export async function discardResumeSession(): Promise<SenderStateRecord> {
+    return desktopInvoke('discard_resume_session', {});
+}
+
 export async function openLogFile(sessionId: string): Promise<string> {
     return desktopInvoke('open_log_file', { sessionId });
 }

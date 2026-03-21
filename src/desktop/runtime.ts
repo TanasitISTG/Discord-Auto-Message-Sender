@@ -6,7 +6,7 @@ import { parseEnvironment } from '../config/schema';
 import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
 import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
-import { loadSenderState } from '../services/state-store';
+import { clearResumeSession, loadSenderState } from '../services/state-store';
 import { createFileSink, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import {
     ConfigLoadResult,
@@ -74,6 +74,8 @@ export class DesktopRuntime {
                 return await this.loadLogs(payload as DesktopCommandMap['load_logs']['request']) as DesktopCommandMap[K]['response'];
             case 'load_state':
                 return this.loadState() as DesktopCommandMap[K]['response'];
+            case 'discard_resume_session':
+                return this.discardResumeSession() as DesktopCommandMap[K]['response'];
             default:
                 throw new Error(`Unsupported desktop command '${command}'.`);
         }
@@ -230,6 +232,15 @@ export class DesktopRuntime {
 
     loadState(): StateLoadResult {
         return loadSenderState(this.baseDir);
+    }
+
+    discardResumeSession(): StateLoadResult {
+        const current = this.getSessionState();
+        if (current && ['running', 'paused', 'stopping'].includes(current.status)) {
+            throw new Error('Stop the active session before discarding the saved checkpoint.');
+        }
+
+        return clearResumeSession(this.baseDir);
     }
 
     private createSessionLogger(sessionId: string): StructuredLogger {

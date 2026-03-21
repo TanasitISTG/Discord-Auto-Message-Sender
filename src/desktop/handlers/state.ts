@@ -14,3 +14,10 @@ export async function handleLoadState(
 ): Promise<DesktopCommandMap['load_state']['response']> {
     return runtime.loadState();
 }
+
+export async function handleDiscardResumeSession(
+    runtime: DesktopRuntime,
+    _payload: DesktopCommandMap['discard_resume_session']['request']
+): Promise<DesktopCommandMap['discard_resume_session']['response']> {
+    return runtime.discardResumeSession();
+}

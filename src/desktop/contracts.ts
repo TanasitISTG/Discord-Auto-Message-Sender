@@ -100,6 +100,10 @@ export interface DesktopCommandMap {
         request: EmptyRequest;
         response: StateLoadResult;
     };
+    discard_resume_session: {
+        request: EmptyRequest;
+        response: StateLoadResult;
+    };
     open_log_file: {
         request: OpenLogFileRequest;
         response: string;

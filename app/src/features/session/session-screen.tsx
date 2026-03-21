@@ -9,14 +9,16 @@ interface SessionScreenProps {
     runtime: RuntimeOptions;
     setRuntime(next: RuntimeOptions): void;
     session: SessionSnapshot | null;
+    hasActiveSession: boolean;
     senderState: SenderStateRecord;
     preflight: PreflightResult | null;
     onStart(): void | Promise<void>;
     onPauseResume(): void | Promise<void>;
     onStop(): void | Promise<void>;
+    onDiscardCheckpoint(): void | Promise<void>;
 }
 
-export function SessionScreen({ runtime, setRuntime, session, senderState, preflight, onStart, onPauseResume, onStop }: SessionScreenProps) {
+export function SessionScreen({ runtime, setRuntime, session, hasActiveSession, senderState, preflight, onStart, onPauseResume, onStop, onDiscardCheckpoint }: SessionScreenProps) {
     const healthEntries = Object.values(session?.channelHealth ?? senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const resumeSession = senderState.resumeSession;
 
@@ -35,16 +37,16 @@ export function SessionScreen({ runtime, setRuntime, session, senderState, prefl
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-                        <Button onClick={onStart}>
+                        <Button onClick={onStart} disabled={hasActiveSession}>
                             <Play className="mr-2 h-4 w-4" />
-                            {resumeSession && !session ? 'Continue' : 'Start'}
+                            {resumeSession && !session ? 'Resume' : 'Start'}
                         </Button>
                         <Button variant="secondary" onClick={onPauseResume} disabled={!session || !['running', 'paused'].includes(session.status)}>
                             {session?.status === 'paused' ? 'Resume' : 'Pause'}
                         </Button>
-                        <Button variant="danger" onClick={onStop} disabled={!session || ['completed', 'failed'].includes(session.status)}>
+                        <Button variant="danger" onClick={onStop} disabled={!session || ['completed', 'failed', 'stopping'].includes(session.status)}>
                             <Square className="mr-2 h-4 w-4" />
-                            Stop
+                            {session?.status === 'stopping' ? 'Stopping...' : 'Stop'}
                         </Button>
                     </div>
 
@@ -90,6 +92,15 @@ export function SessionScreen({ runtime, setRuntime, session, senderState, prefl
                             </div>
                             <div className="mt-1 text-cyan-50/80">
                                 Start will continue with {resumeSession.runtime.numMessages === 0 ? 'infinite' : resumeSession.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-3">
+                                <Button size="sm" onClick={onStart}>
+                                    <Play className="mr-2 h-4 w-4" />
+                                    Resume Session
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={onDiscardCheckpoint}>
+                                    Discard Checkpoint
+                                </Button>
                             </div>
                         </div>
                     ) : null}

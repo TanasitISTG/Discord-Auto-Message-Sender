@@ -1,4 +1,5 @@
 import { ActionTile, MetricCard, StateRow } from '@/shared/components';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
 
@@ -10,20 +11,26 @@ interface DashboardScreenProps {
     };
     latestSummary: SessionSnapshot['summary'] | undefined;
     senderState: SenderStateRecord;
+    hasActiveSession: boolean;
     onOpenConfig(): void;
     onRunDryRun(): void | Promise<void>;
     onRunPreflight(): void | Promise<void>;
     onOpenLogs(): void | Promise<void>;
+    onResumeSession(): void | Promise<void>;
+    onDiscardCheckpoint(): void | Promise<void>;
 }
 
 export function DashboardScreen({
     groupedMetrics,
     latestSummary,
     senderState,
+    hasActiveSession,
     onOpenConfig,
     onRunDryRun,
     onRunPreflight,
-    onOpenLogs
+    onOpenLogs,
+    onResumeSession,
+    onDiscardCheckpoint
 }: DashboardScreenProps) {
     const healthEntries = Object.values(senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const suppressedCount = healthEntries.filter((entry) => entry.status === 'suppressed').length;
@@ -82,6 +89,23 @@ export function DashboardScreen({
                             </div>
                             <div className="mt-2 text-cyan-50/80">
                                 Runtime: {senderState.resumeSession.runtime.numMessages === 0 ? 'infinite' : senderState.resumeSession.runtime.numMessages} messages, {senderState.resumeSession.runtime.baseWaitSeconds}s base wait, {senderState.resumeSession.runtime.marginSeconds}s margin
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-3">
+                                <Button
+                                    size="sm"
+                                    disabled={hasActiveSession}
+                                    onClick={() => void onResumeSession()}
+                                >
+                                    Resume Session
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={hasActiveSession}
+                                    onClick={() => void onDiscardCheckpoint()}
+                                >
+                                    Discard Checkpoint
+                                </Button>
                             </div>
                         </div>
                     ) : (

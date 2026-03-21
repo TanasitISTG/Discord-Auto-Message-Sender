@@ -3,7 +3,7 @@ import { DesktopRuntime } from '../runtime';
 import { handleLoadConfig, handleSaveConfig } from './config';
 import { handleRunDryRun, handleRunPreflight } from './preflight';
 import { handleGetSessionState, handlePauseSession, handleResumeSession, handleStartSession, handleStopSession } from './session';
-import { handleLoadLogs, handleLoadState } from './state';
+import { handleDiscardResumeSession, handleLoadLogs, handleLoadState } from './state';
 
 type Handler<K extends DesktopCommandName> = (
     runtime: DesktopRuntime,
@@ -22,7 +22,8 @@ export function createDesktopHandlers() {
         stop_session: handleStopSession,
         get_session_state: handleGetSessionState,
         load_logs: handleLoadLogs,
-        load_state: handleLoadState
+        load_state: handleLoadState,
+        discard_resume_session: handleDiscardResumeSession
     };
 
     return handlers;

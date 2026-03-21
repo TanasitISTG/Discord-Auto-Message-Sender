@@ -65,6 +65,13 @@ export function saveSenderState(baseDir: string, state: SenderStateRecord) {
     fs.writeFileSync(filePath, JSON.stringify(nextState, null, 2), 'utf8');
 }
 
+export function clearResumeSession(baseDir: string): SenderStateRecord {
+    const state = loadSenderState(baseDir);
+    state.resumeSession = undefined;
+    saveSenderState(baseDir, state);
+    return loadSenderState(baseDir);
+}
+
 function normalizeRuntimeOptions(value: unknown): RuntimeOptions | undefined {
     if (!value || typeof value !== 'object') {
         return undefined;
