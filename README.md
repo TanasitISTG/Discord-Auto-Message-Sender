@@ -1,6 +1,6 @@
 # Discord Auto Message Sender
 
-Local-first desktop app for configuring and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack.
+Local-first desktop app for configuring, previewing, validating, and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack.
 
 ## Disclaimer
 
@@ -27,13 +27,14 @@ Local-first desktop app for configuring and running repeated Discord message ses
 bun install
 ```
 
-## Setup
+## First-Time Setup
 
-1. Copy `config.example.json` to `config.json`.
-2. Copy `.env.example` to `.env`.
-3. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
-4. Update channel IDs and message groups in `config.json`.
-5. Keep `config.json` and `.env` in the project root so the desktop runtime can resolve them locally.
+1. Copy `.env.example` to `.env`.
+2. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
+3. Optional: copy `config.example.json` to `config.json` if you want a starting template.
+4. Launch the desktop app and build or edit the config in the GUI.
+
+The app resolves `.env`, `config.json`, `logs/`, and `.sender-state.json` from the project root. It does not use a hosted backend or external database.
 
 ## Desktop Development
 
@@ -42,12 +43,21 @@ bun run dev
 bun run desktop:dev
 ```
 
-Desktop commands are local-only:
+Desktop runtime architecture:
 
 - the React UI calls Tauri commands
 - Tauri supervises one long-lived Bun sidecar process
 - the Bun sidecar owns config IO, preflight, dry-run, session control, logs, and persisted local state
 - the TypeScript sender core still runs locally inside that sidecar
+
+## Desktop Workflow
+
+1. Open `Config` and create or edit channels, groups, and messages.
+2. Run `Dry Run` to preview routing and cadence without sending anything.
+3. Run `Preflight` to validate config and check channel access.
+4. Start a session from the header or the Session screen.
+5. Use `Pause`, `Resume`, or `Stop` from the Session screen while the run is active.
+6. Review `Logs` and the dashboard summary after the run finishes.
 
 ## Configuration
 
@@ -96,6 +106,25 @@ Compatibility notes:
 - If a legacy config is loaded, `messages.json` must still exist so message groups can be imported.
 - Saving through the desktop UI writes only the new canonical `config.json` format.
 
+## Local Files
+
+The desktop runtime keeps everything local to the repository root:
+
+| Path | Purpose |
+| --- | --- |
+| `.env` | Local token storage. |
+| `config.json` | Canonical saved configuration. |
+| `.sender-state.json` | Persistent summaries, health tracking, and resumable checkpoint data. |
+| `logs/<session-id>.jsonl` | Structured per-session logs used by the Logs screen and export/open actions. |
+| `messages.json` | Legacy import-only compatibility file for older configs. |
+
+## Recovery And Reset
+
+- If a run is interrupted safely enough to resume, the dashboard and Session screen show `Resume Session` and `Discard Checkpoint`.
+- If `.sender-state.json` is corrupted, the app logs a warning and starts from a fresh local state.
+- To fully reset local runtime state, stop the app and remove `.sender-state.json` plus any old files in `logs/`.
+- Removing `.sender-state.json` does not delete `config.json` or `.env`.
+
 ## Troubleshooting
 
 - `Environment error`
@@ -106,14 +135,43 @@ Compatibility notes:
   Your token is invalid or expired. Re-copy it from Discord.
 - `HTTP 403`
   You do not have access to send messages in that channel.
+- `Local sender state was corrupted and has been reset`
+  Delete `.sender-state.json` if the warning persists after restart.
 
 ## Verification
 
 ```bash
 bun run typecheck
-bun test
+bun run test
 bun run build
 ```
+
+## Desktop Packaging
+
+Build a Windows installer with:
+
+```bash
+bun run desktop:build
+```
+
+Current packaging target:
+
+- Windows MSI bundle
+
+The packaged executable and installer artifacts are written under `src-tauri/target/release/`.
+
+## Suggested Smoke Test
+
+After a release build, verify this flow in the packaged desktop app:
+
+1. Launch the app.
+2. Load or create config in the GUI.
+3. Save config.
+4. Run dry run.
+5. Run preflight.
+6. Start a session, then pause, resume, and stop.
+7. Restart the app and verify resume/discard checkpoint behavior.
+8. Open the log file from the Logs screen.
 
 ## License
 
