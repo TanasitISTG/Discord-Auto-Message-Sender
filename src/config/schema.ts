@@ -199,7 +199,7 @@ function parseMessageGroups(value: unknown, pathPrefix: Array<string | number>):
         if (!parsedMessages.success) {
             issues.push(...parsedMessages.error.issues.map((issue) => ({
                 ...issue,
-                path: [...pathPrefix, normalizedName, ...issue.path]
+                path: [...pathPrefix, rawName, ...issue.path]
             })));
             continue;
         }

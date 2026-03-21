@@ -6,6 +6,7 @@ const MAX_SEND_ATTEMPTS = 3;
 const DEFAULT_MAX_RATE_LIMIT_WAITS = 10;
 const DEFAULT_GLOBAL_REQUEST_INTERVAL_MS = 250;
 const ABORT_POLL_INTERVAL_MS = 250;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 
 type FetchImpl = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
@@ -30,6 +31,7 @@ export interface SenderDependencies {
     sleep?: SleepFn;
     random?: RandomFn;
     coordinator?: SenderCoordinator;
+    requestTimeoutMs?: number;
 }
 
 export interface RunChannelOptions extends SenderDependencies {
@@ -47,6 +49,13 @@ class SendAbortError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'SendAbortError';
+    }
+}
+
+class RequestTimeoutError extends Error {
+    constructor(timeoutMs: number) {
+        super(`Request timed out after ${timeoutMs}ms`);
+        this.name = 'RequestTimeoutError';
     }
 }
 
@@ -214,6 +223,37 @@ async function readResponseBody(response: Response): Promise<unknown> {
     }
 }
 
+async function fetchWithTimeout(
+    fetchImpl: FetchImpl,
+    url: string,
+    init: RequestInit,
+    timeoutMs: number
+): Promise<Response> {
+    const controller = new AbortController();
+    const fetchPromise = fetchImpl(url, {
+        ...init,
+        signal: controller.signal
+    });
+
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    try {
+        return await Promise.race([
+            fetchPromise,
+            new Promise<Response>((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    controller.abort();
+                    reject(new RequestTimeoutError(timeoutMs));
+                }, timeoutMs);
+            })
+        ]);
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+    }
+}
+
 export async function sendDiscordMessage(
     target: AppChannel,
     content: string,
@@ -225,6 +265,7 @@ export async function sendDiscordMessage(
     const sleep = dependencies.sleep ?? defaultSleep;
     const random = dependencies.random ?? Math.random;
     const coordinator = dependencies.coordinator;
+    const requestTimeoutMs = dependencies.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
     if (coordinator?.isAborted()) {
         return { type: 'fatal', reason: 'aborted' };
@@ -233,7 +274,7 @@ export async function sendDiscordMessage(
     for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
         try {
             const response = coordinator
-                ? await coordinator.scheduleRequest(sleep, () => fetchImpl(`${API_BASE}/channels/${target.id}/messages`, {
+                ? await coordinator.scheduleRequest(sleep, () => fetchWithTimeout(fetchImpl, `${API_BASE}/channels/${target.id}/messages`, {
                     method: 'POST',
                     headers: {
                         Authorization: token,
@@ -242,8 +283,8 @@ export async function sendDiscordMessage(
                         Referer: target.referrer
                     },
                     body: JSON.stringify({ content, tts: false })
-                }))
-                : await fetchImpl(`${API_BASE}/channels/${target.id}/messages`, {
+                }, requestTimeoutMs))
+                : await fetchWithTimeout(fetchImpl, `${API_BASE}/channels/${target.id}/messages`, {
                     method: 'POST',
                     headers: {
                         Authorization: token,
@@ -252,7 +293,7 @@ export async function sendDiscordMessage(
                         Referer: target.referrer
                     },
                     body: JSON.stringify({ content, tts: false })
-                });
+                }, requestTimeoutMs);
 
             if (response.ok) {
                 return { type: 'success' };
@@ -330,6 +371,7 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         sleep = defaultSleep,
         random = Math.random,
         coordinator,
+        requestTimeoutMs,
         maxRateLimitWaits = DEFAULT_MAX_RATE_LIMIT_WAITS
     } = options;
 
@@ -363,7 +405,8 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 fetchImpl,
                 sleep,
                 random,
-                coordinator
+                coordinator,
+                requestTimeoutMs
             });
 
             if (result.type === 'success') {

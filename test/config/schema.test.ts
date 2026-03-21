@@ -123,3 +123,14 @@ test('createDefaultAppConfig returns a null-prototype messageGroups object safe 
     assert.deepEqual(config.messageGroups['__proto__'], ['Injected']);
     assert.deepEqual(config.messageGroups.default, ['Hello from your Discord bot!']);
 });
+
+test('parseAppConfig reports invalid message paths using the raw group key from the user config', () => {
+    assert.throws(() => parseAppConfig({
+        userAgent: 'UA',
+        channels: [],
+        messageGroups: {
+            ' default ': ['   ']
+        }
+    }), (error) => error instanceof ZodError
+        && error.issues.some((issue) => issue.path.join('.') === 'messageGroups. default .0'));
+});

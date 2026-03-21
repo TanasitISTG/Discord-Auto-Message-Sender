@@ -148,6 +148,62 @@ test('shared sender coordinator preserves the minimum interval even when request
     assert.deepEqual(startTimes, [0, 1000]);
 });
 
+test('sendDiscordMessage times out hung requests so the shared coordinator queue can keep moving', async () => {
+    const coordinator = createSenderCoordinator(0);
+    const callOrder: string[] = [];
+
+    const firstSend = sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
+        coordinator,
+        requestTimeoutMs: 5,
+        sleep: async () => {},
+        random: () => 0,
+        fetchImpl: async (url, init) => {
+            const signal = init?.signal;
+            if (String(url).includes(channel.id)) {
+                callOrder.push('first');
+                return await new Promise<Response>((resolve, reject) => {
+                    signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), { once: true });
+                });
+            }
+
+            callOrder.push('second');
+            return createResponse(200, {});
+        }
+    });
+
+    const secondSend = sendDiscordMessage({
+        ...channel,
+        id: '423456789012345678',
+        referrer: 'https://discord.com/channels/@me/423456789012345678'
+    }, 'Hello again!', 'token', 'UA', {
+        coordinator,
+        requestTimeoutMs: 5,
+        sleep: async () => {},
+        random: () => 0,
+        fetchImpl: async (url, init) => {
+            const signal = init?.signal;
+            if (String(url).includes(channel.id)) {
+                callOrder.push('first');
+                return await new Promise<Response>((resolve, reject) => {
+                    signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), { once: true });
+                });
+            }
+
+            callOrder.push('second');
+            return createResponse(200, {});
+        }
+    });
+
+    const [firstResult, secondResult] = await Promise.race([
+        Promise.all([firstSend, secondSend]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for queued sends')), 200))
+    ]);
+
+    assert.deepEqual(firstResult, { type: 'fatal', reason: 'exhausted' });
+    assert.deepEqual(secondResult, { type: 'success' });
+    assert.ok(callOrder.includes('second'));
+});
+
 test('pickNextMessage avoids repeats until the group is exhausted', () => {
     const sentCache = new Set<string>();
     const sequence = [0.0, 0.5, 0.9];
