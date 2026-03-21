@@ -114,11 +114,13 @@ export function useDesktopController() {
             setSession(activeSession);
             setSenderState(persistedState);
             setSetup(setupState);
-            setEnvironmentDraft(setupState.token);
+            setEnvironmentDraft('');
             if (!activeSession && persistedState.resumeSession) {
                 setRuntime(persistedState.resumeSession.runtime);
             }
-            if (persistedState.warning) {
+            if (setupState.warning) {
+                setNotice(setupState.warning);
+            } else if (persistedState.warning) {
                 setNotice(persistedState.warning);
             }
         } catch (error) {
@@ -362,8 +364,8 @@ export function useDesktopController() {
                     discordToken: environmentDraft
                 });
                 setSetup(nextSetup);
-                setEnvironmentDraft(nextSetup.token);
-                setNotice('Discord token saved to the local .env file.');
+                setEnvironmentDraft('');
+                setNotice('Discord token saved securely for this Windows user profile.');
                 return nextSetup;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));

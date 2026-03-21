@@ -3,9 +3,9 @@ import { DesktopRuntime } from '../runtime';
 
 export async function handleRunPreflight(
     runtime: DesktopRuntime,
-    _payload: DesktopCommandMap['run_preflight']['request']
+    payload: DesktopCommandMap['run_preflight']['request']
 ): Promise<DesktopCommandMap['run_preflight']['response']> {
-    return runtime.runPreflight();
+    return runtime.runPreflight(payload);
 }
 
 export async function handleRunDryRun(

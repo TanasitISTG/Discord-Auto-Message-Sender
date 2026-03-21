@@ -13,7 +13,6 @@ import {
     DesktopCommandMap,
     DesktopCommandName,
     DesktopEvent,
-    DesktopSetupState,
     LogLoadResult,
     SessionSnapshot,
     StateLoadResult
@@ -58,7 +57,7 @@ export class DesktopRuntime {
             case 'save_config':
                 return await this.saveConfig(payload as DesktopCommandMap['save_config']['request']) as DesktopCommandMap[K]['response'];
             case 'run_preflight':
-                return await this.runPreflight() as DesktopCommandMap[K]['response'];
+                return await this.runPreflight(payload as DesktopCommandMap['run_preflight']['request']) as DesktopCommandMap[K]['response'];
             case 'run_dry_run':
                 return await this.runDryRun(payload as DesktopCommandMap['run_dry_run']['request']) as DesktopCommandMap[K]['response'];
             case 'start_session':
@@ -75,10 +74,6 @@ export class DesktopRuntime {
                 return await this.loadLogs(payload as DesktopCommandMap['load_logs']['request']) as DesktopCommandMap[K]['response'];
             case 'load_state':
                 return this.loadState() as DesktopCommandMap[K]['response'];
-            case 'load_setup_state':
-                return this.loadSetupState() as DesktopCommandMap[K]['response'];
-            case 'save_environment':
-                return this.saveEnvironment(payload as DesktopCommandMap['save_environment']['request']) as DesktopCommandMap[K]['response'];
             case 'discard_resume_session':
                 return this.discardResumeSession() as DesktopCommandMap[K]['response'];
             default:
@@ -98,7 +93,7 @@ export class DesktopRuntime {
         };
     }
 
-    async runPreflight(): Promise<DesktopCommandMap['run_preflight']['response']> {
+    async runPreflight(payload: DesktopCommandMap['run_preflight']['request']): Promise<DesktopCommandMap['run_preflight']['response']> {
         const configResult = readAppConfigResult(this.resolveConfigPaths());
         if (configResult.kind !== 'ok') {
             const result = {
@@ -116,7 +111,7 @@ export class DesktopRuntime {
             return result;
         }
 
-        const token = this.readToken();
+        const token = this.readToken(payload.token);
         const result = await runPreflight(configResult.config, {
             token,
             checkAccess: true
@@ -142,13 +137,18 @@ export class DesktopRuntime {
         return result;
     }
 
-    async startSession(runtime: DesktopCommandMap['start_session']['request']): Promise<DesktopCommandMap['start_session']['response']> {
+    async startSession(request: DesktopCommandMap['start_session']['request']): Promise<DesktopCommandMap['start_session']['response']> {
         const current = this.getSessionState();
         if (current && ['running', 'paused', 'stopping'].includes(current.status)) {
             throw new Error('A desktop session is already running.');
         }
 
-        const token = this.readRequiredToken();
+        const runtime = {
+            numMessages: request.numMessages,
+            baseWaitSeconds: request.baseWaitSeconds,
+            marginSeconds: request.marginSeconds
+        };
+        const token = this.readRequiredToken(request.token);
         const configResult = readAppConfigResult(this.resolveConfigPaths());
         if (configResult.kind !== 'ok') {
             throw new Error(configResult.kind === 'invalid' ? configResult.error : 'Configuration is missing.');
@@ -239,49 +239,6 @@ export class DesktopRuntime {
         return loadSenderState(this.baseDir);
     }
 
-    loadSetupState(): DesktopSetupState {
-        const token = this.readStoredToken();
-        return {
-            token,
-            tokenPresent: token.trim().length > 0,
-            dataDir: this.baseDir,
-            envPath: this.getEnvironmentPath(),
-            configPath: path.join(this.baseDir, 'config.json'),
-            statePath: path.join(this.baseDir, '.sender-state.json'),
-            logsDir: path.join(this.baseDir, 'logs')
-        };
-    }
-
-    saveEnvironment(payload: DesktopCommandMap['save_environment']['request']): DesktopSetupState {
-        const normalizedToken = payload.discordToken.trim();
-        if (!normalizedToken) {
-            throw new Error('DISCORD_TOKEN cannot be empty.');
-        }
-
-        const envPath = this.getEnvironmentPath();
-        const existing = fs.existsSync(envPath)
-            ? fs.readFileSync(envPath, 'utf8').split(/\r?\n/)
-            : [];
-        const nextLine = `DISCORD_TOKEN=${JSON.stringify(normalizedToken)}`;
-        let replaced = false;
-        const nextLines = existing
-            .filter((line, index, lines) => !(index === lines.length - 1 && line.trim() === ''))
-            .map((line) => {
-                if (/^\s*DISCORD_TOKEN\s*=/.test(line)) {
-                    replaced = true;
-                    return nextLine;
-                }
-                return line;
-            });
-
-        if (!replaced) {
-            nextLines.push(nextLine);
-        }
-
-        fs.writeFileSync(envPath, `${nextLines.join('\n')}\n`, 'utf8');
-        return this.loadSetupState();
-    }
-
     discardResumeSession(): StateLoadResult {
         const current = this.getSessionState();
         if (current && ['running', 'paused', 'stopping'].includes(current.status)) {
@@ -332,11 +289,11 @@ export class DesktopRuntime {
         };
     }
 
-    private readStoredToken(): string {
-        return this.readFileEnvironment().DISCORD_TOKEN?.trim() ?? '';
-    }
+    private readToken(explicitToken?: string): string | undefined {
+        if (typeof explicitToken === 'string' && explicitToken.trim().length > 0) {
+            return explicitToken.trim();
+        }
 
-    private readToken(): string | undefined {
         try {
             return parseEnvironment(this.readEnvironmentSource()).DISCORD_TOKEN;
         } catch {
@@ -344,8 +301,8 @@ export class DesktopRuntime {
         }
     }
 
-    private readRequiredToken(): string {
-        const token = this.readToken();
+    private readRequiredToken(explicitToken?: string): string {
+        const token = this.readToken(explicitToken);
         if (!token) {
             throw new Error('DISCORD_TOKEN is missing.');
         }

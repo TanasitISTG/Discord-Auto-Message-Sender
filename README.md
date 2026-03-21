@@ -10,7 +10,8 @@ Local-first desktop app for configuring, previewing, validating, and running rep
 
 ## Security Model
 
-- Authentication uses `DISCORD_TOKEN` from your environment or local `.env`.
+- The packaged Windows app stores `DISCORD_TOKEN` in a DPAPI-protected local secure store.
+- Development builds can still fall back to `DISCORD_TOKEN` from your shell environment or local `.env`.
 - Secrets are not stored in `config.json`.
 - `config.json` is ignored by Git. Use `config.example.json` as the tracked template.
 - Legacy `messages.json` files are only read for one-way compatibility with older configs.
@@ -29,12 +30,13 @@ bun install
 
 ## First-Time Setup
 
-1. Copy `.env.example` to `.env`.
-2. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
-3. Optional: copy `config.example.json` to `config.json` if you want a starting template.
-4. Launch the desktop app and use `Config -> Desktop Setup` to save `DISCORD_TOKEN`, then build or edit the config in the GUI.
+1. Optional for development only: copy `.env.example` to `.env` and set `DISCORD_TOKEN` there if you want the dev shell to boot with an environment token.
+2. Optional: copy `config.example.json` to `config.json` if you want a starting template.
+3. Launch the desktop app.
+4. Open `Config -> Desktop Setup` and use `Save Token Securely` to store `DISCORD_TOKEN` for the local Windows user profile.
+5. Build or edit the config in the GUI.
 
-The app stores runtime data in the OS app-data directory. On Windows that is typically `%AppData%\\com.local.discord-auto-message-sender`. Older repo-root files are migrated there automatically on first launch if the app-data copy does not exist yet.
+The app stores runtime data in the OS app-data directory. On Windows that is typically `%AppData%\\com.local.discord-auto-message-sender`. Older repo-root files are migrated there automatically on first launch if the app-data copy does not exist yet, and legacy plaintext tokens are moved into the secure store.
 
 ## Desktop Development
 
@@ -61,11 +63,13 @@ Desktop runtime architecture:
 
 ## Configuration
 
-### `.env`
+### `.env` (development fallback only)
 
 ```bash
 DISCORD_TOKEN=your_token_here
 ```
+
+Packaged Windows builds should use `Config -> Desktop Setup` instead of relying on `.env`.
 
 ### `config.json`
 
@@ -112,7 +116,8 @@ The desktop runtime keeps everything local to the OS app-data directory:
 
 | Path | Purpose |
 | --- | --- |
-| `.env` | Local token storage. |
+| `discord-token.secure` | DPAPI-protected Discord token store for the packaged Windows app. |
+| `.env` | Development and migration fallback only. The app scrubs `DISCORD_TOKEN` from the app-data `.env` after secure migration. |
 | `config.json` | Canonical saved configuration. |
 | `.sender-state.json` | Persistent summaries, health tracking, and resumable checkpoint data. |
 | `logs/<session-id>.jsonl` | Structured per-session logs used by the Logs screen and export/open actions. |
@@ -123,13 +128,16 @@ The desktop runtime keeps everything local to the OS app-data directory:
 - If a run is interrupted safely enough to resume, the dashboard and Session screen show `Resume Session` and `Discard Checkpoint`.
 - If `.sender-state.json` is corrupted, the app logs a warning and starts from a fresh local state.
 - To fully reset local runtime state, stop the app and remove `.sender-state.json` plus any old files in `logs/`.
-- Removing `.sender-state.json` does not delete `config.json` or `.env`.
+- Removing `.sender-state.json` does not delete `config.json` or the secure token store.
 - If you previously used the repo-root desktop build, the app copies `.env`, `config.json`, `messages.json`, `.sender-state.json`, and missing log files into the app-data directory on startup.
+- After migration, the packaged app removes plaintext `DISCORD_TOKEN` values from the app-data `.env`.
 
 ## Troubleshooting
 
 - `Environment error`
-  Set `DISCORD_TOKEN` in `.env` or your shell environment.
+  Open `Config -> Desktop Setup` and save the token securely, or set `DISCORD_TOKEN` in your shell environment for development-only runs.
+- `Stored Discord token could not be decrypted`
+  Save the token again from `Config -> Desktop Setup`.
 - `Configuration not found or invalid`
   Copy `config.example.json` to `config.json`, then edit it in the desktop app.
 - `HTTP 401`

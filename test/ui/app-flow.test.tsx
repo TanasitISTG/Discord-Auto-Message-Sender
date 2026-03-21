@@ -68,19 +68,21 @@ const desktopMock = vi.hoisted(() => {
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
         loadSetupState: vi.fn(async () => ({
-            token: 'test-token',
             tokenPresent: true,
+            tokenStorage: 'secure',
             dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
             envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
             configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
             logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
         })),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
-        saveEnvironment: vi.fn(async ({ discordToken }) => ({
-            token: discordToken,
+        saveEnvironment: vi.fn(async () => ({
             tokenPresent: true,
+            tokenStorage: 'secure',
             dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
             envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
             configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',

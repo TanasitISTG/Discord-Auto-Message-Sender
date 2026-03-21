@@ -61,21 +61,6 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
     }
 
     try {
-        const setupResponse = await request('load_setup_state', {});
-        assert.equal(setupResponse.ok, true);
-        const setupState = setupResponse.result as { tokenPresent: boolean; envPath: string; dataDir: string };
-        assert.equal(setupState.tokenPresent, false);
-        assert.match(setupState.envPath, /\.env$/);
-        assert.ok(setupState.dataDir.length > 0);
-
-        const saveEnvironmentResponse = await request('save_environment', {
-            discordToken: 'test-token'
-        });
-        assert.equal(saveEnvironmentResponse.ok, true);
-        const savedEnvironment = saveEnvironmentResponse.result as { token: string; tokenPresent: boolean };
-        assert.equal(savedEnvironment.token, 'test-token');
-        assert.equal(savedEnvironment.tokenPresent, true);
-
         const configResponse = await request('load_config', {});
         assert.equal(configResponse.ok, true);
         const configResult = configResponse.result as { kind: string; config?: { channels: Array<{ id: string }> } };

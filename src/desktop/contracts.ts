@@ -32,16 +32,22 @@ export type LogLoadResult = {
 };
 export type StateLoadResult = SenderStateRecord;
 export interface DesktopSetupState {
-    token: string;
     tokenPresent: boolean;
+    tokenStorage: 'secure' | 'environment' | 'missing';
     dataDir: string;
+    secureStorePath: string;
     envPath: string;
     configPath: string;
     statePath: string;
     logsDir: string;
+    warning?: string;
 }
 
 export interface EmptyRequest {}
+
+export interface RunPreflightRequest {
+    token?: string;
+}
 
 export interface SaveConfigRequest {
     config: AppConfig;
@@ -49,6 +55,10 @@ export interface SaveConfigRequest {
 
 export interface RunDryRunRequest {
     runtime: RuntimeOptions;
+}
+
+export interface StartSessionRequest extends RuntimeOptions {
+    token?: string;
 }
 
 export interface SessionControlRequest {
@@ -78,7 +88,7 @@ export interface DesktopCommandMap {
         response: SaveConfigResult;
     };
     run_preflight: {
-        request: EmptyRequest;
+        request: RunPreflightRequest;
         response: PreflightResult;
     };
     run_dry_run: {
@@ -86,7 +96,7 @@ export interface DesktopCommandMap {
         response: DryRunResult;
     };
     start_session: {
-        request: RuntimeOptions;
+        request: StartSessionRequest;
         response: SessionSnapshot;
     };
     pause_session: {

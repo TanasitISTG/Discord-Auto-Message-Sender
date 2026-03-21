@@ -15,9 +15,18 @@ use std::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "windows")]
+use windows::{
+    core::PCWSTR,
+    Win32::{
+        Foundation::{HLOCAL, LocalFree},
+        Security::Cryptography::{CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB},
+    },
+};
 
 const RUNTIME_LOG_DIR: &str = "logs";
 const SIDECAR_RESOURCE_DIR: &str = "sidecar";
+const SECURE_TOKEN_FILE: &str = "discord-token.secure";
 const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
     "desktop-sidecar.exe"
 } else {
@@ -318,13 +327,15 @@ struct SaveEnvironmentRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopSetupState {
-    token: String,
     token_present: bool,
+    token_storage: String,
     data_dir: String,
+    secure_store_path: String,
     env_path: String,
     config_path: String,
     state_path: String,
     logs_dir: String,
+    warning: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -416,6 +427,227 @@ fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
     Ok(RuntimePaths { data_dir, logs_dir })
 }
 
+fn environment_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(".env")
+}
+
+fn secure_token_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(SECURE_TOKEN_FILE)
+}
+
+fn normalize_token(candidate: impl Into<String>) -> Option<String> {
+    let token = candidate.into().trim().to_string();
+    (!token.is_empty()).then_some(token)
+}
+
+fn parse_env_value(raw: &str) -> String {
+    serde_json::from_str::<String>(raw)
+        .unwrap_or_else(|_| raw.trim().trim_matches('"').trim_matches('\'').to_string())
+}
+
+fn read_plaintext_token_from_env_file(path: &Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let contents = fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read '{}': {error}", path.display()))?;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        let Some((key, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if key.trim() != "DISCORD_TOKEN" {
+            continue;
+        }
+
+        return Ok(normalize_token(parse_env_value(value)));
+    }
+
+    Ok(None)
+}
+
+fn scrub_discord_token_from_env_file(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let contents = fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read '{}': {error}", path.display()))?;
+    let next_lines = contents
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !(trimmed.starts_with("DISCORD_TOKEN=") || trimmed.starts_with("DISCORD_TOKEN ="))
+        })
+        .collect::<Vec<_>>();
+
+    if next_lines.len() == contents.lines().count() {
+        return Ok(());
+    }
+
+    if next_lines.is_empty() {
+        fs::remove_file(path)
+            .map_err(|error| format!("Failed to remove '{}' after token migration: {error}", path.display()))?;
+        return Ok(());
+    }
+
+    fs::write(path, format!("{}\n", next_lines.join("\n")))
+        .map_err(|error| format!("Failed to update '{}' after token migration: {error}", path.display()))
+}
+
+fn process_environment_token() -> Option<String> {
+    env::var("DISCORD_TOKEN").ok().and_then(normalize_token)
+}
+
+#[cfg(target_os = "windows")]
+fn blob_from_bytes(bytes: &[u8]) -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: bytes.len() as u32,
+        pbData: bytes.as_ptr() as *mut u8,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn protect_token(token: &str) -> Result<Vec<u8>, String> {
+    let input = blob_from_bytes(token.as_bytes());
+    let mut output = CRYPT_INTEGER_BLOB::default();
+
+    unsafe {
+        CryptProtectData(
+            &input,
+            PCWSTR::null(),
+            None,
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut output,
+        )
+        .map_err(|_| "Failed to encrypt the Discord token with Windows DPAPI.".to_string())?;
+    }
+
+    let encrypted = unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
+    unsafe {
+        let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
+    }
+
+    Ok(encrypted)
+}
+
+#[cfg(target_os = "windows")]
+fn unprotect_token(bytes: &[u8]) -> Result<String, String> {
+    let input = blob_from_bytes(bytes);
+    let mut output = CRYPT_INTEGER_BLOB::default();
+
+    unsafe {
+        CryptUnprotectData(
+            &input,
+            None,
+            None,
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut output,
+        )
+        .map_err(|_| "Stored Discord token could not be decrypted. Save it again from Desktop Setup.".to_string())?;
+    }
+
+    let decrypted = unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
+    unsafe {
+        let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
+    }
+
+    String::from_utf8(decrypted)
+        .map_err(|_| "Stored Discord token is not valid UTF-8. Save it again from Desktop Setup.".to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn protect_token(_token: &str) -> Result<Vec<u8>, String> {
+    Err("Secure Discord token storage is only supported on Windows builds right now.".to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn unprotect_token(_bytes: &[u8]) -> Result<String, String> {
+    Err("Secure Discord token storage is only supported on Windows builds right now.".to_string())
+}
+
+fn read_secure_token(paths: &RuntimePaths) -> Result<Option<String>, String> {
+    let secure_path = secure_token_path(paths);
+    if !secure_path.exists() {
+        return Ok(None);
+    }
+
+    let encrypted = fs::read(&secure_path)
+        .map_err(|error| format!("Failed to read '{}': {error}", secure_path.display()))?;
+    let token = unprotect_token(&encrypted)?;
+    Ok(normalize_token(token))
+}
+
+fn write_secure_token(paths: &RuntimePaths, token: &str) -> Result<(), String> {
+    let encrypted = protect_token(token)?;
+    fs::write(secure_token_path(paths), encrypted)
+        .map_err(|error| format!("Failed to write the secure Discord token store: {error}"))
+}
+
+fn resolve_effective_token(app: &AppHandle) -> Result<Option<String>, String> {
+    let paths = runtime_paths(app)?;
+    if let Some(token) = read_secure_token(&paths)? {
+        return Ok(Some(token));
+    }
+
+    if let Some(token) = read_plaintext_token_from_env_file(&environment_path(&paths))? {
+        return Ok(Some(token));
+    }
+
+    Ok(process_environment_token())
+}
+
+fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupState, String> {
+    let paths = runtime_paths(app)?;
+    let secure_store_path = secure_token_path(&paths);
+    let env_path = environment_path(&paths);
+
+    let (secure_token, warning) = match read_secure_token(&paths) {
+        Ok(token) => (token, None),
+        Err(error) => (None, Some(error)),
+    };
+    let environment_token = read_plaintext_token_from_env_file(&env_path)?
+        .or_else(process_environment_token);
+
+    let (token_present, token_storage) = if secure_token.is_some() {
+        (true, "secure")
+    } else if environment_token.is_some() {
+        (true, "environment")
+    } else {
+        (false, "missing")
+    };
+
+    Ok(DesktopSetupState {
+        token_present,
+        token_storage: token_storage.to_string(),
+        data_dir: paths.data_dir.to_string_lossy().to_string(),
+        secure_store_path: secure_store_path.to_string_lossy().to_string(),
+        env_path: env_path.to_string_lossy().to_string(),
+        config_path: paths.data_dir.join("config.json").to_string_lossy().to_string(),
+        state_path: paths.data_dir.join(".sender-state.json").to_string_lossy().to_string(),
+        logs_dir: paths.logs_dir.to_string_lossy().to_string(),
+        warning,
+    })
+}
+
+fn save_secure_environment(app: &AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
+    let normalized_token = normalize_token(request.discord_token)
+        .ok_or_else(|| "DISCORD_TOKEN cannot be empty.".to_string())?;
+    let paths = runtime_paths(app)?;
+    write_secure_token(&paths, &normalized_token)?;
+    scrub_discord_token_from_env_file(&environment_path(&paths))?;
+    load_desktop_setup_state(app)
+}
+
 fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
     if !paths.iter().any(|existing| existing == &candidate) {
         paths.push(candidate);
@@ -497,6 +729,29 @@ fn migrate_legacy_runtime_data(app: &AppHandle) -> Result<(), String> {
         copy_directory_contents_if_missing(&legacy_root.join(RUNTIME_LOG_DIR), &paths.logs_dir)?;
     }
 
+    Ok(())
+}
+
+fn migrate_plaintext_token_to_secure_store(app: &AppHandle) -> Result<(), String> {
+    let paths = runtime_paths(app)?;
+    let data_env_path = environment_path(&paths);
+    let secure_token = read_secure_token(&paths).ok().flatten();
+
+    if secure_token.is_none() {
+        if let Some(token) = read_plaintext_token_from_env_file(&data_env_path)? {
+            write_secure_token(&paths, &token)?;
+        } else {
+            for legacy_root in legacy_runtime_roots() {
+                let legacy_env_path = legacy_root.join(".env");
+                if let Some(token) = read_plaintext_token_from_env_file(&legacy_env_path)? {
+                    write_secure_token(&paths, &token)?;
+                    break;
+                }
+            }
+        }
+    }
+
+    scrub_discord_token_from_env_file(&data_env_path)?;
     Ok(())
 }
 
@@ -812,7 +1067,13 @@ fn save_config(app: AppHandle, request: SaveConfigRequest) -> Result<SaveConfigR
 
 #[tauri::command]
 fn run_preflight(app: AppHandle) -> Result<PreflightResult, String> {
-    send_sidecar_request(&app, "run_preflight", json!({}))
+    send_sidecar_request(
+        &app,
+        "run_preflight",
+        json!({
+            "token": resolve_effective_token(&app)?
+        }),
+    )
 }
 
 #[tauri::command]
@@ -822,7 +1083,19 @@ fn run_dry_run(app: AppHandle, request: RunDryRunRequest) -> Result<DryRunResult
 
 #[tauri::command]
 fn start_session(app: AppHandle, request: RuntimeOptionsRequest) -> Result<SessionSnapshot, String> {
-    send_sidecar_request(&app, "start_session", request)
+    let mut payload = serde_json::to_value(request)
+        .map_err(|error| format!("Failed to serialize the session runtime request: {error}"))?;
+    if let Value::Object(ref mut object) = payload {
+        object.insert(
+            "token".to_string(),
+            match resolve_effective_token(&app)? {
+                Some(token) => Value::String(token),
+                None => Value::Null,
+            },
+        );
+    }
+
+    send_sidecar_request(&app, "start_session", payload)
 }
 
 #[tauri::command]
@@ -857,12 +1130,12 @@ fn load_state(app: AppHandle) -> Result<SenderStateRecord, String> {
 
 #[tauri::command]
 fn load_setup_state(app: AppHandle) -> Result<DesktopSetupState, String> {
-    send_sidecar_request(&app, "load_setup_state", json!({}))
+    load_desktop_setup_state(&app)
 }
 
 #[tauri::command]
 fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
-    send_sidecar_request(&app, "save_environment", request)
+    save_secure_environment(&app, request)
 }
 
 #[tauri::command]
@@ -923,6 +1196,7 @@ fn main() {
         .manage(AppRuntime::new())
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;
+            migrate_plaintext_token_to_secure_store(&app.handle())?;
             start_sidecar_process(&app.handle())?;
             start_sidecar_watcher(app.handle().clone());
             Ok(())

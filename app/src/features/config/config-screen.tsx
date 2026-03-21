@@ -32,6 +32,13 @@ export function ConfigScreen({
     onPreviewDryRun
 }: ConfigScreenProps) {
     const [showToken, setShowToken] = useState(false);
+    const tokenSourceLabel = setup
+        ? {
+            secure: 'Secure store',
+            environment: 'Environment fallback',
+            missing: 'Missing'
+        }[setup.tokenStorage]
+        : 'Loading';
 
     return (
         <>
@@ -40,16 +47,17 @@ export function ConfigScreen({
                     <Card>
                         <CardHeader>
                             <CardTitle>Desktop Setup</CardTitle>
-                            <CardDescription>Manage the local Discord token and inspect where the packaged app stores its runtime files.</CardDescription>
+                            <CardDescription>Store the Discord token securely for this Windows user profile and inspect where the packaged app keeps its local runtime files.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <StateRow label="Discord token" value={setup?.tokenPresent ? 'configured' : 'missing'} />
+                            <StateRow label="Token source" value={tokenSourceLabel} />
                             <Field label="DISCORD_TOKEN">
                                 <div className="flex gap-2">
                                     <Input
                                         type={showToken ? 'text' : 'password'}
                                         value={environmentDraft}
-                                        placeholder="Paste your personal Discord token"
+                                        placeholder={setup?.tokenPresent ? 'Paste a new token to replace the stored one' : 'Paste your personal Discord token'}
                                         onChange={(event: ChangeEvent<HTMLInputElement>) => onEnvironmentDraftChange(event.target.value)}
                                     />
                                     <Button variant="secondary" onClick={() => setShowToken((current) => !current)}>
@@ -60,16 +68,25 @@ export function ConfigScreen({
                             <div className="flex flex-wrap gap-3">
                                 <Button onClick={onSaveEnvironment} disabled={!environmentDraft.trim()}>
                                     <Save className="mr-2 h-4 w-4" />
-                                    Save Token
+                                    Save Token Securely
                                 </Button>
                                 <Button variant="secondary" onClick={onOpenDataDirectory}>
                                     <FolderOpen className="mr-2 h-4 w-4" />
                                     Open Data Folder
                                 </Button>
                             </div>
+                            <div className="text-xs text-muted-foreground">
+                                The token field stays blank after save. The packaged app stores the token outside `config.json` and does not echo it back into the UI.
+                            </div>
                             {setup ? (
                                 <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                                    {setup.warning ? (
+                                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-amber-200">
+                                            {setup.warning}
+                                        </div>
+                                    ) : null}
                                     <StateRow label="App data" value={setup.dataDir} />
+                                    <StateRow label="Secure token store" value={setup.secureStorePath} />
                                     <StateRow label=".env path" value={setup.envPath} />
                                     <StateRow label="Config path" value={setup.configPath} />
                                     <StateRow label="State path" value={setup.statePath} />

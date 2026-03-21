@@ -225,29 +225,28 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
     assert.equal(state.resumeSession, undefined);
 });
 
-test('DesktopRuntime loads and saves environment setup state without restarting the sidecar', () => {
+test('DesktopRuntime accepts an injected token from the desktop shell instead of requiring a local .env file', async () => {
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
-    fs.writeFileSync(path.join(tempDir, '.env'), 'EXTRA_FLAG=1\nDISCORD_TOKEN=old-token\n', 'utf8');
+    fs.rmSync(path.join(tempDir, '.env'));
 
+    let receivedToken: string | undefined;
     const runtime = new DesktopRuntime({
-        baseDir: tempDir
+        baseDir: tempDir,
+        sessionFactory: (options) => {
+            receivedToken = options.token;
+            return new FakeSession(options);
+        }
     });
 
-    const initialSetup = runtime.loadSetupState();
-    assert.equal(initialSetup.token, 'old-token');
-    assert.equal(initialSetup.tokenPresent, true);
-    assert.equal(initialSetup.envPath, path.join(tempDir, '.env'));
-
-    const savedSetup = runtime.saveEnvironment({
-        discordToken: 'new-token'
+    await runtime.startSession({
+        numMessages: 1,
+        baseWaitSeconds: 1,
+        marginSeconds: 0,
+        token: 'injected-token'
     });
-    assert.equal(savedSetup.token, 'new-token');
-    assert.equal(runtime.loadSetupState().token, 'new-token');
 
-    const envFile = fs.readFileSync(path.join(tempDir, '.env'), 'utf8');
-    assert.match(envFile, /DISCORD_TOKEN="new-token"/);
-    assert.match(envFile, /EXTRA_FLAG=1/);
+    assert.equal(receivedToken, 'injected-token');
 });
 
 test('DesktopRuntime does not restore a checkpoint when the requested runtime no longer matches', async () => {
