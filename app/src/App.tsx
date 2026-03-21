@@ -134,6 +134,15 @@ function validateConfig(config: AppConfig): string[] {
         if (!groupNames.has(channel.messageGroup)) {
             errors.push(`Channel '${channel.name || channel.id}' references missing group '${channel.messageGroup}'.`);
         }
+
+        if (channel.schedule) {
+            if (channel.schedule.intervalSeconds < 0) {
+                errors.push(`Channel '${channel.name || channel.id}' has a negative interval.`);
+            }
+            if (channel.schedule.randomMarginSeconds < 0) {
+                errors.push(`Channel '${channel.name || channel.id}' has a negative random margin.`);
+            }
+        }
     });
 
     return [...new Set(errors)];
@@ -383,7 +392,14 @@ export default function App() {
                     name: 'New channel',
                     id: channelId,
                     referrer: 'https://discord.com/channels/@me/000000000000000000',
-                    messageGroup: fallbackGroup
+                    messageGroup: fallbackGroup,
+                    schedule: {
+                        intervalSeconds: 5,
+                        randomMarginSeconds: 2,
+                        timezone: 'UTC',
+                        maxSendsPerDay: null,
+                        cooldownWindowSize: 3
+                    }
                 }
             ]
         }));
@@ -398,6 +414,29 @@ export default function App() {
         if (field === 'id' && selectedChannelId === channelId) {
             setSelectedChannelId(value);
         }
+    }
+
+    function updateChannelSchedule(
+        channelId: string,
+        patch: Partial<NonNullable<AppConfig['channels'][number]['schedule']>>
+    ) {
+        setConfig((current) => ({
+            ...current,
+            channels: current.channels.map((channel) => channel.id === channelId
+                ? {
+                    ...channel,
+                    schedule: {
+                        intervalSeconds: channel.schedule?.intervalSeconds ?? runtime.baseWaitSeconds,
+                        randomMarginSeconds: channel.schedule?.randomMarginSeconds ?? runtime.marginSeconds,
+                        timezone: channel.schedule?.timezone ?? 'UTC',
+                        maxSendsPerDay: channel.schedule?.maxSendsPerDay ?? null,
+                        cooldownWindowSize: channel.schedule?.cooldownWindowSize ?? 3,
+                        quietHours: channel.schedule?.quietHours ?? null,
+                        ...patch
+                    }
+                }
+                : channel)
+        }));
     }
 
     function removeChannel(channelId: string) {
@@ -768,6 +807,60 @@ export default function App() {
                                                 ))}
                                             </select>
                                         </Field>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Field label="Saved interval (sec)">
+                                                <Input
+                                                    type="number"
+                                                    value={selectedChannel.schedule?.intervalSeconds ?? runtime.baseWaitSeconds}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, { intervalSeconds: Number(event.target.value) })}
+                                                />
+                                            </Field>
+                                            <Field label="Random margin (sec)">
+                                                <Input
+                                                    type="number"
+                                                    value={selectedChannel.schedule?.randomMarginSeconds ?? runtime.marginSeconds}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, { randomMarginSeconds: Number(event.target.value) })}
+                                                />
+                                            </Field>
+                                            <Field label="Timezone">
+                                                <Input
+                                                    value={selectedChannel.schedule?.timezone ?? 'UTC'}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, { timezone: event.target.value })}
+                                                />
+                                            </Field>
+                                            <Field label="Max sends / day">
+                                                <Input
+                                                    type="number"
+                                                    value={selectedChannel.schedule?.maxSendsPerDay ?? ''}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, { maxSendsPerDay: event.target.value ? Number(event.target.value) : null })}
+                                                />
+                                            </Field>
+                                            <Field label="Quiet hours start">
+                                                <Input
+                                                    placeholder="22:00"
+                                                    value={selectedChannel.schedule?.quietHours?.start ?? ''}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, {
+                                                        quietHours: {
+                                                            start: event.target.value,
+                                                            end: selectedChannel.schedule?.quietHours?.end ?? '06:00'
+                                                        }
+                                                    })}
+                                                />
+                                            </Field>
+                                            <Field label="Quiet hours end">
+                                                <Input
+                                                    placeholder="06:00"
+                                                    value={selectedChannel.schedule?.quietHours?.end ?? ''}
+                                                    onChange={(event: ChangeEvent<HTMLInputElement>) => updateChannelSchedule(selectedChannel.id, {
+                                                        quietHours: {
+                                                            start: selectedChannel.schedule?.quietHours?.start ?? '22:00',
+                                                            end: event.target.value
+                                                        }
+                                                    })}
+                                                />
+                                            </Field>
+                                        </div>
                                     </div>
                                 ) : null}
 

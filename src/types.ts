@@ -3,6 +3,21 @@ export interface AppChannel {
     id: string;
     referrer: string;
     messageGroup: string;
+    schedule?: ChannelSchedule;
+}
+
+export interface ChannelQuietHours {
+    start: string;
+    end: string;
+}
+
+export interface ChannelSchedule {
+    intervalSeconds: number;
+    randomMarginSeconds: number;
+    quietHours?: ChannelQuietHours | null;
+    timezone?: string | null;
+    maxSendsPerDay?: number | null;
+    cooldownWindowSize?: number;
 }
 
 export type MessageGroups = Record<string, string[]>;
@@ -147,5 +162,6 @@ export interface SenderStateRecord {
         reason: string;
         timestamp: string;
     }>;
+    recentMessageHistory?: Record<string, string[]>;
     warning?: string;
 }

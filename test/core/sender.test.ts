@@ -254,6 +254,14 @@ test('pickNextMessage preserves duplicate weighting among remaining unsent messa
     assert.equal(forcedRemainingPick, 'B');
 });
 
+test('pickNextMessage avoids recent history when alternatives exist', () => {
+    const sentCache = new Set<string>();
+
+    const next = pickNextMessage(['A', 'B', 'C'], sentCache, () => 0, ['A', 'B']);
+
+    assert.equal(next, 'C');
+});
+
 test('runChannel stops exactly at the finite message count without an extra wait', async () => {
     let sends = 0;
     const sleepCalls: number[] = [];

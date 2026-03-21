@@ -6,6 +6,17 @@ export interface AppChannel {
     id: string;
     referrer: string;
     messageGroup: string;
+    schedule?: {
+        intervalSeconds: number;
+        randomMarginSeconds: number;
+        quietHours?: {
+            start: string;
+            end: string;
+        } | null;
+        timezone?: string;
+        maxSendsPerDay?: number | null;
+        cooldownWindowSize?: number;
+    };
 }
 
 export interface AppConfig {

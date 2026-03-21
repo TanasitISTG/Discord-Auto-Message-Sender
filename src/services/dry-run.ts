@@ -1,4 +1,5 @@
 import { AppConfig, DryRunChannelPreview, DryRunResult, RuntimeOptions } from '../types';
+import { renderMessageTemplate } from './message-template';
 
 function buildChannelPreview(config: AppConfig, runtime: RuntimeOptions): DryRunChannelPreview[] {
     return config.channels.map((channel) => {
@@ -14,11 +15,13 @@ function buildChannelPreview(config: AppConfig, runtime: RuntimeOptions): DryRun
             channelName: channel.name,
             groupName: channel.messageGroup,
             enabled: skipReasons.length === 0,
-            sampleMessages: groupMessages.slice(0, Math.max(1, Math.min(runtime.numMessages || 3, 3))),
+            sampleMessages: groupMessages
+                .slice(0, Math.max(1, Math.min(runtime.numMessages || 3, 3)))
+                .map((message) => renderMessageTemplate(message, { channel })),
             cadence: {
                 numMessages: runtime.numMessages,
-                baseWaitSeconds: runtime.baseWaitSeconds,
-                marginSeconds: runtime.marginSeconds
+                baseWaitSeconds: channel.schedule?.intervalSeconds ?? runtime.baseWaitSeconds,
+                marginSeconds: channel.schedule?.randomMarginSeconds ?? runtime.marginSeconds
             },
             skipReasons
         };

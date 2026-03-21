@@ -53,6 +53,7 @@ export class SessionService {
     private readonly coordinator = createSenderCoordinator();
     private readonly previousLogger = getActiveLogger();
     private readonly state: SessionState;
+    private readonly recentMessageHistory: Record<string, string[]>;
     private paused = false;
     private stopping = false;
     private resumeWaiters = new Set<(value: boolean) => void>();
@@ -68,6 +69,7 @@ export class SessionService {
         this.fetchImpl = options.fetchImpl;
         this.sessionId = options.sessionId ?? `session-${Date.now()}`;
         this.state = createInitialState(this.sessionId);
+        this.recentMessageHistory = loadSenderState(this.baseDir).recentMessageHistory ?? {};
 
         const logFile = path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`);
         this.logger = createStructuredLogger({
@@ -189,8 +191,15 @@ export class SessionService {
                             phase
                         });
                     },
-                    onMessageSent: () => {
+                    getRecentMessages: (channel) => {
+                        return this.recentMessageHistory[channel.id] ?? [];
+                    },
+                    onMessageSent: (channel, message) => {
                         this.state.sentMessages += 1;
+                        this.recentMessageHistory[channel.id] = [
+                            ...(this.recentMessageHistory[channel.id] ?? []),
+                            message
+                        ].slice(-20);
                         this.bumpState();
                         this.persistState();
                     }
@@ -261,6 +270,8 @@ export class SessionService {
                 ...senderState.recentFailures
             ].slice(0, 25);
         }
+
+        senderState.recentMessageHistory = this.recentMessageHistory;
 
         saveSenderState(this.baseDir, senderState);
     }

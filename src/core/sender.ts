@@ -1,5 +1,6 @@
 import { AppChannel, MessageGroups } from '../types';
 import { log } from '../utils/logger';
+import { renderMessageTemplate } from '../services/message-template';
 
 const API_BASE = 'https://discord.com/api/v10';
 const MAX_SEND_ATTEMPTS = 3;
@@ -53,6 +54,7 @@ export interface SenderLifecycle {
     getStopReason(): string | null;
     onChannelEvent?(target: AppChannel, phase: 'started' | 'completed' | 'failed'): void;
     onMessageSent?(target: AppChannel, message: string): void;
+    getRecentMessages?(target: AppChannel): string[];
 }
 
 class SendAbortError extends Error {
@@ -170,7 +172,12 @@ export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_G
     return coordinator;
 }
 
-export function pickNextMessage(messages: string[], sentCache: Set<string>, random: RandomFn = Math.random): string {
+export function pickNextMessage(
+    messages: string[],
+    sentCache: Set<string>,
+    random: RandomFn = Math.random,
+    recentHistory: string[] = []
+): string {
     if (messages.length === 0) {
         throw new Error('Cannot pick a message from an empty group.');
     }
@@ -181,7 +188,12 @@ export function pickNextMessage(messages: string[], sentCache: Set<string>, rand
         sentCache.clear();
     }
 
-    const availableMessages = messages.filter((message) => !sentCache.has(message));
+    let availableMessages = messages.filter((message) => !sentCache.has(message));
+    const recentSet = new Set(recentHistory);
+    const nonRecentMessages = availableMessages.filter((message) => !recentSet.has(message));
+    if (nonRecentMessages.length > 0) {
+        availableMessages = nonRecentMessages;
+    }
 
     if (availableMessages.length === 0) {
         sentCache.clear();
@@ -429,6 +441,11 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
     let sentCount = 0;
     const sentCache = new Set<string>();
     let consecutiveRateLimitWaits = 0;
+    let sentToday = 0;
+    const maxSendsPerDay = target.schedule?.maxSendsPerDay ?? null;
+    const intervalSeconds = target.schedule?.intervalSeconds ?? baseWaitSeconds;
+    const marginForChannel = target.schedule?.randomMarginSeconds ?? marginSeconds;
+    const cooldownWindowSize = target.schedule?.cooldownWindowSize ?? 3;
 
     while (numMessages === 0 || sentCount < numMessages) {
         if (coordinator?.isAborted() || lifecycle?.isStopping()) {
@@ -437,7 +454,19 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             return;
         }
 
-        const message = pickNextMessage(messages, sentCache, random);
+        if (maxSendsPerDay !== null && sentToday >= maxSendsPerDay) {
+            log(target.name, `Max sends per day reached (${maxSendsPerDay}). Stopping worker.`, 'yellow');
+            lifecycle?.onChannelEvent?.(target, 'completed');
+            return;
+        }
+
+        const rawMessage = pickNextMessage(
+            messages,
+            sentCache,
+            random,
+            (lifecycle?.getRecentMessages?.(target) ?? []).slice(-cooldownWindowSize)
+        );
+        const message = renderMessageTemplate(rawMessage, { channel: target });
 
         while (true) {
             const result = await sendDiscordMessage(target, message, token, userAgent, {
@@ -452,6 +481,7 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             if (result.type === 'success') {
                 consecutiveRateLimitWaits = 0;
                 sentCount += 1;
+                sentToday += 1;
                 const counter = numMessages === 0 ? 'Infinite' : `${sentCount}/${numMessages}`;
                 log(target.name, 'Message sent', 'cyan', { counter });
                 lifecycle?.onMessageSent?.(target, message);
@@ -497,7 +527,7 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             break;
         }
 
-        const waitMs = (baseWaitSeconds + random() * marginSeconds) * 1000;
+        const waitMs = (intervalSeconds + random() * marginForChannel) * 1000;
         const completedWait = await sleepWithAbort(waitMs, sleep, coordinator, lifecycle);
         if (!completedWait) {
             log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
