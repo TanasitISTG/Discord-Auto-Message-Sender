@@ -16,6 +16,14 @@ export const DEFAULT_MESSAGE = 'Hello from your Discord bot!';
 const messageSchema = z.string().trim().min(1, 'Messages cannot be empty').max(2000, 'Discord messages are limited to 2000 characters');
 const messageGroupNameSchema = z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long');
 const messageListSchema = z.array(messageSchema).min(1, 'Each group must contain at least one message');
+function isValidTimeZone(value: string): boolean {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: value });
+        return true;
+    } catch {
+        return false;
+    }
+}
 const quietHoursSchema = z.object({
     start: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours start must use HH:MM'),
     end: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours end must use HH:MM')
@@ -24,7 +32,7 @@ const scheduleSchema = z.object({
     intervalSeconds: z.number().finite().min(0, 'Interval must be zero or greater'),
     randomMarginSeconds: z.number().finite().min(0, 'Random margin must be zero or greater'),
     quietHours: quietHoursSchema.nullish(),
-    timezone: z.string().trim().min(1, 'Timezone cannot be empty').nullish(),
+    timezone: z.string().trim().min(1, 'Timezone cannot be empty').refine(isValidTimeZone, 'Timezone must be a valid IANA identifier').nullish(),
     maxSendsPerDay: z.number().int().min(1, 'Max sends per day must be at least 1').nullish(),
     cooldownWindowSize: z.number().int().min(1, 'Cooldown window size must be at least 1').default(3)
 });

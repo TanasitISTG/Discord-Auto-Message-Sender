@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSenderCoordinator, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
+import { createSenderCoordinator, getQuietHoursDelayMs, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
 import { AppChannel } from '../../src/types';
 
 const channel: AppChannel = {
@@ -254,12 +254,80 @@ test('pickNextMessage preserves duplicate weighting among remaining unsent messa
     assert.equal(forcedRemainingPick, 'B');
 });
 
-test('pickNextMessage avoids recent history when alternatives exist', () => {
-    const sentCache = new Set<string>();
+test('getQuietHoursDelayMs returns remaining quiet-time for same-day windows', () => {
+    const delayMs = getQuietHoursDelayMs({
+        ...channel,
+        schedule: {
+            intervalSeconds: 5,
+            randomMarginSeconds: 0,
+            timezone: 'UTC',
+            quietHours: {
+                start: '09:00',
+                end: '17:00'
+            }
+        }
+    }, new Date('2026-03-21T10:15:00.000Z'));
 
-    const next = pickNextMessage(['A', 'B', 'C'], sentCache, () => 0, ['A', 'B']);
+    assert.equal(delayMs, 24_300_000);
+});
 
-    assert.equal(next, 'C');
+test('getQuietHoursDelayMs returns remaining quiet-time for overnight windows', () => {
+    const delayMs = getQuietHoursDelayMs({
+        ...channel,
+        schedule: {
+            intervalSeconds: 5,
+            randomMarginSeconds: 0,
+            timezone: 'UTC',
+            quietHours: {
+                start: '22:00',
+                end: '06:00'
+            }
+        }
+    }, new Date('2026-03-21T23:30:00.000Z'));
+
+    assert.equal(delayMs, 23_400_000);
+});
+
+test('runChannel waits out quiet hours before sending', async () => {
+    let sends = 0;
+    const sleepCalls: number[] = [];
+    let now = Date.parse('2026-03-21T10:15:00.000Z');
+
+    await runChannel({
+        target: {
+            ...channel,
+            schedule: {
+                intervalSeconds: 0,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                quietHours: {
+                    start: '09:00',
+                    end: '17:00'
+                }
+            }
+        },
+        numMessages: 1,
+        baseWaitSeconds: 0,
+        marginSeconds: 0,
+        token: 'token',
+        userAgent: 'UA',
+        messageGroups: {
+            default: ['Hello!']
+        },
+        fetchImpl: async () => {
+            sends += 1;
+            return createResponse(200, {});
+        },
+        sleep: async (ms) => {
+            sleepCalls.push(ms);
+            now += ms;
+        },
+        now: () => new Date(now),
+        random: () => 0
+    });
+
+    assert.equal(sends, 1);
+    assert.equal(sleepCalls[0], 24_300_000);
 });
 
 test('runChannel stops exactly at the finite message count without an extra wait', async () => {

@@ -68,7 +68,6 @@ export function createConsoleSink(): LogSink {
     return (entry) => {
         const color = colorFromLevel(entry.level);
         const timestamp = new Date(entry.timestamp).toLocaleTimeString();
-        // Keep CLI compatibility while shifting to structured entries.
         console.log(chalk.gray(`[${timestamp}]`) + ` [${chalk[color](entry.context)}] ${entry.message}${formatMeta(entry.meta)}`);
     };
 }
@@ -123,18 +122,14 @@ export const defaultLogger = createStructuredLogger({
     sinks: [createConsoleSink()]
 });
 
-let activeLogger: StructuredLogger = defaultLogger;
-
-export function setActiveLogger(logger: StructuredLogger) {
-    activeLogger = logger;
-}
-
-export function getActiveLogger(): StructuredLogger {
-    return activeLogger;
-}
-
-export function log(context: string, message: string, color: LogColor = 'blue', meta?: LogMeta) {
-    return activeLogger.emit({
+export function emitLog(
+    logger: StructuredLogger,
+    context: string,
+    message: string,
+    color: LogColor = 'blue',
+    meta?: LogMeta
+) {
+    return logger.emit({
         context,
         level: levelFromColor(color),
         message,

@@ -1,175 +1,102 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import type {
+    AppConfig,
+    ConfigLoadResult,
+    DesktopCommandMap,
+    DesktopCommandName,
+    DesktopEvent,
+    DryRunResult,
+    LogLoadResult,
+    LogEntry,
+    PreflightResult,
+    RuntimeOptions,
+    SaveConfigResult,
+    SenderStateRecord,
+    SessionSnapshot
+} from '../../../src/desktop/contracts';
 
-export interface AppChannel {
-    name: string;
-    id: string;
-    referrer: string;
-    messageGroup: string;
-    schedule?: {
-        intervalSeconds: number;
-        randomMarginSeconds: number;
-        quietHours?: {
-            start: string;
-            end: string;
-        } | null;
-        timezone?: string;
-        maxSendsPerDay?: number | null;
-        cooldownWindowSize?: number;
-    };
-}
-
-export interface AppConfig {
-    userAgent: string;
-    channels: AppChannel[];
-    messageGroups: Record<string, string[]>;
-}
-
-export interface SessionState {
-    id: string;
-    status: 'idle' | 'running' | 'paused' | 'stopping' | 'completed' | 'failed';
-    startedAt?: string;
-    updatedAt: string;
-    activeChannels: string[];
-    completedChannels: string[];
-    failedChannels: string[];
-    sentMessages: number;
-    stopReason?: string;
-    summary?: {
-        totalChannels: number;
-        completedChannels: number;
-        failedChannels: number;
-        sentMessages: number;
-        startedAt: string;
-        finishedAt?: string;
-        stopReason?: string;
-    };
-}
-
-export interface PreflightResult {
-    ok: boolean;
-    checkedAt: string;
-    configValid: boolean;
-    tokenPresent: boolean;
-    issues: string[];
-    channels: Array<{
-        channelId: string;
-        channelName: string;
-        ok: boolean;
-        reason?: string;
-        status?: number;
-    }>;
-}
-
-export interface DryRunResult {
-    generatedAt: string;
-    willSendMessages: boolean;
-    channels: Array<{
-        channelId: string;
-        channelName: string;
-        groupName: string;
-        enabled: boolean;
-        sampleMessages: string[];
-        cadence: {
-            numMessages: number;
-            baseWaitSeconds: number;
-            marginSeconds: number;
-        };
-        skipReasons: string[];
-    }>;
-    summary: {
-        selectedChannels: number;
-        skippedChannels: number;
-        totalSampleMessages: number;
-    };
-}
-
-export interface SenderStateRecord {
-    lastSession?: SessionState;
-    summaries: Array<NonNullable<SessionState['summary']>>;
-    recentFailures: Array<{
-        channelId: string;
-        channelName: string;
-        reason: string;
-        timestamp: string;
-    }>;
-    warning?: string;
-}
-
-export interface LogEntry {
-    id: string;
-    timestamp: string;
-    level: 'info' | 'success' | 'warning' | 'error' | 'debug';
-    context: string;
-    message: string;
-    meta?: Record<string, string | number | boolean | null>;
-    sessionId?: string;
-}
+export type {
+    AppConfig,
+    ConfigLoadResult,
+    DesktopEvent,
+    DryRunResult,
+    LogLoadResult,
+    LogEntry,
+    PreflightResult,
+    RuntimeOptions,
+    SaveConfigResult,
+    SenderStateRecord,
+    SessionSnapshot
+} from '../../../src/desktop/contracts';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-async function desktopInvoke<T>(command: string, payload?: Record<string, unknown>): Promise<T> {
+async function desktopInvoke<K extends DesktopCommandName>(
+    command: K,
+    request: DesktopCommandMap[K]['request']
+): Promise<DesktopCommandMap[K]['response']> {
     if (!isTauri) {
         throw new Error('Tauri desktop APIs are unavailable in the browser dev preview.');
     }
 
-    return invoke<T>(command, payload);
+    return invoke<DesktopCommandMap[K]['response']>(command, { request });
 }
 
-export async function loadConfig() {
-    return desktopInvoke<{ kind: 'ok'; config: AppConfig } | { kind: 'missing' } | { kind: 'invalid'; error: string }>('load_config');
+export async function loadConfig(): Promise<ConfigLoadResult> {
+    return desktopInvoke('load_config', {});
 }
 
-export async function saveConfig(config: AppConfig) {
-    return desktopInvoke<{ ok: boolean; config: AppConfig }>('save_config', { config });
+export async function saveConfig(config: AppConfig): Promise<SaveConfigResult> {
+    return desktopInvoke('save_config', { config });
 }
 
-export async function runPreflight() {
-    return desktopInvoke<PreflightResult>('run_preflight');
+export async function runPreflight(): Promise<PreflightResult> {
+    return desktopInvoke('run_preflight', {});
 }
 
-export async function runDryRun(runtime: { numMessages: number; baseWaitSeconds: number; marginSeconds: number }) {
-    return desktopInvoke<DryRunResult>('run_dry_run', { runtime });
+export async function runDryRun(runtime: RuntimeOptions): Promise<DryRunResult> {
+    return desktopInvoke('run_dry_run', { runtime });
 }
 
-export async function startSession(runtime: { numMessages: number; baseWaitSeconds: number; marginSeconds: number }) {
-    return desktopInvoke<SessionState>('start_session', runtime);
+export async function startSession(runtime: RuntimeOptions): Promise<SessionSnapshot> {
+    return desktopInvoke('start_session', runtime);
 }
 
-export async function pauseSession() {
-    return desktopInvoke<SessionState>('pause_session');
+export async function pauseSession(): Promise<SessionSnapshot | null> {
+    return desktopInvoke('pause_session', {});
 }
 
-export async function resumeSession() {
-    return desktopInvoke<SessionState>('resume_session');
+export async function resumeSession(): Promise<SessionSnapshot | null> {
+    return desktopInvoke('resume_session', {});
 }
 
-export async function stopSession() {
-    return desktopInvoke<SessionState>('stop_session');
+export async function stopSession(): Promise<SessionSnapshot | null> {
+    return desktopInvoke('stop_session', {});
 }
 
-export async function getSessionState() {
-    return desktopInvoke<SessionState | null>('get_session_state');
+export async function getSessionState(): Promise<SessionSnapshot | null> {
+    return desktopInvoke('get_session_state', {});
 }
 
-export async function loadLogs(sessionId: string) {
-    return desktopInvoke<{ ok: boolean; path: string; entries: LogEntry[] }>('load_logs', { sessionId });
+export async function loadLogs(sessionId: string): Promise<LogLoadResult> {
+    return desktopInvoke('load_logs', { sessionId });
 }
 
-export async function loadState() {
-    return desktopInvoke<SenderStateRecord>('load_state');
+export async function loadState(): Promise<SenderStateRecord> {
+    return desktopInvoke('load_state', {});
 }
 
-export async function openLogFile(sessionId: string) {
-    return desktopInvoke<string>('open_log_file', { sessionId });
+export async function openLogFile(sessionId: string): Promise<string> {
+    return desktopInvoke('open_log_file', { sessionId });
 }
 
-export async function subscribeToAppEvents(handler: (event: unknown) => void) {
+export async function subscribeToAppEvents(handler: (event: DesktopEvent) => void) {
     if (!isTauri) {
         return () => undefined;
     }
 
-    const unlisten = await listen('app-event', (event) => {
+    const unlisten = await listen<DesktopEvent>('app-event', (event) => {
         handler(event.payload);
     });
 

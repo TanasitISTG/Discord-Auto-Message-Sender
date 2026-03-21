@@ -10,7 +10,7 @@ import {
     parseLegacyConfig,
     parseLegacyMessages
 } from './schema';
-import { log } from '../utils/logger';
+import { defaultLogger, emitLog, StructuredLogger } from '../utils/logger';
 
 export const CONFIG_FILE = 'config.json';
 export const LEGACY_MESSAGES_FILE = 'messages.json';
@@ -113,11 +113,11 @@ export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): 
     }
 }
 
-export function readAppConfig(paths: ConfigPaths = resolveConfigPaths()): AppConfig | null {
+export function readAppConfig(paths: ConfigPaths = resolveConfigPaths(), logger: StructuredLogger = defaultLogger): AppConfig | null {
     const result = readAppConfigResult(paths);
 
     if (result.kind === 'invalid') {
-        log('System', result.error, 'red');
+        emitLog(logger, 'System', result.error, 'red');
         return null;
     }
 

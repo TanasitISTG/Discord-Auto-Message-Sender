@@ -3,7 +3,5 @@ export {
     createFileSink,
     createStructuredLogger,
     defaultLogger,
-    getActiveLogger,
-    log,
-    setActiveLogger
+    emitLog
 } from '../utils/logger';

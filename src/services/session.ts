@@ -1,7 +1,7 @@
 import path from 'path';
 import { AppConfig, AppEvent, LogEntry, SessionState, SessionSummary, SessionStatus } from '../types';
 import { createSenderCoordinator, runChannel } from '../core/sender';
-import { createFileSink, createStructuredLogger, setActiveLogger, getActiveLogger } from '../utils/logger';
+import { createFileSink, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import { loadSenderState, saveSenderState } from './state-store';
 
 const SESSION_LOG_DIR = 'logs';
@@ -22,6 +22,7 @@ export interface SessionServiceOptions {
     sleep?: SleepFn;
     fetchImpl?: typeof fetch;
     sessionId?: string;
+    logger?: StructuredLogger;
 }
 
 function sleep(ms: number) {
@@ -51,13 +52,12 @@ export class SessionService {
     private readonly fetchImpl?: typeof fetch;
     private readonly sessionId: string;
     private readonly coordinator = createSenderCoordinator();
-    private readonly previousLogger = getActiveLogger();
     private readonly state: SessionState;
     private readonly recentMessageHistory: Record<string, string[]>;
     private paused = false;
     private stopping = false;
     private resumeWaiters = new Set<(value: boolean) => void>();
-    private logger;
+    private readonly logger: StructuredLogger;
 
     constructor(options: SessionServiceOptions) {
         this.config = options.config;
@@ -72,7 +72,7 @@ export class SessionService {
         this.recentMessageHistory = loadSenderState(this.baseDir).recentMessageHistory ?? {};
 
         const logFile = path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`);
-        this.logger = createStructuredLogger({
+        this.logger = options.logger ?? createStructuredLogger({
             sinks: [
                 createFileSink(logFile),
                 (entry) => this.emitEvent?.({ type: 'log_event_emitted', entry })
@@ -138,7 +138,6 @@ export class SessionService {
         this.state.startedAt = new Date().toISOString();
         this.bumpState();
         this.persistState();
-        setActiveLogger(this.logger);
         this.emitEvent?.({ type: 'session_started', state: this.getState() });
 
         try {
@@ -153,6 +152,7 @@ export class SessionService {
                 coordinator: this.coordinator,
                 sleep: this.sleepImpl,
                 fetchImpl: this.fetchImpl,
+                logger: this.logger,
                 lifecycle: {
                     isPaused: () => this.paused,
                     waitUntilResumed: async (waitSleep) => {
@@ -231,8 +231,6 @@ export class SessionService {
                 state: this.getState()
             });
             throw error;
-        } finally {
-            setActiveLogger(this.previousLogger);
         }
     }
 
@@ -272,7 +270,6 @@ export class SessionService {
         }
 
         senderState.recentMessageHistory = this.recentMessageHistory;
-
         saveSenderState(this.baseDir, senderState);
     }
 

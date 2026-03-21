@@ -1,0 +1,127 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { createDefaultAppConfig } from '../../src/config/schema';
+import { DesktopRuntime } from '../../src/desktop/runtime';
+import { SessionServiceOptions } from '../../src/services/session';
+import { SessionState } from '../../src/types';
+
+function createTempDir(): string {
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-runtime-'));
+}
+
+function writeDesktopFiles(baseDir: string) {
+    const config = createDefaultAppConfig();
+    config.channels = [{
+        name: 'general',
+        id: '123456789012345678',
+        referrer: 'https://discord.com/channels/@me/123456789012345678',
+        messageGroup: 'default'
+    }];
+
+    fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(config, null, 2), 'utf8');
+    fs.writeFileSync(path.join(baseDir, '.env'), 'DISCORD_TOKEN=test-token', 'utf8');
+}
+
+class FakeSession {
+    private readonly emitEvent?: SessionServiceOptions['emitEvent'];
+    private readonly state: SessionState;
+    private resolveStart?: (value: SessionState) => void;
+
+    constructor(options: SessionServiceOptions) {
+        this.emitEvent = options.emitEvent;
+        this.state = {
+            id: options.sessionId ?? 'session-1',
+            status: 'idle',
+            updatedAt: new Date().toISOString(),
+            activeChannels: [],
+            completedChannels: [],
+            failedChannels: [],
+            sentMessages: 0
+        };
+    }
+
+    getState() {
+        return { ...this.state };
+    }
+
+    pause() {
+        this.state.status = 'paused';
+        this.emitEvent?.({ type: 'session_paused', state: this.getState() });
+        return this.getState();
+    }
+
+    resume() {
+        this.state.status = 'running';
+        this.emitEvent?.({ type: 'session_resumed', state: this.getState() });
+        return this.getState();
+    }
+
+    stop(reason?: string) {
+        this.state.status = 'stopping';
+        this.state.stopReason = reason;
+        this.emitEvent?.({ type: 'session_stopping', state: this.getState() });
+        const summaryState: SessionState = {
+            ...this.getState(),
+            status: 'failed',
+            summary: {
+                totalChannels: 1,
+                completedChannels: 0,
+                failedChannels: 1,
+                sentMessages: 0,
+                startedAt: new Date().toISOString(),
+                finishedAt: new Date().toISOString(),
+                stopReason: reason
+            }
+        };
+        this.resolveStart?.(summaryState);
+        return this.getState();
+    }
+
+    async start() {
+        this.state.status = 'running';
+        this.emitEvent?.({ type: 'session_started', state: this.getState() });
+        return await new Promise<SessionState>((resolve) => {
+            this.resolveStart = resolve;
+        });
+    }
+}
+
+test('DesktopRuntime uses a single in-process session controller for lifecycle commands', async () => {
+    const tempDir = createTempDir();
+    writeDesktopFiles(tempDir);
+
+    const events: string[] = [];
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        emitEvent: (event) => {
+            events.push(event.type);
+        },
+        sessionFactory: (options) => new FakeSession(options)
+    });
+
+    const started = await runtime.startSession({
+        numMessages: 1,
+        baseWaitSeconds: 1,
+        marginSeconds: 0
+    });
+    assert.equal(started.status, 'running');
+    assert.equal(runtime.getSessionState()?.status, 'running');
+
+    const paused = runtime.pauseSession();
+    assert.equal(paused?.status, 'paused');
+
+    const resumed = runtime.resumeSession();
+    assert.equal(resumed?.status, 'running');
+
+    const stopping = runtime.stopSession();
+    assert.equal(stopping?.status, 'stopping');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(events.includes('session_started'));
+    assert.ok(events.includes('session_paused'));
+    assert.ok(events.includes('session_resumed'));
+    assert.ok(events.includes('session_stopping'));
+});

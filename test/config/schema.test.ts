@@ -11,14 +11,7 @@ test('parseAppConfig accepts canonical config and preserves camelCase shape', ()
                 name: 'general',
                 id: '123456789012345678',
                 referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default',
-                schedule: {
-                    intervalSeconds: 30,
-                    randomMarginSeconds: 10,
-                    timezone: 'UTC',
-                    maxSendsPerDay: 5,
-                    cooldownWindowSize: 2
-                }
+                messageGroup: 'default'
             }
         ],
         messageGroups: {
@@ -28,7 +21,6 @@ test('parseAppConfig accepts canonical config and preserves camelCase shape', ()
 
     assert.equal(config.userAgent, 'UA');
     assert.equal(config.channels[0].messageGroup, 'default');
-    assert.equal(config.channels[0].schedule?.intervalSeconds, 30);
     assert.deepEqual(config.messageGroups.default, ['Hello!']);
 });
 

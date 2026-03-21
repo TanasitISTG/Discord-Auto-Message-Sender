@@ -1,6 +1,6 @@
 # Discord Auto Message Sender
 
-Local-first desktop app for configuring and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack. The legacy CLI remains available as a compatibility path during the transition.
+Local-first desktop app for configuring and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack.
 
 ## Disclaimer
 
@@ -33,7 +33,7 @@ bun install
 2. Copy `.env.example` to `.env`.
 3. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
 4. Update channel IDs and message groups in `config.json`.
-5. Run the CLI from the project root, or keep `config.json` and `.env` in the project root so the default paths resolve correctly.
+5. Keep `config.json` and `.env` in the project root so the desktop runtime can resolve them locally.
 
 ## Desktop Development
 
@@ -45,8 +45,9 @@ bun run desktop:dev
 Desktop commands are local-only:
 
 - the React UI calls Tauri commands
-- Tauri manages config, preflight, session control, and log access
-- the TypeScript sender core still runs locally through a Bun-managed worker
+- Tauri supervises one long-lived Bun sidecar process
+- the Bun sidecar owns config IO, preflight, dry-run, session control, logs, and persisted local state
+- the TypeScript sender core still runs locally inside that sidecar
 
 ## Configuration
 
@@ -89,52 +90,18 @@ Field reference:
 | `channels[].messageGroup` | `string` | No | Must reference a key in `messageGroups`. Defaults to `default` when omitted. |
 | `messageGroups` | `Record<string, string[]>` | Yes | Non-empty map of message groups. |
 
-Legacy compatibility:
+Compatibility notes:
 
 - Older `config.json` files using `user_agent` and `message_group` are still read.
 - If a legacy config is loaded, `messages.json` must still exist so message groups can be imported.
-- Saving through the wizard writes only the new canonical `config.json` format.
-
-## Wizard
-
-```bash
-bun run configure
-```
-
-The wizard can:
-
-- show token setup instructions
-- update the request User-Agent
-- list, add, and remove channels
-- list groups, create groups, add messages, and delete messages
-
-## Run
-
-```bash
-bun run start
-```
-
-At startup the app validates:
-
-- `DISCORD_TOKEN` exists
-- `config.json` is valid
-- every configured channel ID is a valid Discord snowflake
-- every channel references an existing message group
-
-Then it:
-
-- starts one worker per channel
-- serializes outbound API requests through a shared coordinator to reduce cross-channel bursts
-- retries transient send failures up to 3 times with exponential backoff and jitter
-- handles `429` rate limits by waiting the `retry_after` duration and stopping a worker after repeated consecutive rate limits
-- stops all workers if Discord returns `401`, which usually indicates an invalid or expired token
+- Saving through the desktop UI writes only the new canonical `config.json` format.
 
 ## Troubleshooting
 
 - `Environment error`
   Set `DISCORD_TOKEN` in `.env` or your shell environment.
 - `Configuration not found or invalid`
-  Copy `config.example.json` to `config.json` or run `bun run configure`.
+  Copy `config.example.json` to `config.json`, then edit it in the desktop app.
 - `HTTP 401`
   Your token is invalid or expired. Re-copy it from Discord.
 - `HTTP 403`

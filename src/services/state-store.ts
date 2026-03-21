@@ -28,7 +28,14 @@ export function loadSenderState(baseDir: string): SenderStateRecord {
             lastSession: raw.lastSession,
             summaries: Array.isArray(raw.summaries) ? raw.summaries : [],
             recentFailures: Array.isArray(raw.recentFailures) ? raw.recentFailures : [],
-            recentMessageHistory: raw.recentMessageHistory && typeof raw.recentMessageHistory === 'object' ? raw.recentMessageHistory : {},
+            recentMessageHistory: raw.recentMessageHistory && typeof raw.recentMessageHistory === 'object'
+                ? Object.fromEntries(
+                    Object.entries(raw.recentMessageHistory).map(([channelId, messages]) => [
+                        channelId,
+                        Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : []
+                    ])
+                )
+                : {},
             warning: typeof raw.warning === 'string' ? raw.warning : undefined
         };
     } catch {

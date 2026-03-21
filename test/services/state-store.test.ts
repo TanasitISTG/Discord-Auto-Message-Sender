@@ -32,3 +32,21 @@ test('saveSenderState clears transient warning metadata before persisting', () =
     const raw = JSON.parse(fs.readFileSync(resolveStateFile(tempDir), 'utf8')) as { warning?: string };
     assert.equal(raw.warning, undefined);
 });
+
+test('loadSenderState preserves recent message history for restart-safe anti-repeat behavior', () => {
+    const tempDir = createTempDir();
+
+    saveSenderState(tempDir, {
+        summaries: [],
+        recentFailures: [],
+        recentMessageHistory: {
+            '123': ['hello', 'world']
+        }
+    });
+
+    const state = loadSenderState(tempDir);
+
+    assert.deepEqual(state.recentMessageHistory, {
+        '123': ['hello', 'world']
+    });
+});
