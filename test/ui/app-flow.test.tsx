@@ -67,7 +67,25 @@ const desktopMock = vi.hoisted(() => {
         loadConfig: vi.fn(async () => ({ kind: 'ok', config: structuredClone(baseConfig) })),
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
+        loadSetupState: vi.fn(async () => ({
+            token: 'test-token',
+            tokenPresent: true,
+            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
+            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+        })),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
+        saveEnvironment: vi.fn(async ({ discordToken }) => ({
+            token: discordToken,
+            tokenPresent: true,
+            dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
+            envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
+            configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
+            statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+        })),
         runPreflight: vi.fn(async () => ({
             ok: true,
             checkedAt: '2026-03-21T10:00:00.000Z',
@@ -126,6 +144,7 @@ const desktopMock = vi.hoisted(() => {
             entries: []
         })),
         openLogFile: vi.fn(async () => 'logs/session.jsonl'),
+        openDataDirectory: vi.fn(async () => 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender'),
         discardResumeSession: vi.fn(async () => {
             state.senderState = {
                 ...state.senderState,

@@ -151,3 +151,4 @@ vite.config.mts.timestamp-*
 # Tauri build artifacts
 src-tauri/target/
 src-tauri/gen/
+src-tauri/resources/sidecar/

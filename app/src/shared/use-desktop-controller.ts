@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
     ConfigLoadResult,
     DesktopEvent,
+    DesktopSetupState,
     DryRunResult,
     LogEntry,
     PreflightResult,
@@ -10,13 +11,16 @@ import {
     getSessionState,
     loadConfig,
     loadLogs,
+    loadSetupState,
     loadState,
     discardResumeSession,
+    openDataDirectory,
     openLogFile,
     pauseSession,
     resumeSession,
     runDryRun,
     runPreflight,
+    saveEnvironment,
     saveConfig,
     startSession,
     stopSession,
@@ -55,6 +59,8 @@ export function useDesktopController() {
     const [preflight, setPreflight] = useState<PreflightResult | null>(null);
     const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
     const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [setup, setSetup] = useState<DesktopSetupState | null>(null);
+    const [environmentDraft, setEnvironmentDraft] = useState('');
     const [notice, setNotice] = useState('Loading desktop state...');
     const [preferredScreen, setPreferredScreen] = useState<'session' | 'preview' | null>(null);
     const [runtime, setRuntime] = useState<RuntimeOptions>({
@@ -97,15 +103,18 @@ export function useDesktopController() {
 
     async function refreshAll() {
         try {
-            const [configResult, activeSession, persistedState] = await Promise.all([
+            const [configResult, activeSession, persistedState, setupState] = await Promise.all([
                 loadConfig(),
                 getSessionState(),
-                loadState()
+                loadState(),
+                loadSetupState()
             ]);
 
             applyConfigResult(configResult);
             setSession(activeSession);
             setSenderState(persistedState);
+            setSetup(setupState);
+            setEnvironmentDraft(setupState.token);
             if (!activeSession && persistedState.resumeSession) {
                 setRuntime(persistedState.resumeSession.runtime);
             }
@@ -182,6 +191,8 @@ export function useDesktopController() {
         preflight,
         dryRun,
         logs,
+        setup,
+        environmentDraft,
         notice,
         runtime,
         groupedMetrics,
@@ -190,6 +201,7 @@ export function useDesktopController() {
         preferredScreen,
         setNotice,
         setRuntime,
+        setEnvironmentDraft,
         async saveConfigDraft() {
             if (draft.validationErrors.length > 0) {
                 setNotice(draft.validationErrors[0]);
@@ -332,6 +344,35 @@ export function useDesktopController() {
 
             try {
                 const result = await openLogFile(sessionId);
+                setNotice(`Opening ${result}`);
+                return result;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async saveEnvironmentDraft() {
+            if (!environmentDraft.trim()) {
+                setNotice('DISCORD_TOKEN is required.');
+                return null;
+            }
+
+            try {
+                const nextSetup = await saveEnvironment({
+                    discordToken: environmentDraft
+                });
+                setSetup(nextSetup);
+                setEnvironmentDraft(nextSetup.token);
+                setNotice('Discord token saved to the local .env file.');
+                return nextSetup;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async openDesktopDataDirectory() {
+            try {
+                const result = await openDataDirectory();
                 setNotice(`Opening ${result}`);
                 return result;
             } catch (error) {

@@ -66,7 +66,7 @@ async function main() {
                 throw new Error(`Unsupported desktop command '${request.command}'.`);
             }
 
-            const handler = handlers[request.command as Exclude<DesktopCommandName, 'open_log_file'>] as (
+            const handler = handlers[request.command as Exclude<DesktopCommandName, 'open_log_file' | 'open_data_directory'>] as (
                 runtime: DesktopRuntime,
                 payload: unknown
             ) => Promise<unknown>;

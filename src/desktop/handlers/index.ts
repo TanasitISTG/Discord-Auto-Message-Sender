@@ -3,6 +3,7 @@ import { DesktopRuntime } from '../runtime';
 import { handleLoadConfig, handleSaveConfig } from './config';
 import { handleRunDryRun, handleRunPreflight } from './preflight';
 import { handleGetSessionState, handlePauseSession, handleResumeSession, handleStartSession, handleStopSession } from './session';
+import { handleLoadSetupState, handleSaveEnvironment } from './setup';
 import { handleDiscardResumeSession, handleLoadLogs, handleLoadState } from './state';
 
 type Handler<K extends DesktopCommandName> = (
@@ -11,7 +12,7 @@ type Handler<K extends DesktopCommandName> = (
 ) => Promise<DesktopCommandMap[K]['response']>;
 
 export function createDesktopHandlers() {
-    const handlers: { [K in Exclude<DesktopCommandName, 'open_log_file'>]: Handler<K> } = {
+    const handlers: { [K in Exclude<DesktopCommandName, 'open_log_file' | 'open_data_directory'>]: Handler<K> } = {
         load_config: handleLoadConfig,
         save_config: handleSaveConfig,
         run_preflight: handleRunPreflight,
@@ -23,6 +24,8 @@ export function createDesktopHandlers() {
         get_session_state: handleGetSessionState,
         load_logs: handleLoadLogs,
         load_state: handleLoadState,
+        load_setup_state: handleLoadSetupState,
+        save_environment: handleSaveEnvironment,
         discard_resume_session: handleDiscardResumeSession
     };
 

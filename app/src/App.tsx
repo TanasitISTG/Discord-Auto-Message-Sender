@@ -132,7 +132,16 @@ export default function App() {
                 {screen === 'config' ? (
                     <ConfigScreen
                         draft={controller.draft}
+                        setup={controller.setup}
+                        environmentDraft={controller.environmentDraft}
                         runtime={controller.runtime}
+                        onEnvironmentDraftChange={controller.setEnvironmentDraft}
+                        onSaveEnvironment={async () => {
+                            await controller.saveEnvironmentDraft();
+                        }}
+                        onOpenDataDirectory={async () => {
+                            await controller.openDesktopDataDirectory();
+                        }}
                         onSaveConfig={async () => {
                             await controller.saveConfigDraft();
                         }}

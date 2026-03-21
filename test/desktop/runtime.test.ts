@@ -225,6 +225,31 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
     assert.equal(state.resumeSession, undefined);
 });
 
+test('DesktopRuntime loads and saves environment setup state without restarting the sidecar', () => {
+    const tempDir = createTempDir();
+    writeDesktopFiles(tempDir);
+    fs.writeFileSync(path.join(tempDir, '.env'), 'EXTRA_FLAG=1\nDISCORD_TOKEN=old-token\n', 'utf8');
+
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir
+    });
+
+    const initialSetup = runtime.loadSetupState();
+    assert.equal(initialSetup.token, 'old-token');
+    assert.equal(initialSetup.tokenPresent, true);
+    assert.equal(initialSetup.envPath, path.join(tempDir, '.env'));
+
+    const savedSetup = runtime.saveEnvironment({
+        discordToken: 'new-token'
+    });
+    assert.equal(savedSetup.token, 'new-token');
+    assert.equal(runtime.loadSetupState().token, 'new-token');
+
+    const envFile = fs.readFileSync(path.join(tempDir, '.env'), 'utf8');
+    assert.match(envFile, /DISCORD_TOKEN="new-token"/);
+    assert.match(envFile, /EXTRA_FLAG=1/);
+});
+
 test('DesktopRuntime does not restore a checkpoint when the requested runtime no longer matches', async () => {
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);

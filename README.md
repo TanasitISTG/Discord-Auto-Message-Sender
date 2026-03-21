@@ -32,9 +32,9 @@ bun install
 1. Copy `.env.example` to `.env`.
 2. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
 3. Optional: copy `config.example.json` to `config.json` if you want a starting template.
-4. Launch the desktop app and build or edit the config in the GUI.
+4. Launch the desktop app and use `Config -> Desktop Setup` to save `DISCORD_TOKEN`, then build or edit the config in the GUI.
 
-The app resolves `.env`, `config.json`, `logs/`, and `.sender-state.json` from the project root. It does not use a hosted backend or external database.
+The app stores runtime data in the OS app-data directory. On Windows that is typically `%AppData%\\com.local.discord-auto-message-sender`. Older repo-root files are migrated there automatically on first launch if the app-data copy does not exist yet.
 
 ## Desktop Development
 
@@ -108,7 +108,7 @@ Compatibility notes:
 
 ## Local Files
 
-The desktop runtime keeps everything local to the repository root:
+The desktop runtime keeps everything local to the OS app-data directory:
 
 | Path | Purpose |
 | --- | --- |
@@ -124,6 +124,7 @@ The desktop runtime keeps everything local to the repository root:
 - If `.sender-state.json` is corrupted, the app logs a warning and starts from a fresh local state.
 - To fully reset local runtime state, stop the app and remove `.sender-state.json` plus any old files in `logs/`.
 - Removing `.sender-state.json` does not delete `config.json` or `.env`.
+- If you previously used the repo-root desktop build, the app copies `.env`, `config.json`, `messages.json`, `.sender-state.json`, and missing log files into the app-data directory on startup.
 
 ## Troubleshooting
 

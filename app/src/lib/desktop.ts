@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import type {
     AppConfig,
     ConfigLoadResult,
+    DesktopSetupState,
     DesktopCommandMap,
     DesktopCommandName,
     DesktopEvent,
@@ -12,6 +13,7 @@ import type {
     PreflightResult,
     RuntimeOptions,
     SaveConfigResult,
+    SaveEnvironmentRequest,
     SenderStateRecord,
     SessionSnapshot
 } from '../../../src/desktop/contracts';
@@ -19,6 +21,7 @@ import type {
 export type {
     AppConfig,
     ConfigLoadResult,
+    DesktopSetupState,
     DesktopEvent,
     DryRunResult,
     LogLoadResult,
@@ -87,12 +90,24 @@ export async function loadState(): Promise<SenderStateRecord> {
     return desktopInvoke('load_state', {});
 }
 
+export async function loadSetupState(): Promise<DesktopSetupState> {
+    return desktopInvoke('load_setup_state', {});
+}
+
+export async function saveEnvironment(request: SaveEnvironmentRequest): Promise<DesktopSetupState> {
+    return desktopInvoke('save_environment', request);
+}
+
 export async function discardResumeSession(): Promise<SenderStateRecord> {
     return desktopInvoke('discard_resume_session', {});
 }
 
 export async function openLogFile(sessionId: string): Promise<string> {
     return desktopInvoke('open_log_file', { sessionId });
+}
+
+export async function openDataDirectory(): Promise<string> {
+    return desktopInvoke('open_data_directory', {});
 }
 
 export async function subscribeToAppEvents(handler: (event: DesktopEvent) => void) {

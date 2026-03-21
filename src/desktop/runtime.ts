@@ -13,6 +13,7 @@ import {
     DesktopCommandMap,
     DesktopCommandName,
     DesktopEvent,
+    DesktopSetupState,
     LogLoadResult,
     SessionSnapshot,
     StateLoadResult
@@ -74,6 +75,10 @@ export class DesktopRuntime {
                 return await this.loadLogs(payload as DesktopCommandMap['load_logs']['request']) as DesktopCommandMap[K]['response'];
             case 'load_state':
                 return this.loadState() as DesktopCommandMap[K]['response'];
+            case 'load_setup_state':
+                return this.loadSetupState() as DesktopCommandMap[K]['response'];
+            case 'save_environment':
+                return this.saveEnvironment(payload as DesktopCommandMap['save_environment']['request']) as DesktopCommandMap[K]['response'];
             case 'discard_resume_session':
                 return this.discardResumeSession() as DesktopCommandMap[K]['response'];
             default:
@@ -234,6 +239,49 @@ export class DesktopRuntime {
         return loadSenderState(this.baseDir);
     }
 
+    loadSetupState(): DesktopSetupState {
+        const token = this.readStoredToken();
+        return {
+            token,
+            tokenPresent: token.trim().length > 0,
+            dataDir: this.baseDir,
+            envPath: this.getEnvironmentPath(),
+            configPath: path.join(this.baseDir, 'config.json'),
+            statePath: path.join(this.baseDir, '.sender-state.json'),
+            logsDir: path.join(this.baseDir, 'logs')
+        };
+    }
+
+    saveEnvironment(payload: DesktopCommandMap['save_environment']['request']): DesktopSetupState {
+        const normalizedToken = payload.discordToken.trim();
+        if (!normalizedToken) {
+            throw new Error('DISCORD_TOKEN cannot be empty.');
+        }
+
+        const envPath = this.getEnvironmentPath();
+        const existing = fs.existsSync(envPath)
+            ? fs.readFileSync(envPath, 'utf8').split(/\r?\n/)
+            : [];
+        const nextLine = `DISCORD_TOKEN=${JSON.stringify(normalizedToken)}`;
+        let replaced = false;
+        const nextLines = existing
+            .filter((line, index, lines) => !(index === lines.length - 1 && line.trim() === ''))
+            .map((line) => {
+                if (/^\s*DISCORD_TOKEN\s*=/.test(line)) {
+                    replaced = true;
+                    return nextLine;
+                }
+                return line;
+            });
+
+        if (!replaced) {
+            nextLines.push(nextLine);
+        }
+
+        fs.writeFileSync(envPath, `${nextLines.join('\n')}\n`, 'utf8');
+        return this.loadSetupState();
+    }
+
     discardResumeSession(): StateLoadResult {
         const current = this.getSessionState();
         if (current && ['running', 'paused', 'stopping'].includes(current.status)) {
@@ -265,10 +313,32 @@ export class DesktopRuntime {
         };
     }
 
+    private getEnvironmentPath() {
+        return path.join(this.baseDir, '.env');
+    }
+
+    private readFileEnvironment(): Record<string, string> {
+        const envPath = this.getEnvironmentPath();
+        return fs.existsSync(envPath)
+            ? dotenv.parse(fs.readFileSync(envPath, 'utf8'))
+            : {};
+    }
+
+    private readEnvironmentSource(): NodeJS.ProcessEnv {
+        const fileEnvironment = this.readFileEnvironment();
+        return {
+            ...process.env,
+            ...fileEnvironment
+        };
+    }
+
+    private readStoredToken(): string {
+        return this.readFileEnvironment().DISCORD_TOKEN?.trim() ?? '';
+    }
+
     private readToken(): string | undefined {
-        dotenv.config({ path: path.join(this.baseDir, '.env') });
         try {
-            return parseEnvironment(process.env).DISCORD_TOKEN;
+            return parseEnvironment(this.readEnvironmentSource()).DISCORD_TOKEN;
         } catch {
             return undefined;
         }

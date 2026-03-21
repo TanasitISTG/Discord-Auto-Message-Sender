@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build --config vite.config.mts",
     "build:core": "tsc -p tsconfig.json",
+    "build:sidecar": "bun run ./scripts/build-sidecar.ts",
     "dev": "vite --config vite.config.mts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",

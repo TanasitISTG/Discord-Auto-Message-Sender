@@ -31,6 +31,15 @@ export type LogLoadResult = {
     entries: LogEntry[];
 };
 export type StateLoadResult = SenderStateRecord;
+export interface DesktopSetupState {
+    token: string;
+    tokenPresent: boolean;
+    dataDir: string;
+    envPath: string;
+    configPath: string;
+    statePath: string;
+    logsDir: string;
+}
 
 export interface EmptyRequest {}
 
@@ -53,6 +62,10 @@ export interface LoadLogsRequest {
 
 export interface OpenLogFileRequest {
     sessionId: string;
+}
+
+export interface SaveEnvironmentRequest {
+    discordToken: string;
 }
 
 export interface DesktopCommandMap {
@@ -100,12 +113,24 @@ export interface DesktopCommandMap {
         request: EmptyRequest;
         response: StateLoadResult;
     };
+    load_setup_state: {
+        request: EmptyRequest;
+        response: DesktopSetupState;
+    };
+    save_environment: {
+        request: SaveEnvironmentRequest;
+        response: DesktopSetupState;
+    };
     discard_resume_session: {
         request: EmptyRequest;
         response: StateLoadResult;
     };
     open_log_file: {
         request: OpenLogFileRequest;
+        response: string;
+    };
+    open_data_directory: {
+        request: EmptyRequest;
         response: string;
     };
 }

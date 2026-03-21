@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    env, fs,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
@@ -14,6 +15,15 @@ use std::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
+
+const RUNTIME_LOG_DIR: &str = "logs";
+const SIDECAR_RESOURCE_DIR: &str = "sidecar";
+const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
+    "desktop-sidecar.exe"
+} else {
+    "desktop-sidecar"
+};
+const LEGACY_RUNTIME_FILES: [&str; 4] = [".env", "config.json", "messages.json", ".sender-state.json"];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -299,6 +309,24 @@ struct OpenLogFileRequest {
     session_id: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveEnvironmentRequest {
+    discord_token: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopSetupState {
+    token: String,
+    token_present: bool,
+    data_dir: String,
+    env_path: String,
+    config_path: String,
+    state_path: String,
+    logs_dir: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct SidecarRequest<T: Serialize> {
     id: String,
@@ -348,6 +376,12 @@ impl ManagedSidecar {
     }
 }
 
+#[derive(Clone, Debug)]
+struct RuntimePaths {
+    data_dir: PathBuf,
+    logs_dir: PathBuf,
+}
+
 struct AppRuntime {
     sidecar: Mutex<ManagedSidecar>,
     next_request_id: AtomicU64,
@@ -367,6 +401,116 @@ fn project_root() -> PathBuf {
         .parent()
         .expect("project root")
         .to_path_buf()
+}
+
+fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to resolve app data directory: {error}"))?;
+    let logs_dir = data_dir.join(RUNTIME_LOG_DIR);
+
+    fs::create_dir_all(&logs_dir)
+        .map_err(|error| format!("Failed to prepare desktop data directory: {error}"))?;
+
+    Ok(RuntimePaths { data_dir, logs_dir })
+}
+
+fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !paths.iter().any(|existing| existing == &candidate) {
+        paths.push(candidate);
+    }
+}
+
+fn legacy_runtime_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let project_dir = project_root();
+    if project_dir.exists() {
+        push_unique_path(&mut roots, project_dir);
+    }
+
+    if let Ok(current_dir) = env::current_dir() {
+        if current_dir.exists() {
+            push_unique_path(&mut roots, current_dir);
+        }
+    }
+
+    roots
+}
+
+fn copy_file_if_missing(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.exists() || destination.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Failed to prepare migrated file destination: {error}"))?;
+    }
+
+    fs::copy(source, destination)
+        .map_err(|error| format!("Failed to migrate '{}' to '{}': {error}", source.display(), destination.display()))?;
+    Ok(())
+}
+
+fn copy_directory_contents_if_missing(source_dir: &Path, destination_dir: &Path) -> Result<(), String> {
+    if !source_dir.exists() {
+        return Ok(());
+    }
+
+    fs::create_dir_all(destination_dir)
+        .map_err(|error| format!("Failed to prepare migrated directory '{}': {error}", destination_dir.display()))?;
+
+    for entry in fs::read_dir(source_dir)
+        .map_err(|error| format!("Failed to read legacy directory '{}': {error}", source_dir.display()))?
+    {
+        let entry = entry
+            .map_err(|error| format!("Failed to read a legacy directory entry: {error}"))?;
+        let source_path = entry.path();
+        let destination_path = destination_dir.join(entry.file_name());
+
+        if source_path.is_dir() {
+            copy_directory_contents_if_missing(&source_path, &destination_path)?;
+        } else {
+            copy_file_if_missing(&source_path, &destination_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn migrate_legacy_runtime_data(app: &AppHandle) -> Result<(), String> {
+    let paths = runtime_paths(app)?;
+
+    for legacy_root in legacy_runtime_roots() {
+        if legacy_root == paths.data_dir {
+            continue;
+        }
+
+        for file_name in LEGACY_RUNTIME_FILES {
+            copy_file_if_missing(
+                &legacy_root.join(file_name),
+                &paths.data_dir.join(file_name),
+            )?;
+        }
+
+        copy_directory_contents_if_missing(&legacy_root.join(RUNTIME_LOG_DIR), &paths.logs_dir)?;
+    }
+
+    Ok(())
+}
+
+fn bundled_sidecar_path(app: &AppHandle) -> Option<PathBuf> {
+    let resource_dir = app.path().resource_dir().ok()?;
+    let candidate = resource_dir
+        .join(SIDECAR_RESOURCE_DIR)
+        .join(SIDECAR_BINARY_NAME);
+    candidate.exists().then_some(candidate)
+}
+
+fn development_sidecar_entry() -> Option<PathBuf> {
+    let candidate = project_root().join("src").join("desktop").join("server.ts");
+    candidate.exists().then_some(candidate)
 }
 
 fn bun_executable() -> &'static str {
@@ -508,17 +652,27 @@ fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    let mut child = Command::new(bun_executable())
-        .arg("run")
-        .arg("src/desktop/server.ts")
+    let paths = runtime_paths(app)?;
+    let mut command = if let Some(sidecar_binary) = bundled_sidecar_path(app) {
+        let mut command = Command::new(sidecar_binary);
+        command.current_dir(&paths.data_dir);
+        command
+    } else if let Some(sidecar_entry) = development_sidecar_entry() {
+        let mut command = Command::new(bun_executable());
+        command.arg("run").arg(sidecar_entry).current_dir(project_root());
+        command
+    } else {
+        return Err("Could not locate a packaged desktop sidecar or the development sidecar entrypoint.".to_string());
+    };
+
+    let mut child = command
         .arg("--base-dir")
-        .arg(project_root())
-        .current_dir(project_root())
+        .arg(&paths.data_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("Failed to start Bun sidecar: {error}"))?;
+        .map_err(|error| format!("Failed to start desktop sidecar: {error}"))?;
 
     let stdin = child
         .stdin
@@ -702,13 +856,25 @@ fn load_state(app: AppHandle) -> Result<SenderStateRecord, String> {
 }
 
 #[tauri::command]
+fn load_setup_state(app: AppHandle) -> Result<DesktopSetupState, String> {
+    send_sidecar_request(&app, "load_setup_state", json!({}))
+}
+
+#[tauri::command]
+fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
+    send_sidecar_request(&app, "save_environment", request)
+}
+
+#[tauri::command]
 fn discard_resume_session(app: AppHandle) -> Result<SenderStateRecord, String> {
     send_sidecar_request(&app, "discard_resume_session", json!({}))
 }
 
 #[tauri::command]
-fn open_log_file(request: OpenLogFileRequest) -> Result<String, String> {
-    let log_path = project_root().join("logs").join(format!("{}.jsonl", request.session_id));
+fn open_log_file(app: AppHandle, request: OpenLogFileRequest) -> Result<String, String> {
+    let log_path = runtime_paths(&app)?
+        .logs_dir
+        .join(format!("{}.jsonl", request.session_id));
     if cfg!(target_os = "windows") {
         Command::new("cmd")
             .args(["/C", "start", "", log_path.to_string_lossy().as_ref()])
@@ -729,10 +895,34 @@ fn open_log_file(request: OpenLogFileRequest) -> Result<String, String> {
     Ok(log_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn open_data_directory(app: AppHandle) -> Result<String, String> {
+    let data_dir = runtime_paths(&app)?.data_dir;
+    if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", "start", "", data_dir.to_string_lossy().as_ref()])
+            .spawn()
+            .map_err(|error| format!("Failed to open data directory: {error}"))?;
+    } else if cfg!(target_os = "macos") {
+        Command::new("open")
+            .arg(&data_dir)
+            .spawn()
+            .map_err(|error| format!("Failed to open data directory: {error}"))?;
+    } else {
+        Command::new("xdg-open")
+            .arg(&data_dir)
+            .spawn()
+            .map_err(|error| format!("Failed to open data directory: {error}"))?;
+    }
+
+    Ok(data_dir.to_string_lossy().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppRuntime::new())
         .setup(|app| {
+            migrate_legacy_runtime_data(&app.handle())?;
             start_sidecar_process(&app.handle())?;
             start_sidecar_watcher(app.handle().clone());
             Ok(())
@@ -767,8 +957,11 @@ fn main() {
             get_session_state,
             load_logs,
             load_state,
+            load_setup_state,
+            save_environment,
             discard_resume_session,
-            open_log_file
+            open_log_file,
+            open_data_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

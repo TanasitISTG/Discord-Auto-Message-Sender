@@ -1,53 +1,118 @@
-import { ChangeEvent } from 'react';
-import { ArrowDown, ArrowUp, Plus, Save, Shuffle, Trash2 } from 'lucide-react';
+import { ChangeEvent, useState } from 'react';
+import { ArrowDown, ArrowUp, FolderOpen, Plus, Save, Shuffle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { RuntimeOptions } from '@/lib/desktop';
+import type { DesktopSetupState, RuntimeOptions } from '@/lib/desktop';
 import { Field, StateRow } from '@/shared/components';
 import type { ConfigDraftController } from './use-config-draft';
 
 interface ConfigScreenProps {
     draft: ConfigDraftController;
+    setup: DesktopSetupState | null;
+    environmentDraft: string;
     runtime: RuntimeOptions;
+    onEnvironmentDraftChange(nextValue: string): void;
+    onSaveEnvironment(): void | Promise<void>;
+    onOpenDataDirectory(): void | Promise<void>;
     onSaveConfig(): void | Promise<void>;
     onPreviewDryRun(): void | Promise<void>;
 }
 
-export function ConfigScreen({ draft, runtime, onSaveConfig, onPreviewDryRun }: ConfigScreenProps) {
+export function ConfigScreen({
+    draft,
+    setup,
+    environmentDraft,
+    runtime,
+    onEnvironmentDraftChange,
+    onSaveEnvironment,
+    onOpenDataDirectory,
+    onSaveConfig,
+    onPreviewDryRun
+}: ConfigScreenProps) {
+    const [showToken, setShowToken] = useState(false);
+
     return (
         <>
             <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)_380px]">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Channels</CardTitle>
-                        <CardDescription>Assign each channel to a message group and keep the send path editable without raw JSON.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <Button className="w-full" variant="secondary" onClick={() => draft.addChannel()}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Channel
-                        </Button>
-                        <div className="space-y-2">
-                            {draft.state.config.channels.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No channels configured yet.</div>
-                            ) : draft.state.config.channels.map((channel) => (
-                                <button
-                                    key={channel.id}
-                                    className={`w-full rounded-xl border p-3 text-left ${
-                                        draft.selectedChannel?.id === channel.id ? 'border-primary/40 bg-primary/10' : 'border-border bg-background/30'
-                                    }`}
-                                    onClick={() => draft.setSelectedChannel(channel.id)}
-                                >
-                                    <div className="font-medium">{channel.name || 'Unnamed channel'}</div>
-                                    <div className="mt-1 font-mono text-xs text-muted-foreground">{channel.id}</div>
-                                    <div className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">{channel.messageGroup}</div>
-                                </button>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="grid gap-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Desktop Setup</CardTitle>
+                            <CardDescription>Manage the local Discord token and inspect where the packaged app stores its runtime files.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <StateRow label="Discord token" value={setup?.tokenPresent ? 'configured' : 'missing'} />
+                            <Field label="DISCORD_TOKEN">
+                                <div className="flex gap-2">
+                                    <Input
+                                        type={showToken ? 'text' : 'password'}
+                                        value={environmentDraft}
+                                        placeholder="Paste your personal Discord token"
+                                        onChange={(event: ChangeEvent<HTMLInputElement>) => onEnvironmentDraftChange(event.target.value)}
+                                    />
+                                    <Button variant="secondary" onClick={() => setShowToken((current) => !current)}>
+                                        {showToken ? 'Hide' : 'Show'}
+                                    </Button>
+                                </div>
+                            </Field>
+                            <div className="flex flex-wrap gap-3">
+                                <Button onClick={onSaveEnvironment} disabled={!environmentDraft.trim()}>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save Token
+                                </Button>
+                                <Button variant="secondary" onClick={onOpenDataDirectory}>
+                                    <FolderOpen className="mr-2 h-4 w-4" />
+                                    Open Data Folder
+                                </Button>
+                            </div>
+                            {setup ? (
+                                <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                                    <StateRow label="App data" value={setup.dataDir} />
+                                    <StateRow label=".env path" value={setup.envPath} />
+                                    <StateRow label="Config path" value={setup.configPath} />
+                                    <StateRow label="State path" value={setup.statePath} />
+                                    <StateRow label="Logs dir" value={setup.logsDir} />
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                                    Loading desktop setup details...
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Channels</CardTitle>
+                            <CardDescription>Assign each channel to a message group and keep the send path editable without raw JSON.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <Button className="w-full" variant="secondary" onClick={() => draft.addChannel()}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Channel
+                            </Button>
+                            <div className="space-y-2">
+                                {draft.state.config.channels.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">No channels configured yet.</div>
+                                ) : draft.state.config.channels.map((channel) => (
+                                    <button
+                                        key={channel.id}
+                                        className={`w-full rounded-xl border p-3 text-left ${
+                                            draft.selectedChannel?.id === channel.id ? 'border-primary/40 bg-primary/10' : 'border-border bg-background/30'
+                                        }`}
+                                        onClick={() => draft.setSelectedChannel(channel.id)}
+                                    >
+                                        <div className="font-medium">{channel.name || 'Unnamed channel'}</div>
+                                        <div className="mt-1 font-mono text-xs text-muted-foreground">{channel.id}</div>
+                                        <div className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">{channel.messageGroup}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
                 <Card>
                     <CardHeader>

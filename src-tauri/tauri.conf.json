@@ -5,7 +5,7 @@
   "identifier": "com.local.discord-auto-message-sender",
   "build": {
     "beforeDevCommand": "bun run dev",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run build && bun run build:sidecar",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -38,6 +38,9 @@
     "icon": [
       "icons/icon.ico"
     ],
+    "resources": {
+      "resources/sidecar/desktop-sidecar.exe": "sidecar/desktop-sidecar.exe"
+    },
     "windows": {
       "allowDowngrades": false
     }
