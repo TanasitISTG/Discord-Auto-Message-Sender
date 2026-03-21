@@ -296,17 +296,19 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let state = window.app_handle().state::<AppRuntime>();
-                if let Ok(mut runtime) = state.session.lock() {
-                    refresh_session(&mut runtime);
-                    if session_should_block_close(&runtime) {
-                        api.prevent_close();
-                        let _ = window.app_handle().emit("app-event", json!({
-                            "type": "close_blocked",
-                            "message": "A session is still active. Pause or stop it before closing the app.",
-                            "state": runtime.state.clone().unwrap_or(Value::Null)
-                        }));
-                    }
+                {
+                    let state = window.app_handle().state::<AppRuntime>();
+                    if let Ok(mut runtime) = state.session.lock() {
+                        refresh_session(&mut runtime);
+                        if session_should_block_close(&runtime) {
+                            api.prevent_close();
+                            let _ = window.app_handle().emit("app-event", json!({
+                                "type": "close_blocked",
+                                "message": "A session is still active. Pause or stop it before closing the app.",
+                                "state": runtime.state.clone().unwrap_or(Value::Null)
+                            }));
+                        }
+                    };
                 }
             }
         })
