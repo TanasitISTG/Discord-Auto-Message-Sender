@@ -11,12 +11,14 @@ import type {
     LogLoadResult,
     LogEntry,
     PreflightResult,
+    ResetRuntimeStateResult,
     ReleaseDiagnostics,
     RuntimeOptions,
     SaveConfigResult,
     SaveEnvironmentRequest,
     SidecarStatus,
     SenderStateRecord,
+    SupportBundleResult,
     SessionSnapshot
 } from '../../../src/desktop/contracts';
 
@@ -29,11 +31,13 @@ export type {
     LogLoadResult,
     LogEntry,
     PreflightResult,
+    ResetRuntimeStateResult,
     ReleaseDiagnostics,
     RuntimeOptions,
     SaveConfigResult,
     SidecarStatus,
     SenderStateRecord,
+    SupportBundleResult,
     SessionSnapshot
 } from '../../../src/desktop/contracts';
 
@@ -112,6 +116,18 @@ export async function discardResumeSession(): Promise<SenderStateRecord> {
 
 export async function loadReleaseDiagnostics(): Promise<ReleaseDiagnostics> {
     return desktopInvoke('load_release_diagnostics', {});
+}
+
+export async function openLogsDirectory(): Promise<string> {
+    return desktopInvoke('open_logs_directory', {});
+}
+
+export async function exportSupportBundle(): Promise<SupportBundleResult> {
+    return desktopInvoke('export_support_bundle', {});
+}
+
+export async function resetRuntimeState(): Promise<ResetRuntimeStateResult> {
+    return desktopInvoke('reset_runtime_state', {});
 }
 
 export async function openLogFile(sessionId: string): Promise<string> {

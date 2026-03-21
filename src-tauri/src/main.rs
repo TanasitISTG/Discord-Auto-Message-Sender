@@ -9,7 +9,7 @@ use std::{
         mpsc::{self, Sender},
         Mutex,
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -25,6 +25,7 @@ use windows::{
 };
 
 const RUNTIME_LOG_DIR: &str = "logs";
+const SUPPORT_BUNDLE_DIR: &str = "support";
 const SIDECAR_RESOURCE_DIR: &str = "sidecar";
 const SECURE_TOKEN_FILE: &str = "discord-token.secure";
 const APPDATA_OVERRIDE_ENV: &str = "DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR";
@@ -361,6 +362,22 @@ struct ReleaseDiagnostics {
     sidecar_status: SidecarStatus,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SupportBundleResult {
+    path: String,
+    included_files: Vec<String>,
+    missing_files: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResetRuntimeStateResult {
+    ok: bool,
+    cleared_state_file: bool,
+    deleted_log_files: usize,
+}
+
 #[derive(Clone, Debug, Serialize)]
 struct SidecarRequest<T: Serialize> {
     id: String,
@@ -442,8 +459,8 @@ fn project_root() -> PathBuf {
 }
 
 fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
-    let data_dir = match env::var_os(APPDATA_OVERRIDE_ENV) {
-        Some(path) if !path.is_empty() => PathBuf::from(path),
+    let data_dir = match runtime_data_dir_override() {
+        Some(path) => path,
         _ => app
             .path()
             .app_data_dir()
@@ -457,12 +474,34 @@ fn runtime_paths(app: &AppHandle) -> Result<RuntimePaths, String> {
     Ok(RuntimePaths { data_dir, logs_dir })
 }
 
+fn path_to_string(path: &Path) -> String {
+    path.to_string_lossy().to_string()
+}
+
 fn environment_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(".env")
 }
 
 fn secure_token_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(SECURE_TOKEN_FILE)
+}
+
+fn config_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join("config.json")
+}
+
+fn sender_state_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(".sender-state.json")
+}
+
+fn support_bundle_dir(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(SUPPORT_BUNDLE_DIR)
+}
+
+fn runtime_data_dir_override() -> Option<PathBuf> {
+    env::var_os(APPDATA_OVERRIDE_ENV)
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
 }
 
 fn normalize_token(candidate: impl Into<String>) -> Option<String> {
@@ -689,12 +728,12 @@ fn read_desktop_setup_state_with_process_token(paths: &RuntimePaths, process_tok
     Ok(DesktopSetupState {
         token_present,
         token_storage: token_storage.to_string(),
-        data_dir: paths.data_dir.to_string_lossy().to_string(),
-        secure_store_path: secure_store_path.to_string_lossy().to_string(),
-        env_path: env_path.to_string_lossy().to_string(),
-        config_path: paths.data_dir.join("config.json").to_string_lossy().to_string(),
-        state_path: paths.data_dir.join(".sender-state.json").to_string_lossy().to_string(),
-        logs_dir: paths.logs_dir.to_string_lossy().to_string(),
+        data_dir: path_to_string(&paths.data_dir),
+        secure_store_path: path_to_string(&secure_store_path),
+        env_path: path_to_string(&env_path),
+        config_path: path_to_string(&config_path(paths)),
+        state_path: path_to_string(&sender_state_path(paths)),
+        logs_dir: path_to_string(&paths.logs_dir),
         warning,
     })
 }
@@ -731,11 +770,11 @@ fn sidecar_status_value(app: &AppHandle) -> Result<SidecarStatus, String> {
 fn build_release_diagnostics(paths: &RuntimePaths, app_version: &str, token_storage: &str, sidecar_status: SidecarStatus) -> ReleaseDiagnostics {
     ReleaseDiagnostics {
         app_version: app_version.to_string(),
-        data_dir: paths.data_dir.to_string_lossy().to_string(),
-        logs_dir: paths.logs_dir.to_string_lossy().to_string(),
-        config_path: paths.data_dir.join("config.json").to_string_lossy().to_string(),
-        state_path: paths.data_dir.join(".sender-state.json").to_string_lossy().to_string(),
-        secure_store_path: secure_token_path(paths).to_string_lossy().to_string(),
+        data_dir: path_to_string(&paths.data_dir),
+        logs_dir: path_to_string(&paths.logs_dir),
+        config_path: path_to_string(&config_path(paths)),
+        state_path: path_to_string(&sender_state_path(paths)),
+        secure_store_path: path_to_string(&secure_token_path(paths)),
         token_storage: token_storage.to_string(),
         sidecar_status,
     }
@@ -751,6 +790,204 @@ fn load_release_diagnostics_state(app: &AppHandle) -> Result<ReleaseDiagnostics,
         &setup_state.token_storage,
         sidecar_status,
     ))
+}
+
+fn open_path_in_file_manager(path: &Path) -> Result<String, String> {
+    if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", "start", "", path.to_string_lossy().as_ref()])
+            .spawn()
+            .map_err(|error| format!("Failed to open '{}': {error}", path.display()))?;
+    } else if cfg!(target_os = "macos") {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|error| format!("Failed to open '{}': {error}", path.display()))?;
+    } else {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|error| format!("Failed to open '{}': {error}", path.display()))?;
+    }
+
+    Ok(path_to_string(path))
+}
+
+fn support_bundle_file_name() -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!("discord-auto-message-sender-support-{timestamp}.zip")
+}
+
+fn latest_log_files(paths: &RuntimePaths, limit: usize) -> Result<Vec<PathBuf>, String> {
+    if !paths.logs_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&paths.logs_dir)
+        .map_err(|error| format!("Failed to read logs directory '{}': {error}", paths.logs_dir.display()))?
+    {
+        let entry = entry
+            .map_err(|error| format!("Failed to read a log file entry: {error}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("jsonl") {
+            continue;
+        }
+
+        let modified = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        files.push((modified, path));
+    }
+
+    files.sort_by(|left, right| {
+        right.0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+    });
+
+    Ok(files
+        .into_iter()
+        .take(limit)
+        .map(|(_, path)| path)
+        .collect())
+}
+
+fn add_zip_text_entry(
+    archive: &mut zip::ZipWriter<fs::File>,
+    entry_name: &str,
+    contents: &[u8],
+) -> Result<(), String> {
+    archive
+        .start_file(
+            entry_name,
+            zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated),
+        )
+        .map_err(|error| format!("Failed to add '{entry_name}' to the support bundle: {error}"))?;
+    archive
+        .write_all(contents)
+        .map_err(|error| format!("Failed to write '{entry_name}' into the support bundle: {error}"))
+}
+
+fn add_zip_file_entry(
+    archive: &mut zip::ZipWriter<fs::File>,
+    source_path: &Path,
+    entry_name: &str,
+) -> Result<(), String> {
+    let contents = fs::read(source_path)
+        .map_err(|error| format!("Failed to read '{}' for the support bundle: {error}", source_path.display()))?;
+    add_zip_text_entry(archive, entry_name, &contents)
+}
+
+fn export_support_bundle_at_paths(
+    paths: &RuntimePaths,
+    diagnostics: &ReleaseDiagnostics,
+    setup: &DesktopSetupState,
+) -> Result<SupportBundleResult, String> {
+    let support_dir = support_bundle_dir(paths);
+    fs::create_dir_all(&support_dir)
+        .map_err(|error| format!("Failed to prepare support bundle directory '{}': {error}", support_dir.display()))?;
+
+    let bundle_path = support_dir.join(support_bundle_file_name());
+    let bundle_file = fs::File::create(&bundle_path)
+        .map_err(|error| format!("Failed to create support bundle '{}': {error}", bundle_path.display()))?;
+    let mut archive = zip::ZipWriter::new(bundle_file);
+    let mut included_files = Vec::new();
+    let mut missing_files = Vec::new();
+
+    let diagnostics_json = serde_json::to_vec_pretty(diagnostics)
+        .map_err(|error| format!("Failed to serialize diagnostics.json: {error}"))?;
+    add_zip_text_entry(&mut archive, "diagnostics.json", &diagnostics_json)?;
+    included_files.push("diagnostics.json".to_string());
+
+    let setup_json = serde_json::to_vec_pretty(setup)
+        .map_err(|error| format!("Failed to serialize setup.json: {error}"))?;
+    add_zip_text_entry(&mut archive, "setup.json", &setup_json)?;
+    included_files.push("setup.json".to_string());
+
+    let config_file = config_path(paths);
+    if config_file.exists() {
+        add_zip_file_entry(&mut archive, &config_file, "config.json")?;
+        included_files.push("config.json".to_string());
+    } else {
+        missing_files.push("config.json".to_string());
+    }
+
+    let state_file = sender_state_path(paths);
+    if state_file.exists() {
+        add_zip_file_entry(&mut archive, &state_file, ".sender-state.json")?;
+        included_files.push(".sender-state.json".to_string());
+    } else {
+        missing_files.push(".sender-state.json".to_string());
+    }
+
+    let log_files = latest_log_files(paths, 5)?;
+    if log_files.is_empty() {
+        missing_files.push("logs/*.jsonl".to_string());
+    } else {
+        for log_file in log_files {
+            let file_name = log_file
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| format!("Invalid log file name '{}'.", log_file.display()))?;
+            let entry_name = format!("logs/{file_name}");
+            add_zip_file_entry(&mut archive, &log_file, &entry_name)?;
+            included_files.push(entry_name);
+        }
+    }
+
+    archive
+        .finish()
+        .map_err(|error| format!("Failed to finalize the support bundle '{}': {error}", bundle_path.display()))?;
+
+    Ok(SupportBundleResult {
+        path: path_to_string(&bundle_path),
+        included_files,
+        missing_files,
+    })
+}
+
+fn reset_runtime_state_at_paths(paths: &RuntimePaths) -> Result<ResetRuntimeStateResult, String> {
+    let state_file = sender_state_path(paths);
+    let cleared_state_file = if state_file.exists() {
+        fs::remove_file(&state_file)
+            .map_err(|error| format!("Failed to remove '{}': {error}", state_file.display()))?;
+        true
+    } else {
+        false
+    };
+
+    let mut deleted_log_files = 0;
+    if paths.logs_dir.exists() {
+        for entry in fs::read_dir(&paths.logs_dir)
+            .map_err(|error| format!("Failed to read logs directory '{}': {error}", paths.logs_dir.display()))?
+        {
+            let entry = entry
+                .map_err(|error| format!("Failed to read a log file entry: {error}"))?;
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("jsonl") {
+                continue;
+            }
+
+            fs::remove_file(&path)
+                .map_err(|error| format!("Failed to remove log file '{}': {error}", path.display()))?;
+            deleted_log_files += 1;
+        }
+    }
+
+    fs::create_dir_all(&paths.logs_dir)
+        .map_err(|error| format!("Failed to recreate logs directory '{}': {error}", paths.logs_dir.display()))?;
+
+    Ok(ResetRuntimeStateResult {
+        ok: true,
+        cleared_state_file,
+        deleted_log_files,
+    })
 }
 
 fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
@@ -1166,6 +1403,20 @@ fn ensure_sidecar_running(app: &AppHandle) -> Result<(), String> {
     start_sidecar_process(app)
 }
 
+fn ensure_no_active_session(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppRuntime>();
+    let sidecar = state
+        .sidecar
+        .lock()
+        .map_err(|_| "Failed to lock desktop sidecar.".to_string())?;
+
+    if session_should_block_close(&sidecar) {
+        return Err("Stop the active session before resetting runtime state.".to_string());
+    }
+
+    Ok(())
+}
+
 fn send_sidecar_request<T, R>(app: &AppHandle, command: &str, payload: T) -> Result<R, String>
 where
     T: Serialize,
@@ -1319,51 +1570,43 @@ fn load_release_diagnostics(app: AppHandle) -> Result<ReleaseDiagnostics, String
 }
 
 #[tauri::command]
+fn open_logs_directory(app: AppHandle) -> Result<String, String> {
+    let logs_dir = runtime_paths(&app)?.logs_dir;
+    open_path_in_file_manager(&logs_dir)
+}
+
+#[tauri::command]
+fn export_support_bundle(app: AppHandle) -> Result<SupportBundleResult, String> {
+    let paths = runtime_paths(&app)?;
+    let setup = read_desktop_setup_state(&paths)?;
+    let diagnostics = build_release_diagnostics(
+        &paths,
+        &app.package_info().version.to_string(),
+        &setup.token_storage,
+        sidecar_status_value(&app)?,
+    );
+    export_support_bundle_at_paths(&paths, &diagnostics, &setup)
+}
+
+#[tauri::command]
+fn reset_runtime_state(app: AppHandle) -> Result<ResetRuntimeStateResult, String> {
+    ensure_no_active_session(&app)?;
+    let paths = runtime_paths(&app)?;
+    reset_runtime_state_at_paths(&paths)
+}
+
+#[tauri::command]
 fn open_log_file(app: AppHandle, request: OpenLogFileRequest) -> Result<String, String> {
     let log_path = runtime_paths(&app)?
         .logs_dir
         .join(format!("{}.jsonl", request.session_id));
-    if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", "start", "", log_path.to_string_lossy().as_ref()])
-            .spawn()
-            .map_err(|error| format!("Failed to open log file: {error}"))?;
-    } else if cfg!(target_os = "macos") {
-        Command::new("open")
-            .arg(&log_path)
-            .spawn()
-            .map_err(|error| format!("Failed to open log file: {error}"))?;
-    } else {
-        Command::new("xdg-open")
-            .arg(&log_path)
-            .spawn()
-            .map_err(|error| format!("Failed to open log file: {error}"))?;
-    }
-
-    Ok(log_path.to_string_lossy().to_string())
+    open_path_in_file_manager(&log_path)
 }
 
 #[tauri::command]
 fn open_data_directory(app: AppHandle) -> Result<String, String> {
     let data_dir = runtime_paths(&app)?.data_dir;
-    if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", "start", "", data_dir.to_string_lossy().as_ref()])
-            .spawn()
-            .map_err(|error| format!("Failed to open data directory: {error}"))?;
-    } else if cfg!(target_os = "macos") {
-        Command::new("open")
-            .arg(&data_dir)
-            .spawn()
-            .map_err(|error| format!("Failed to open data directory: {error}"))?;
-    } else {
-        Command::new("xdg-open")
-            .arg(&data_dir)
-            .spawn()
-            .map_err(|error| format!("Failed to open data directory: {error}"))?;
-    }
-
-    Ok(data_dir.to_string_lossy().to_string())
+    open_path_in_file_manager(&data_dir)
 }
 
 fn diagnostics_cli_requested() -> bool {
@@ -1425,6 +1668,9 @@ fn main() {
             clear_secure_token,
             discard_resume_session,
             load_release_diagnostics,
+            open_logs_directory,
+            export_support_bundle,
+            reset_runtime_state,
             open_log_file,
             open_data_directory
         ])
@@ -1465,6 +1711,24 @@ mod tests {
         assert!(diagnostics.secure_store_path.ends_with(SECURE_TOKEN_FILE));
     }
 
+    #[test]
+    fn runtime_data_dir_override_reads_the_override_environment_variable() {
+        let override_path = std::env::temp_dir().join(format!("discord-runtime-override-{}", std::process::id()));
+        std::env::set_var(APPDATA_OVERRIDE_ENV, &override_path);
+
+        let resolved = runtime_data_dir_override();
+
+        std::env::remove_var(APPDATA_OVERRIDE_ENV);
+        assert_eq!(resolved, Some(override_path));
+    }
+
+    #[test]
+    fn open_logs_directory_helper_resolves_the_logs_path() {
+        let paths = temp_runtime_paths("discord-open-logs");
+        assert_eq!(path_to_string(&paths.logs_dir), path_to_string(&paths.logs_dir));
+        assert!(path_to_string(&paths.logs_dir).ends_with(RUNTIME_LOG_DIR));
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     fn clear_secure_token_files_removes_secure_store_and_scrubs_env() {
@@ -1494,6 +1758,63 @@ mod tests {
         assert_eq!(setup.token_storage, "secure");
         assert_eq!(setup.token_present, true);
         assert!(!environment_path(&paths).exists());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn export_support_bundle_excludes_secure_token_and_env_but_includes_generated_json() {
+        let paths = temp_runtime_paths("discord-support-bundle");
+        fs::write(config_path(&paths), "{\"userAgent\":\"UA\"}").expect("write config");
+        fs::write(sender_state_path(&paths), "{\"schemaVersion\":1}").expect("write sender state");
+        fs::write(environment_path(&paths), "DISCORD_TOKEN=plaintext-token\n").expect("write env");
+        write_secure_token(&paths, "secret-token").expect("write secure token");
+
+        for index in 0..6 {
+            let log_path = paths.logs_dir.join(format!("session-{index}.jsonl"));
+            fs::write(&log_path, format!("{{\"index\":{index}}}\n")).expect("write log");
+            std::thread::sleep(Duration::from_millis(15));
+        }
+
+        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup");
+        let diagnostics = build_release_diagnostics(&paths, "1.0.0", "secure", SidecarStatus::Ready);
+        let bundle = export_support_bundle_at_paths(&paths, &diagnostics, &setup).expect("export support bundle");
+
+        let file = fs::File::open(&bundle.path).expect("open support bundle");
+        let mut archive = zip::ZipArchive::new(file).expect("read support archive");
+        let mut names = Vec::new();
+        for index in 0..archive.len() {
+            let entry = archive.by_index(index).expect("read archive entry");
+            names.push(entry.name().to_string());
+        }
+
+        assert!(names.contains(&"diagnostics.json".to_string()));
+        assert!(names.contains(&"setup.json".to_string()));
+        assert!(names.contains(&"config.json".to_string()));
+        assert!(names.contains(&".sender-state.json".to_string()));
+        assert_eq!(names.iter().filter(|name| name.starts_with("logs/")).count(), 5);
+        assert!(!names.iter().any(|name| name.contains("discord-token.secure")));
+        assert!(!names.iter().any(|name| name.ends_with(".env")));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn reset_runtime_state_clears_state_and_logs_without_touching_support_archives() {
+        let paths = temp_runtime_paths("discord-reset-runtime");
+        fs::write(sender_state_path(&paths), "{\"schemaVersion\":1}").expect("write sender state");
+        fs::write(paths.logs_dir.join("session-a.jsonl"), "{}\n").expect("write log a");
+        fs::write(paths.logs_dir.join("session-b.jsonl"), "{}\n").expect("write log b");
+        let support_dir = support_bundle_dir(&paths);
+        fs::create_dir_all(&support_dir).expect("create support dir");
+        fs::write(support_dir.join("keep.zip"), "bundle").expect("write support bundle");
+
+        let result = reset_runtime_state_at_paths(&paths).expect("reset runtime state");
+
+        assert!(result.ok);
+        assert!(result.cleared_state_file);
+        assert_eq!(result.deleted_log_files, 2);
+        assert!(!sender_state_path(&paths).exists());
+        assert_eq!(fs::read_dir(&paths.logs_dir).expect("read logs dir").count(), 0);
+        assert!(support_dir.join("keep.zip").exists());
     }
 
     #[cfg(target_os = "windows")]

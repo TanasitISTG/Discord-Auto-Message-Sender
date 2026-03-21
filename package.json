@@ -10,6 +10,8 @@
     "dev": "vite --config vite.config.mts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "release:version-check": "bun run ./scripts/check-versions.ts",
+    "release:check": "bun run typecheck && bun run test && cargo test --manifest-path src-tauri/Cargo.toml && bun run desktop:build && bun run smoke:desktop && bun run release:version-check",
     "smoke:desktop": "bun run ./scripts/smoke-packaged-app.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json",
     "test:core": "node scripts/run-tests.js",

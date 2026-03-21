@@ -1,209 +1,260 @@
 # Discord Auto Message Sender
 
-Local-first desktop app for configuring, previewing, validating, and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack.
+Windows-only public beta desktop app for configuring, validating, previewing, and running local Discord message sessions with Bun, Tauri, Vite, and React.
+
+## Public Beta Status
+
+- Platform: Windows only
+- Distribution: unsigned MSI installer
+- Updates: manual only
+- Auto-update: not included
+- Downgrades: blocked by the installer
 
 ## Disclaimer
 
 - Automating a personal Discord account can violate Discord's Terms of Service and platform policies.
-- Sending repeated or unsolicited messages can trigger rate limits, temporary access restrictions, or account termination.
+- Repeated or unsolicited sending can trigger rate limits, restrictions, or account termination.
 - Use this tool only if you understand and accept that risk.
 
-## Security Model
+## What The App Does
 
-- The packaged Windows app stores `DISCORD_TOKEN` in a DPAPI-protected local secure store.
-- Development builds can still fall back to `DISCORD_TOKEN` from your shell environment or local `.env`.
-- Secrets are not stored in `config.json`.
-- `config.json` is ignored by Git. Use `config.example.json` as the tracked template.
-- Legacy `messages.json` files are only read for one-way compatibility with older configs.
-
-## Requirements
-
-- Bun 1.3+
-- Rust/Cargo for the Tauri shell
-- A personal Discord account token
+- Local config editing for channels, groups, and messages
+- Dry run previews with no sends
+- Preflight validation and access checks
+- Start, pause, resume, and graceful stop controls
+- Persistent logs, summaries, and resumable checkpoints
+- Secure Windows token storage for packaged builds
+- Support diagnostics and support-bundle export
 
 ## Install
+
+### Public beta install
+
+1. Download the latest Windows MSI.
+2. Run the installer. Windows may show an unsigned-app warning.
+3. Launch `Discord Auto Message Sender`.
+4. Open `Config -> Desktop Setup`.
+5. Save your Discord token with `Save Token Securely`.
+6. Build or edit the config in the GUI.
+
+### Developer install
+
+Prerequisites:
+
+- Bun 1.3+
+- Rust/Cargo
 
 ```bash
 bun install
 ```
 
-## First-Time Setup
-
-1. Optional for development only: copy `.env.example` to `.env` and set `DISCORD_TOKEN` there if you want the dev shell to boot with an environment token.
-2. Optional: copy `config.example.json` to `config.json` if you want a starting template.
-3. Launch the desktop app.
-4. Open `Config -> Desktop Setup` and use `Save Token Securely` to store `DISCORD_TOKEN` for the local Windows user profile.
-5. Use `Remove Token` from the same screen if you need to revoke the stored token for future runs.
-6. Build or edit the config in the GUI.
-
-The app stores runtime data in the OS app-data directory. On Windows that is typically `%AppData%\\com.local.discord-auto-message-sender`. Older repo-root files are migrated there automatically on first launch if the app-data copy does not exist yet, and legacy plaintext tokens are moved into the secure store.
-
-## Desktop Development
+Run the desktop app in development:
 
 ```bash
 bun run dev
 bun run desktop:dev
 ```
 
-Desktop runtime architecture:
+## Manual Update Flow
 
-- the React UI calls Tauri commands
-- Tauri supervises one long-lived Bun sidecar process
-- the Bun sidecar owns config IO, preflight, dry-run, session control, logs, and persisted local state
-- the TypeScript sender core still runs locally inside that sidecar
+1. Close the app.
+2. Install the newer MSI over the existing install.
+3. Reopen the app.
+
+Notes:
+
+- There is no auto-update system.
+- User data stays in the app-data directory.
+- Installer downgrades are disabled.
+
+## First-Time Setup
+
+1. Open `Config -> Desktop Setup`.
+2. Save `DISCORD_TOKEN` securely for the current Windows profile.
+3. Create or edit your config in the GUI.
+4. Run `Preflight`.
+5. Run `Dry Run` if you want to preview routing and cadence without sending.
+6. Start the session from the header or Session screen.
+
+`Preflight` stays available even when setup is incomplete so the app can explain what is missing.
 
 ## Desktop Workflow
 
-1. Open `Config` and create or edit channels, groups, and messages.
-2. Run `Dry Run` to preview routing and cadence without sending anything.
-3. Run `Preflight` to validate config and check channel access.
-4. Start a session from the header or the Session screen.
-5. Use `Pause`, `Resume`, or `Stop` from the Session screen while the run is active.
-6. Review `Logs` and the dashboard summary after the run finishes.
+1. Configure channels, groups, and messages in `Config`.
+2. Run `Dry Run`.
+3. Run `Preflight`.
+4. Start a session.
+5. Pause, resume, or stop from `Session`.
+6. Inspect logs in `Logs`.
+7. Use `Support` for diagnostics, bundle export, and runtime reset.
 
-The app blocks `Start Session` when the token is missing, the saved config is missing or invalid, or the desktop runtime is reconnecting after a crash. `Preflight` stays available in those states so the UI can still explain what is wrong.
+## Security Model
 
-## Configuration
+- Packaged Windows builds store `DISCORD_TOKEN` in a DPAPI-protected local secure store.
+- The frontend never receives the plaintext token back after save.
+- Support exports exclude the secure token store, `.env`, and plaintext token values.
+- Development builds can still use `DISCORD_TOKEN` from the shell environment or `.env`.
 
-### `.env` (development fallback only)
+## Local Runtime Files
 
-```bash
-DISCORD_TOKEN=your_token_here
-```
+The packaged app keeps runtime data under the OS app-data directory. On Windows this is typically:
 
-Packaged Windows builds should use `Config -> Desktop Setup` instead of relying on `.env`.
+`%AppData%\com.local.discord-auto-message-sender`
 
-### `config.json`
-
-```json
-{
-  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "channels": [
-    {
-      "name": "general",
-      "id": "123456789012345678",
-      "referrer": "https://discord.com/channels/@me/123456789012345678",
-      "messageGroup": "default"
-    }
-  ],
-  "messageGroups": {
-    "default": [
-      "Hello!"
-    ]
-  }
-}
-```
-
-Field reference:
-
-| Field | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `userAgent` | `string` | Yes | Browser User-Agent sent in every request. |
-| `channels` | `AppChannel[]` | Yes | List of channels processed in parallel. |
-| `channels[].name` | `string` | Yes | Display label used in logs. |
-| `channels[].id` | `string` | Yes | Discord channel ID. Must be a valid snowflake. |
-| `channels[].referrer` | `string` | No | URL sent as HTTP Referer header. Defaults to `https://discord.com/channels/@me/{id}` when omitted. |
-| `channels[].messageGroup` | `string` | No | Must reference a key in `messageGroups`. Defaults to `default` when omitted. |
-| `messageGroups` | `Record<string, string[]>` | Yes | Non-empty map of message groups. |
-
-Compatibility notes:
-
-- Older `config.json` files using `user_agent` and `message_group` are still read.
-- If a legacy config is loaded, `messages.json` must still exist so message groups can be imported.
-- Saving through the desktop UI writes only the new canonical `config.json` format.
-
-## Local Files
-
-The desktop runtime keeps everything local to the OS app-data directory:
+Key files:
 
 | Path | Purpose |
 | --- | --- |
-| `discord-token.secure` | DPAPI-protected Discord token store for the packaged Windows app. |
-| `.env` | Development and migration fallback only. The app scrubs `DISCORD_TOKEN` from the app-data `.env` after secure migration. |
-| `config.json` | Canonical saved configuration. |
-| `.sender-state.json` | Persistent summaries, health tracking, and resumable checkpoint data. |
-| `logs/<session-id>.jsonl` | Structured per-session logs used by the Logs screen and export/open actions. |
-| `messages.json` | Legacy import-only compatibility file for older configs. |
+| `discord-token.secure` | DPAPI-protected token store for the packaged Windows app |
+| `.env` | development and migration fallback only |
+| `config.json` | canonical saved configuration |
+| `.sender-state.json` | summaries, health data, and resumable checkpoint state |
+| `logs/*.jsonl` | structured session logs |
+| `support/*.zip` | exported support bundles |
 
-The packaged app can report these paths directly through a typed release diagnostics command. The packaged executable also supports:
+The app can report the exact runtime paths from `Support -> Release Diagnostics`.
 
-```bash
-discord-auto-message-sender.exe --print-release-diagnostics-json
-```
+## Support Screen
 
-That prints JSON with the current app version, app-data paths, token storage mode, and current sidecar status.
+The `Support` screen is the public-beta operator surface. It provides:
 
-## Recovery And Reset
+- app version
+- runtime status
+- token storage mode
+- app-data, logs, config, state, and secure-token paths
+- `Copy Diagnostics JSON`
+- `Open Data Folder`
+- `Open Logs Folder`
+- `Export Support Bundle`
+- `Reset Runtime State`
 
-- If a run is interrupted safely enough to resume, the dashboard and Session screen show `Resume Session` and `Discard Checkpoint`.
-- If the desktop runtime restarts or fails, the dashboard, Session screen, and app shell show a persistent runtime status banner instead of hiding the interruption.
-- If `.sender-state.json` is corrupted, the app logs a warning and starts from a fresh local state.
-- To fully reset local runtime state, stop the app and remove `.sender-state.json` plus any old files in `logs/`.
-- Removing `.sender-state.json` does not delete `config.json` or the secure token store.
-- If you previously used the repo-root desktop build, the app copies `.env`, `config.json`, `messages.json`, `.sender-state.json`, and missing log files into the app-data directory on startup.
-- After migration, the packaged app removes plaintext `DISCORD_TOKEN` values from the app-data `.env`.
-- Removing the token from `Config -> Desktop Setup` deletes `discord-token.secure` and scrubs `DISCORD_TOKEN` from the app-data `.env`. It does not terminate a session that is already running.
+## Support Bundle Export
+
+Use `Support -> Export Support Bundle` to generate a ZIP at:
+
+`<dataDir>\support\discord-auto-message-sender-support-<timestamp>.zip`
+
+When available, the export includes:
+
+- `diagnostics.json`
+- `setup.json`
+- `config.json`
+- `.sender-state.json`
+- the latest 5 `logs/*.jsonl` files
+
+The export does not include:
+
+- `discord-token.secure`
+- `.env`
+- plaintext Discord tokens
+- process environment dumps
+
+## Reset Runtime State
+
+Use `Support -> Reset Runtime State` when you need to clear local runtime history without deleting config or the secure token.
+
+It removes:
+
+- `.sender-state.json`
+- session log files under `logs/`
+
+It does not remove:
+
+- `config.json`
+- `discord-token.secure`
+- `.env`
+- support bundle archives
+
+The action is blocked while a session is active.
 
 ## Troubleshooting
 
-- `Environment error`
-  Open `Config -> Desktop Setup` and save the token securely, or set `DISCORD_TOKEN` in your shell environment for development-only runs.
-- `Stored Discord token could not be decrypted`
+- `Token missing`
+  Open `Config -> Desktop Setup` and save the token securely.
+- `Stored token could not be decrypted`
   Save the token again from `Config -> Desktop Setup`.
-- `Configuration not found or invalid`
-  Copy `config.example.json` to `config.json`, then edit it in the desktop app.
+- `Configuration missing or invalid`
+  Rebuild the config in the GUI and save it again.
+- `Runtime restarting` or `Runtime failed`
+  Wait for the sidecar to reconnect, then review session/checkpoint state in `Session`.
 - `HTTP 401`
-  Your token is invalid or expired. Re-copy it from Discord.
+  Your token is invalid or expired.
 - `HTTP 403`
-  You do not have access to send messages in that channel.
-- `Local sender state was corrupted and has been reset`
-  Delete `.sender-state.json` if the warning persists after restart.
+  The account cannot post in that channel.
 
-## Verification
+## Issue Reporting
+
+When reporting a bug:
+
+1. Reproduce it if possible.
+2. Open `Support`.
+3. Export a support bundle.
+4. Describe the exact screen, action, and expected result.
+5. Attach the support ZIP.
+
+See [SUPPORT.md](SUPPORT.md) for the support checklist and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for current beta limitations.
+
+## Release Verification
+
+Run the full public-beta verification chain with:
 
 ```bash
-bun run typecheck
-bun run test
-bun run build
+bun run release:check
 ```
 
-## Desktop Packaging
+That runs:
 
-Build a Windows installer with:
+1. `bun run typecheck`
+2. `bun run test`
+3. `cargo test --manifest-path src-tauri/Cargo.toml`
+4. `bun run desktop:build`
+5. `bun run smoke:desktop`
+6. `bun run release:version-check`
+
+You can also run the version guard by itself:
+
+```bash
+bun run release:version-check
+```
+
+## Packaging
+
+Build the Windows MSI with:
 
 ```bash
 bun run desktop:build
 ```
 
-Current packaging target:
+Artifacts are written under `src-tauri/target/release/`.
 
-- Windows MSI bundle
-
-The packaged executable and installer artifacts are written under `src-tauri/target/release/`.
-
-For a non-mutating packaged smoke pass:
+For the packaged boot smoke test:
 
 ```bash
 bun run smoke:desktop
 ```
 
-That launches the packaged `.exe` with an isolated `%APPDATA%` root, checks the diagnostics JSON, verifies runtime directory creation, and confirms the app stays alive long enough to be considered booted.
+## Public Beta Smoke Checklist
 
-## Suggested Smoke Test
+1. Install the MSI.
+2. Launch the app.
+3. Save the token securely.
+4. Save config.
+5. Run preflight.
+6. Start, pause, resume, and stop.
+7. Restart and verify resume/discard checkpoint behavior.
+8. Open `Support`.
+9. Copy diagnostics JSON.
+10. Export a support bundle.
+11. Open the data folder and logs folder.
+12. Reset runtime state.
+13. Confirm config and secure token remain.
+14. Confirm logs, summaries, and checkpoint data are cleared.
 
-After a release build, verify this flow in the packaged desktop app:
+## Additional Docs
 
-1. Launch the app.
-2. Save a token securely from `Config -> Desktop Setup`.
-3. Run preflight and confirm it sees the token immediately.
-4. Load or create config in the GUI.
-5. Save config.
-6. Run dry run.
-7. Start a session, then pause, resume, and stop.
-8. Restart the app and verify resume/discard checkpoint behavior.
-9. Remove the token and confirm preflight now reports the missing-token setup state.
-10. Open the data folder and a log file from the Logs screen.
+- [CHANGELOG.md](CHANGELOG.md)
+- [SUPPORT.md](SUPPORT.md)
+- [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
 
 ## License
 

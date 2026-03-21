@@ -74,6 +74,9 @@ async function main() {
                 | 'save_environment'
                 | 'clear_secure_token'
                 | 'load_release_diagnostics'
+                | 'open_logs_directory'
+                | 'export_support_bundle'
+                | 'reset_runtime_state'
             >] as (
                 runtime: DesktopRuntime,
                 payload: unknown

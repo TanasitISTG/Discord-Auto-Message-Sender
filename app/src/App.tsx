@@ -7,6 +7,7 @@ import { DashboardScreen } from '@/features/dashboard/dashboard-screen';
 import { LogsScreen } from '@/features/logs/logs-screen';
 import { PreviewScreen } from '@/features/preview/preview-screen';
 import { SessionScreen } from '@/features/session/session-screen';
+import { SupportScreen } from '@/features/support/support-screen';
 import { navigation, Screen } from '@/shared/screens';
 import { toneFromStatus, useDesktopController } from '@/shared/use-desktop-controller';
 import { describeBlockingIssue } from '@/shared/readiness';
@@ -68,6 +69,9 @@ export default function App() {
                 <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <div className="mb-2 flex items-center gap-3">
+                            {controller.releaseDiagnostics ? (
+                                <span className="font-mono text-xs text-muted-foreground">v{controller.releaseDiagnostics.appVersion} beta</span>
+                            ) : null}
                             <Badge tone={toneFromStatus(controller.session?.status)}>{controller.session?.status ?? 'idle'}</Badge>
                             <Badge tone={toneFromSidecarStatus(controller.sidecarStatus)}>runtime {controller.sidecarStatus}</Badge>
                             <Badge tone={controller.appReadiness.token.status === 'missing' ? 'danger' : controller.appReadiness.token.status === 'warning' ? 'warning' : 'success'}>
@@ -242,6 +246,31 @@ export default function App() {
                         }}
                         onOpenLogFile={async () => {
                             await controller.openCurrentLogFile();
+                        }}
+                    />
+                ) : null}
+
+                {screen === 'support' ? (
+                    <SupportScreen
+                        diagnostics={controller.releaseDiagnostics}
+                        setup={controller.setup}
+                        supportBundle={controller.supportBundle}
+                        hasActiveSession={controller.hasActiveSession}
+                        notice={controller.notice}
+                        onCopyDiagnostics={async () => {
+                            await controller.copyReleaseDiagnostics();
+                        }}
+                        onOpenDataDirectory={async () => {
+                            await controller.openDesktopDataDirectory();
+                        }}
+                        onOpenLogsDirectory={async () => {
+                            await controller.openLogsDirectory();
+                        }}
+                        onExportSupportBundle={async () => {
+                            await controller.exportSupportBundle();
+                        }}
+                        onResetRuntimeState={async () => {
+                            await controller.resetRuntimeState();
                         }}
                     />
                 ) : null}

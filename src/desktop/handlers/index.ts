@@ -20,6 +20,9 @@ export function createDesktopHandlers() {
             | 'save_environment'
             | 'clear_secure_token'
             | 'load_release_diagnostics'
+            | 'open_logs_directory'
+            | 'export_support_bundle'
+            | 'reset_runtime_state'
         >]: Handler<K>
     } = {
         load_config: handleLoadConfig,

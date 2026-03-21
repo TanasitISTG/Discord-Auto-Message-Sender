@@ -71,7 +71,7 @@ const desktopMock = vi.hoisted(() => {
             logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
         } as any,
         diagnostics: {
-            appVersion: '0.1.0',
+            appVersion: '1.0.0',
             dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
             logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
             configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
@@ -162,6 +162,27 @@ const desktopMock = vi.hoisted(() => {
             path: 'logs/session.jsonl',
             entries: []
         })),
+        openLogsDirectory: vi.fn(async () => 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'),
+        exportSupportBundle: vi.fn(async () => ({
+            path: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/support/discord-auto-message-sender-support-123.zip',
+            includedFiles: ['diagnostics.json', 'setup.json', 'config.json'],
+            missingFiles: ['logs/*.jsonl']
+        })),
+        resetRuntimeState: vi.fn(async () => {
+            state.session = null;
+            state.senderState = {
+                schemaVersion: 1,
+                summaries: [],
+                recentFailures: [],
+                recentMessageHistory: {},
+                channelHealth: {}
+            };
+            return {
+                ok: true,
+                clearedStateFile: true,
+                deletedLogFiles: 2
+            };
+        }),
         openLogFile: vi.fn(async () => 'logs/session.jsonl'),
         openDataDirectory: vi.fn(async () => 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender'),
         discardResumeSession: vi.fn(async () => {
@@ -206,7 +227,7 @@ function resetDesktopState() {
         logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
     };
     desktopMock.state.diagnostics = {
-        appVersion: '0.1.0',
+        appVersion: '1.0.0',
         dataDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender',
         logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
         configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
@@ -363,6 +384,81 @@ test('App keeps preflight available when token readiness is blocked', async () =
     await waitFor(() => {
         expect(desktopMock.mocks.runPreflight).toHaveBeenCalledTimes(1);
     });
+});
+
+test('App shows the public beta version and support diagnostics', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByText('v1.0.0 beta');
+    await user.click(await screen.findByRole('button', { name: 'Support' }));
+
+    await screen.findByText('Release Diagnostics');
+    await screen.findByText('Public Beta Notes');
+    await screen.findByText('C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs');
+});
+
+test('App exports a support bundle and opens the logs folder from Support', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Support' }));
+    await user.click(await screen.findByRole('button', { name: 'Open Logs Folder' }));
+    await user.click(await screen.findByRole('button', { name: 'Export Support Bundle' }));
+
+    await waitFor(() => {
+        expect(desktopMock.mocks.openLogsDirectory).toHaveBeenCalledTimes(1);
+        expect(desktopMock.mocks.exportSupportBundle).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByText('Latest support bundle');
+    await screen.findByText('Missing: logs/*.jsonl');
+});
+
+test('App disables runtime reset while a session is active', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+    });
+    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
+        .find((button) => button.className.includes('h-10'));
+    expect(headerResumeButton).toBeTruthy();
+    await user.click(headerResumeButton!);
+    await screen.findByRole('button', { name: 'Stop Session' });
+
+    await user.click(screen.getByRole('button', { name: 'Support' }));
+    const resetButton = await screen.findByRole('button', { name: 'Reset Runtime State' });
+    expect((resetButton as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('App can reset runtime state from Support when idle', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Support' }));
+    await waitFor(() => {
+        expect((screen.getByRole('button', { name: 'Reset Runtime State' }) as HTMLButtonElement).disabled).toBe(false);
+    });
+    await user.click(screen.getByRole('button', { name: 'Reset Runtime State' }));
+
+    await waitFor(() => {
+        expect(desktopMock.mocks.resetRuntimeState).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+        expect(screen.getAllByText('Runtime state reset. Deleted 2 log files.').length).toBeGreaterThan(0);
+    });
+
+    confirmSpy.mockRestore();
 });
 
 test('App shows a sidecar restart banner and clears it when the runtime recovers', async () => {

@@ -54,6 +54,16 @@ export interface ReleaseDiagnostics {
     tokenStorage: TokenStorageMode;
     sidecarStatus: SidecarStatus;
 }
+export interface SupportBundleResult {
+    path: string;
+    includedFiles: string[];
+    missingFiles: string[];
+}
+export interface ResetRuntimeStateResult {
+    ok: true;
+    clearedStateFile: boolean;
+    deletedLogFiles: number;
+}
 
 export interface EmptyRequest {}
 
@@ -154,6 +164,18 @@ export interface DesktopCommandMap {
     load_release_diagnostics: {
         request: EmptyRequest;
         response: ReleaseDiagnostics;
+    };
+    open_logs_directory: {
+        request: EmptyRequest;
+        response: string;
+    };
+    export_support_bundle: {
+        request: EmptyRequest;
+        response: SupportBundleResult;
+    };
+    reset_runtime_state: {
+        request: EmptyRequest;
+        response: ResetRuntimeStateResult;
     };
     open_log_file: {
         request: OpenLogFileRequest;

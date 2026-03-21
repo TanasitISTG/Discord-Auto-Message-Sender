@@ -5,11 +5,13 @@ import {
     DesktopEvent,
     DesktopSetupState,
     DryRunResult,
+    exportSupportBundle as exportSupportBundleCommand,
     LogEntry,
     PreflightResult,
     ReleaseDiagnostics,
     SenderStateRecord,
     SidecarStatus,
+    SupportBundleResult,
     SessionSnapshot,
     getSessionState,
     loadConfig,
@@ -19,8 +21,10 @@ import {
     loadState,
     discardResumeSession,
     openDataDirectory,
+    openLogsDirectory as openLogsDirectoryCommand,
     openLogFile,
     pauseSession,
+    resetRuntimeState as resetRuntimeStateCommand,
     resumeSession,
     runDryRun,
     runPreflight,
@@ -32,7 +36,32 @@ import {
 } from '@/lib/desktop';
 import type { AppConfig, RuntimeOptions } from '@/lib/desktop';
 import { useConfigDraft } from '@/features/config/use-config-draft';
-import { AppReadiness, BlockingIssue, ConfigReadinessStatus, deriveAppReadiness, describeBlockingIssue } from '@/shared/readiness';
+import { AppReadiness, ConfigReadinessStatus, deriveAppReadiness, describeBlockingIssue } from '@/shared/readiness';
+
+async function copyTextToClipboard(text: string) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    if (typeof document === 'undefined') {
+        throw new Error('Clipboard access is unavailable in this environment.');
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+
+    if (!copied) {
+        throw new Error('Clipboard access was denied.');
+    }
+}
 
 const emptyConfig: AppConfig = {
     userAgent: '',
@@ -66,6 +95,7 @@ export function useDesktopController() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [setup, setSetup] = useState<DesktopSetupState | null>(null);
     const [releaseDiagnostics, setReleaseDiagnostics] = useState<ReleaseDiagnostics | null>(null);
+    const [supportBundle, setSupportBundle] = useState<SupportBundleResult | null>(null);
     const [configStatus, setConfigStatus] = useState<ConfigReadinessStatus>('loading');
     const [configIssue, setConfigIssue] = useState<string | null>(null);
     const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus>('connecting');
@@ -241,6 +271,7 @@ export function useDesktopController() {
         logs,
         setup,
         releaseDiagnostics,
+        supportBundle,
         configStatus,
         sidecarStatus,
         sidecarMessage,
@@ -460,10 +491,78 @@ export function useDesktopController() {
                 return null;
             }
         },
+        async copyReleaseDiagnostics() {
+            if (!releaseDiagnostics) {
+                setNotice('Release diagnostics are still loading.');
+                return false;
+            }
+
+            try {
+                await copyTextToClipboard(JSON.stringify(releaseDiagnostics, null, 2));
+                setNotice('Release diagnostics copied to the clipboard.');
+                return true;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return false;
+            }
+        },
         async openDesktopDataDirectory() {
             try {
                 const result = await openDataDirectory();
                 setNotice(`Opening ${result}`);
+                return result;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async openLogsDirectory() {
+            try {
+                const result = await openLogsDirectoryCommand();
+                setNotice(`Opening ${result}`);
+                return result;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async exportSupportBundle() {
+            try {
+                const result = await exportSupportBundleCommand();
+                setSupportBundle(result);
+                setNotice(`Support bundle exported to ${result.path}`);
+                return result;
+            } catch (error) {
+                setNotice(error instanceof Error ? error.message : String(error));
+                return null;
+            }
+        },
+        async resetRuntimeState() {
+            if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
+                setNotice('Stop the active session before resetting runtime state.');
+                return null;
+            }
+
+            if (!window.confirm('Reset local runtime state and delete session logs? This keeps config.json and the secure token store.')) {
+                return null;
+            }
+
+            try {
+                const result = await resetRuntimeStateCommand();
+                const [nextState, diagnostics] = await Promise.all([
+                    loadState(),
+                    loadReleaseDiagnostics().catch(() => null)
+                ]);
+                setSenderState(nextState);
+                setReleaseDiagnostics(diagnostics);
+                if (diagnostics) {
+                    setSidecarStatus(diagnostics.sidecarStatus);
+                }
+                setSession(null);
+                setLogs([]);
+                setSupportBundle(null);
+                setPreferredScreen(null);
+                setNotice(`Runtime state reset. Deleted ${result.deletedLogFiles} log file${result.deletedLogFiles === 1 ? '' : 's'}.`);
                 return result;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));
