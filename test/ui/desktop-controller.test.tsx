@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { useDesktopController } from '../../app/src/shared/use-desktop-controller';
@@ -139,6 +139,7 @@ vi.mock('@/lib/desktop', () => desktopMock.mocks);
 
 function resetDesktopState() {
     desktopMock.state.session = null;
+    desktopMock.state.eventHandler = null;
     desktopMock.state.senderState = {
         schemaVersion: 1,
         lastSession: {
@@ -237,4 +238,32 @@ test('desktop controller refreshes sender state and clears logs after a runtime 
     await screen.findByText('logs:0');
 
     confirmSpy.mockRestore();
+});
+
+test('desktop controller deduplicates repeated live log events by entry id', async () => {
+    resetDesktopState();
+
+    render(<Harness />);
+
+    await waitFor(() => {
+        expect(desktopMock.state.eventHandler).toBeTruthy();
+    });
+
+    const duplicateEntry = {
+        id: 'dup-1',
+        timestamp: '2026-03-21T10:10:00.000Z',
+        level: 'info',
+        context: 'BLACK MARKET',
+        message: 'Message sent',
+        meta: {
+            event: 'message_sent'
+        }
+    };
+
+    await act(async () => {
+        desktopMock.state.eventHandler?.({ type: 'log_event_emitted', entry: duplicateEntry });
+        desktopMock.state.eventHandler?.({ type: 'log_event_emitted', entry: duplicateEntry });
+    });
+
+    await screen.findByText('logs:1');
 });

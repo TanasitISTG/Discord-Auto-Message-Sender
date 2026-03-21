@@ -71,6 +71,26 @@ const emptyConfig: AppConfig = {
     }
 };
 
+function mergeLogsById(entries: LogEntry[], limit: number = 500): LogEntry[] {
+    const seen = new Set<string>();
+    const merged: LogEntry[] = [];
+
+    for (const entry of entries) {
+        if (seen.has(entry.id)) {
+            continue;
+        }
+
+        seen.add(entry.id);
+        merged.push(entry);
+
+        if (merged.length >= limit) {
+            break;
+        }
+    }
+
+    return merged;
+}
+
 export function toneFromStatus(status?: SessionSnapshot['status']) {
     switch (status) {
         case 'running':
@@ -124,15 +144,21 @@ export function useDesktopController() {
     useEffect(() => {
         void refreshAll();
 
+        let active = true;
         let cleanup = () => {};
         void (async () => {
             const unsubscribe = await subscribeToAppEvents((event) => {
                 handleDesktopEvent(event);
             });
+            if (!active) {
+                unsubscribe();
+                return;
+            }
             cleanup = unsubscribe;
         })();
 
         return () => {
+            active = false;
             cleanup();
         };
     }, []);
@@ -225,7 +251,7 @@ export function useDesktopController() {
                 void refreshState();
                 return;
             case 'log_event_emitted':
-                setLogs((previous) => [event.entry, ...previous].slice(0, 500));
+                setLogs((previous) => mergeLogsById([event.entry, ...previous]));
                 return;
             case 'preflight_result_emitted':
                 setPreflight(event.result);
@@ -419,7 +445,7 @@ export function useDesktopController() {
 
             try {
                 const result = await loadLogs(sessionId);
-                setLogs(result.entries.reverse());
+                setLogs(mergeLogsById(result.entries.slice().reverse()));
                 return result;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));

@@ -104,12 +104,12 @@ function createDraft(overrides: Partial<ConfigDraftController> = {}): ConfigDraf
     };
 }
 
-function renderConfigScreen(draft: ConfigDraftController) {
+function renderConfigScreen(draft: ConfigDraftController, environmentDraft: string = '') {
     return render(
         <ConfigScreen
             draft={draft}
             setup={setup}
-            environmentDraft=""
+            environmentDraft={environmentDraft}
             runtime={runtime}
             onEnvironmentDraftChange={() => undefined}
             onSaveEnvironment={() => undefined}
@@ -154,4 +154,12 @@ test('ConfigScreen keeps the selected channel highlighted in the left rail', () 
 
     expect(selectedButton?.className).toContain('border-primary/40');
     expect(secondaryButton?.className).toContain('border-border');
+});
+
+test('ConfigScreen keeps saved tokens write-only until the user types a replacement token', () => {
+    renderConfigScreen(createDraft());
+
+    expect(screen.getByPlaceholderText('Stored securely. Paste a new token to replace it.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
+    expect(screen.getByText(/Saved tokens are write-only/i)).toBeTruthy();
 });

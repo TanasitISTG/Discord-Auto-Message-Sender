@@ -31,9 +31,10 @@ export function DesktopSetupCard({
     onClearSecureToken,
     onOpenDataDirectory
 }: DesktopSetupCardProps) {
+    const hasDraftToken = environmentDraft.trim().length > 0;
     const tokenSourceLabel = setup
         ? {
-            secure: 'Secure store',
+            secure: 'Secure stored',
             environment: 'Environment fallback',
             missing: 'Missing'
         }[setup.tokenStorage]
@@ -46,21 +47,23 @@ export function DesktopSetupCard({
                 <CardDescription>Store the Discord token securely for this Windows user profile without turning config editing into a diagnostics wall.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <StateRow label="Discord token" value={setup?.tokenPresent ? 'configured' : 'missing'} />
+                <StateRow label="Discord token" value={setup?.tokenPresent ? 'Configured' : 'Missing'} />
                 <StateRow label="Token source" value={tokenSourceLabel} />
 
-                <Field label="DISCORD_TOKEN">
+                <Field label="Discord Token">
                     <div className="flex gap-2">
                         <Input
                             className="min-w-0 flex-1"
-                            type={showToken ? 'text' : 'password'}
+                            type={hasDraftToken && showToken ? 'text' : 'password'}
                             value={environmentDraft}
-                            placeholder={setup?.tokenPresent ? 'Paste a new token to replace the stored one' : 'Paste your personal Discord token'}
+                            placeholder={setup?.tokenPresent ? 'Stored securely. Paste a new token to replace it.' : 'Paste your personal Discord token'}
                             onChange={(event: ChangeEvent<HTMLInputElement>) => onEnvironmentDraftChange(event.target.value)}
                         />
-                        <Button variant="secondary" onClick={onToggleToken}>
-                            {showToken ? 'Hide' : 'Show'}
-                        </Button>
+                        {hasDraftToken ? (
+                            <Button variant="secondary" onClick={onToggleToken}>
+                                {showToken ? 'Hide' : 'Show'}
+                            </Button>
+                        ) : null}
                     </div>
                 </Field>
 
@@ -82,7 +85,7 @@ export function DesktopSetupCard({
                 </div>
 
                 <div className="text-xs leading-relaxed text-muted-foreground">
-                    The token field stays blank after save. The packaged app stores the token outside `config.json` and does not echo it back into the UI.
+                    Saved tokens are write-only. The packaged app stores the token outside `config.json`, keeps the field blank after save, and cannot reveal the stored token back into the UI.
                 </div>
 
                 {setup?.warning ? (
