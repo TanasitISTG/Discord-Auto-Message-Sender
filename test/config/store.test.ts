@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { DEFAULT_CONFIG_BASE_DIR, readAppConfigResult, readLegacyMessagesResult, resolveConfigPaths } from '../../src/config/store';
+import { DEFAULT_CONFIG_BASE_DIR, readAppConfigResult, readLegacyMessagesResult, resolveConfigPaths, writeAppConfig } from '../../src/config/store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-'));
@@ -98,4 +98,35 @@ test('resolveConfigPaths defaults to the project root instead of the current wor
     } finally {
         process.chdir(previousCwd);
     }
+});
+
+test('writeAppConfig returns the normalized config that was persisted', () => {
+    const tempDir = createTempDir();
+    const paths = resolveConfigPaths(tempDir);
+
+    const normalized = writeAppConfig({
+        userAgent: '  UA  ',
+        channels: [
+            {
+                name: '  general  ',
+                id: ' 123456789012345678 ',
+                referrer: 'https://discord.com/channels/@me/123456789012345678',
+                messageGroup: ' default '
+            }
+        ],
+        messageGroups: {
+            default: ['  Hello!  ']
+        }
+    }, paths);
+
+    assert.equal(normalized.userAgent, 'UA');
+    assert.equal(normalized.channels[0].name, 'general');
+    assert.equal(normalized.channels[0].id, '123456789012345678');
+    assert.equal(normalized.channels[0].messageGroup, 'default');
+    assert.deepEqual(normalized.messageGroups.default, ['Hello!']);
+
+    const fromDisk = JSON.parse(fs.readFileSync(paths.configFile, 'utf8'));
+    assert.deepEqual(fromDisk.channels, normalized.channels);
+    assert.equal(fromDisk.userAgent, normalized.userAgent);
+    assert.deepEqual(fromDisk.messageGroups.default, normalized.messageGroups.default);
 });

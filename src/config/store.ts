@@ -124,6 +124,8 @@ export function readAppConfig(paths: ConfigPaths = resolveConfigPaths()): AppCon
     return result.kind === 'ok' ? result.config : null;
 }
 
-export function writeAppConfig(config: AppConfig, paths: ConfigPaths = resolveConfigPaths()): void {
-    fs.writeFileSync(paths.configFile, JSON.stringify(parseAppConfig(config), null, 4));
+export function writeAppConfig(config: AppConfig, paths: ConfigPaths = resolveConfigPaths()): AppConfig {
+    const normalizedConfig = parseAppConfig(config);
+    fs.writeFileSync(paths.configFile, JSON.stringify(normalizedConfig, null, 4));
+    return normalizedConfig;
 }

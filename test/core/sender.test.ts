@@ -115,6 +115,39 @@ test('shared sender coordinator serializes concurrent requests across channels',
     assert.equal(maxConcurrentRequests, 1);
 });
 
+test('shared sender coordinator preserves the minimum interval even when requests fail', async () => {
+    const coordinator = createSenderCoordinator(1000);
+    const sleepCalls: number[] = [];
+    const startTimes: number[] = [];
+    const originalDateNow = Date.now;
+    let now = 0;
+
+    Date.now = () => now;
+
+    try {
+        const sleep = async (ms: number) => {
+            sleepCalls.push(ms);
+            now += ms;
+        };
+
+        const failingTask = async () => {
+            startTimes.push(now);
+            throw new Error('boom');
+        };
+
+        await Promise.allSettled([
+            coordinator.scheduleRequest(sleep, failingTask),
+            coordinator.scheduleRequest(sleep, failingTask)
+        ]);
+    } finally {
+        Date.now = originalDateNow;
+    }
+
+    assert.deepEqual(sleepCalls, [250, 250, 250, 250]);
+    assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1000);
+    assert.deepEqual(startTimes, [0, 1000]);
+});
+
 test('pickNextMessage avoids repeats until the group is exhausted', () => {
     const sentCache = new Set<string>();
     const sequence = [0.0, 0.5, 0.9];

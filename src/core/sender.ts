@@ -99,6 +99,7 @@ export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_G
             requestQueue = new Promise<void>((resolve) => {
                 releaseQueue = resolve;
             });
+            let startedRequest = false;
 
             await previousRequest;
 
@@ -119,10 +120,12 @@ export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_G
                     throw new SendAbortError(abortedReason);
                 }
 
-                const result = await task();
-                nextRequestAt = Date.now() + minRequestIntervalMs;
-                return result;
+                startedRequest = true;
+                return await task();
             } finally {
+                if (startedRequest) {
+                    nextRequestAt = Date.now() + minRequestIntervalMs;
+                }
                 releaseQueue?.();
             }
         }

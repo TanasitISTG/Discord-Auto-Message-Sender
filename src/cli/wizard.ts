@@ -17,6 +17,12 @@ function getErrorMessage(error: unknown): string {
     return 'Unable to save changes.';
 }
 
+function syncCurrentConfig(current: AppConfig, normalized: AppConfig) {
+    current.userAgent = normalized.userAgent;
+    current.channels = normalized.channels;
+    current.messageGroups = normalized.messageGroups;
+}
+
 async function showTokenSetup() {
     console.log(chalk.cyan('\n--- Token Setup ---'));
     console.log('1. Copy `.env.example` to `.env`.');
@@ -36,7 +42,7 @@ async function configureUserAgent(current: AppConfig) {
     current.userAgent = userAgent;
 
     try {
-        writeAppConfig(current);
+        syncCurrentConfig(current, writeAppConfig(current));
         console.log(chalk.green('User-Agent updated!'));
     } catch (error) {
         current.userAgent = previousUserAgent;
@@ -84,7 +90,7 @@ async function configureChannels(current: AppConfig) {
                     referrer: channel.referrer || buildDefaultReferrer(channel.id),
                     messageGroup: channel.messageGroup
                 });
-                writeAppConfig(current);
+                syncCurrentConfig(current, writeAppConfig(current));
                 console.log(chalk.green('Channel added!'));
             } catch (error) {
                 current.channels.pop();
@@ -108,7 +114,7 @@ async function configureChannels(current: AppConfig) {
                 const previousChannels = current.channels;
                 current.channels = current.channels.filter((_, i) => !toRemove.includes(i));
                 try {
-                    writeAppConfig(current);
+                    syncCurrentConfig(current, writeAppConfig(current));
                     console.log(chalk.green('Channels removed!'));
                 } catch (error) {
                     current.channels = previousChannels;
@@ -147,7 +153,7 @@ async function configureMessages(current: AppConfig) {
             if (normalizedName && !current.messageGroups[normalizedName]) {
                 try {
                     current.messageGroups[normalizedName] = ['New Message'];
-                    writeAppConfig(current);
+                    syncCurrentConfig(current, writeAppConfig(current));
                     console.log(chalk.green(`Group '${normalizedName}' created!`));
                 } catch (error) {
                     delete current.messageGroups[normalizedName];
@@ -188,7 +194,7 @@ async function configureMessages(current: AppConfig) {
                     if (text) {
                         try {
                             current.messageGroups[group].push(text);
-                            writeAppConfig(current);
+                            syncCurrentConfig(current, writeAppConfig(current));
                             console.log(chalk.green('Message added!'));
                         } catch (error) {
                             current.messageGroups[group].pop();
@@ -214,7 +220,7 @@ async function configureMessages(current: AppConfig) {
 
                         try {
                             current.messageGroups[group] = updatedMessages;
-                            writeAppConfig(current);
+                            syncCurrentConfig(current, writeAppConfig(current));
                             console.log(chalk.green('Messages deleted!'));
                         } catch (error) {
                             current.messageGroups[group] = previousMessages;
