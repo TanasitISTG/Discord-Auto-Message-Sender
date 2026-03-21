@@ -36,6 +36,20 @@ test('readAppConfigResult surfaces canonical validation errors when userAgent is
     assert.match(result.error, /Error loading config: .*userAgent/i);
 });
 
+test('readAppConfigResult keeps mixed canonical and legacy keys on the canonical validation path', () => {
+    const tempDir = createTempDir();
+    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
+        userAgent: 'UA',
+        user_agent: 'legacy UA',
+        channels: []
+    }, null, 2));
+
+    const result = readAppConfigResult(resolveConfigPaths(tempDir));
+    assert.equal(result.kind, 'invalid');
+    assert.match(result.error, /Error loading config: .*messageGroups/i);
+    assert.doesNotMatch(result.error, /messages\.json is required/i);
+});
+
 test('readAppConfigResult reports legacy config without messages as invalid', () => {
     const tempDir = createTempDir();
     fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({

@@ -8,7 +8,7 @@
     "configure": "ts-node src/bot.ts --configure",
     "start": "ts-node src/bot.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test -r ts-node/register \"test/**/*.test.ts\""
+    "test": "node scripts/run-tests.js"
   },
   "keywords": [],
   "author": "",

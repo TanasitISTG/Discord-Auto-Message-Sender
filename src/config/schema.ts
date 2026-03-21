@@ -273,5 +273,5 @@ export function isLegacyConfigShape(value: unknown): boolean {
         return false;
     }
 
-    return 'user_agent' in value;
+    return 'user_agent' in value && !('userAgent' in value);
 }
