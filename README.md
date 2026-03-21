@@ -1,6 +1,6 @@
 # Discord Auto Message Sender
 
-CLI tool for sending repeated text messages to one or more Discord channels using a personal Discord account token.
+Local-first desktop app for configuring and running repeated Discord message sessions with a Bun, Tauri, Vite, and React stack. The legacy CLI remains available as a compatibility path during the transition.
 
 ## Disclaimer
 
@@ -17,14 +17,14 @@ CLI tool for sending repeated text messages to one or more Discord channels usin
 
 ## Requirements
 
-- Node.js 18+
-- npm
+- Bun 1.3+
+- Rust/Cargo for the Tauri shell
 - A personal Discord account token
 
 ## Install
 
 ```bash
-npm install
+bun install
 ```
 
 ## Setup
@@ -34,6 +34,19 @@ npm install
 3. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
 4. Update channel IDs and message groups in `config.json`.
 5. Run the CLI from the project root, or keep `config.json` and `.env` in the project root so the default paths resolve correctly.
+
+## Desktop Development
+
+```bash
+bun run dev
+bun run desktop:dev
+```
+
+Desktop commands are local-only:
+
+- the React UI calls Tauri commands
+- Tauri manages config, preflight, session control, and log access
+- the TypeScript sender core still runs locally through a Bun-managed worker
 
 ## Configuration
 
@@ -85,7 +98,7 @@ Legacy compatibility:
 ## Wizard
 
 ```bash
-npm run configure
+bun run configure
 ```
 
 The wizard can:
@@ -98,7 +111,7 @@ The wizard can:
 ## Run
 
 ```bash
-npm start
+bun run start
 ```
 
 At startup the app validates:
@@ -121,7 +134,7 @@ Then it:
 - `Environment error`
   Set `DISCORD_TOKEN` in `.env` or your shell environment.
 - `Configuration not found or invalid`
-  Copy `config.example.json` to `config.json` or run `npm run configure`.
+  Copy `config.example.json` to `config.json` or run `bun run configure`.
 - `HTTP 401`
   Your token is invalid or expired. Re-copy it from Discord.
 - `HTTP 403`
@@ -130,8 +143,9 @@ Then it:
 ## Verification
 
 ```bash
-npm run typecheck
-npm test
+bun run typecheck
+bun test
+bun run build
 ```
 
 ## License

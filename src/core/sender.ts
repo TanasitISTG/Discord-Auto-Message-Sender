@@ -32,6 +32,7 @@ export interface SenderDependencies {
     random?: RandomFn;
     coordinator?: SenderCoordinator;
     requestTimeoutMs?: number;
+    lifecycle?: SenderLifecycle;
 }
 
 export interface RunChannelOptions extends SenderDependencies {
@@ -43,6 +44,15 @@ export interface RunChannelOptions extends SenderDependencies {
     userAgent: string;
     messageGroups: MessageGroups;
     maxRateLimitWaits?: number;
+}
+
+export interface SenderLifecycle {
+    isPaused(): boolean;
+    waitUntilResumed(sleep: SleepFn): Promise<boolean>;
+    isStopping(): boolean;
+    getStopReason(): string | null;
+    onChannelEvent?(target: AppChannel, phase: 'started' | 'completed' | 'failed'): void;
+    onMessageSent?(target: AppChannel, message: string): void;
 }
 
 class SendAbortError extends Error {
@@ -65,16 +75,33 @@ export function getBackoffDelayMs(attempt: number, random: RandomFn = Math.rando
     return baseDelay + jitter;
 }
 
-async function sleepWithAbort(ms: number, sleep: SleepFn, coordinator?: SenderCoordinator): Promise<boolean> {
-    if (!coordinator) {
+async function sleepWithAbort(
+    ms: number,
+    sleep: SleepFn,
+    coordinator?: SenderCoordinator,
+    lifecycle?: SenderLifecycle
+): Promise<boolean> {
+    if (!coordinator && !lifecycle) {
         await sleep(ms);
         return true;
     }
 
     let remainingMs = ms;
     while (remainingMs > 0) {
-        if (coordinator.isAborted()) {
+        if (coordinator?.isAborted()) {
             return false;
+        }
+
+        if (lifecycle?.isStopping()) {
+            return false;
+        }
+
+        if (lifecycle?.isPaused()) {
+            const resumed = await lifecycle.waitUntilResumed(sleep);
+            if (!resumed) {
+                return false;
+            }
+            continue;
         }
 
         const chunkMs = Math.min(remainingMs, ABORT_POLL_INTERVAL_MS);
@@ -82,7 +109,7 @@ async function sleepWithAbort(ms: number, sleep: SleepFn, coordinator?: SenderCo
         remainingMs -= chunkMs;
     }
 
-    return !coordinator.isAborted();
+    return !(coordinator?.isAborted() ?? false) && !(lifecycle?.isStopping() ?? false);
 }
 
 export function createSenderCoordinator(minRequestIntervalMs: number = DEFAULT_GLOBAL_REQUEST_INTERVAL_MS): SenderCoordinator {
@@ -266,9 +293,17 @@ export async function sendDiscordMessage(
     const random = dependencies.random ?? Math.random;
     const coordinator = dependencies.coordinator;
     const requestTimeoutMs = dependencies.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const lifecycle = dependencies.lifecycle;
 
-    if (coordinator?.isAborted()) {
+    if (coordinator?.isAborted() || lifecycle?.isStopping()) {
         return { type: 'fatal', reason: 'aborted' };
+    }
+
+    if (lifecycle?.isPaused()) {
+        const resumed = await lifecycle.waitUntilResumed(sleep);
+        if (!resumed) {
+            return { type: 'fatal', reason: 'aborted' };
+        }
     }
 
     for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
@@ -349,7 +384,7 @@ export async function sendDiscordMessage(
             }
         }
 
-        const completedBackoff = await sleepWithAbort(getBackoffDelayMs(attempt, random), sleep, coordinator);
+        const completedBackoff = await sleepWithAbort(getBackoffDelayMs(attempt, random), sleep, coordinator, lifecycle);
         if (!completedBackoff) {
             return { type: 'fatal', reason: 'aborted' };
         }
@@ -372,19 +407,22 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         random = Math.random,
         coordinator,
         requestTimeoutMs,
-        maxRateLimitWaits = DEFAULT_MAX_RATE_LIMIT_WAITS
+        maxRateLimitWaits = DEFAULT_MAX_RATE_LIMIT_WAITS,
+        lifecycle
     } = options;
 
-    if (coordinator?.isAborted()) {
-        log(target.name, coordinator.getAbortReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+    if (coordinator?.isAborted() || lifecycle?.isStopping()) {
+        log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
         return;
     }
 
     log(target.name, 'Started.', 'green', { group: target.messageGroup });
+    lifecycle?.onChannelEvent?.(target, 'started');
 
     const messages = messageGroups[target.messageGroup];
     if (!messages || messages.length === 0) {
         log(target.name, 'No messages found for configured group. Skipping channel.', 'red', { group: target.messageGroup });
+        lifecycle?.onChannelEvent?.(target, 'failed');
         return;
     }
 
@@ -393,8 +431,9 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
     let consecutiveRateLimitWaits = 0;
 
     while (numMessages === 0 || sentCount < numMessages) {
-        if (coordinator?.isAborted()) {
-            log(target.name, coordinator.getAbortReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+        if (coordinator?.isAborted() || lifecycle?.isStopping()) {
+            log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+            lifecycle?.onChannelEvent?.(target, 'failed');
             return;
         }
 
@@ -406,7 +445,8 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 sleep,
                 random,
                 coordinator,
-                requestTimeoutMs
+                requestTimeoutMs,
+                lifecycle
             });
 
             if (result.type === 'success') {
@@ -414,6 +454,7 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 sentCount += 1;
                 const counter = numMessages === 0 ? 'Infinite' : `${sentCount}/${numMessages}`;
                 log(target.name, 'Message sent', 'cyan', { counter });
+                lifecycle?.onMessageSent?.(target, message);
                 break;
             }
 
@@ -421,29 +462,34 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 consecutiveRateLimitWaits += 1;
                 if (consecutiveRateLimitWaits > maxRateLimitWaits) {
                     log(target.name, `Stopping worker after ${consecutiveRateLimitWaits} consecutive rate limits.`, 'red');
+                    lifecycle?.onChannelEvent?.(target, 'failed');
                     return;
                 }
 
                 log(target.name, `Rate Limit! Waiting ${result.waitSeconds}s...`, 'yellow');
-                const completedWait = await sleepWithAbort((result.waitSeconds + 0.5) * 1000, sleep, coordinator);
+                const completedWait = await sleepWithAbort((result.waitSeconds + 0.5) * 1000, sleep, coordinator, lifecycle);
                 if (!completedWait) {
-                    log(target.name, coordinator?.getAbortReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                    log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                    lifecycle?.onChannelEvent?.(target, 'failed');
                     return;
                 }
                 continue;
             }
 
             if (result.reason === 'aborted') {
-                log(target.name, coordinator?.getAbortReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+                lifecycle?.onChannelEvent?.(target, 'failed');
                 return;
             }
 
             if (result.reason === 'unauthorized') {
                 log(target.name, 'Stopping all workers after HTTP 401 indicated an invalid or expired token.', 'red');
+                lifecycle?.onChannelEvent?.(target, 'failed');
                 return;
             }
 
             log(target.name, 'Stopping worker after repeated or fatal send failures.', 'red');
+            lifecycle?.onChannelEvent?.(target, 'failed');
             return;
         }
 
@@ -452,12 +498,14 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         }
 
         const waitMs = (baseWaitSeconds + random() * marginSeconds) * 1000;
-        const completedWait = await sleepWithAbort(waitMs, sleep, coordinator);
+        const completedWait = await sleepWithAbort(waitMs, sleep, coordinator, lifecycle);
         if (!completedWait) {
-            log(target.name, coordinator?.getAbortReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+            log(target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+            lifecycle?.onChannelEvent?.(target, 'failed');
             return;
         }
     }
 
     log(target.name, 'Finished.', 'green');
+    lifecycle?.onChannelEvent?.(target, 'completed');
 }
