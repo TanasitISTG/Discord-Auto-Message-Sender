@@ -1,10 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { ZodError } from 'zod';
-import { AppConfig, ConfigPaths, LegacyConfig, LegacyMessages } from '../types';
+import { AppConfig, ConfigPaths, LegacyMessages } from '../types';
 import {
     formatZodError,
-    isCanonicalConfigShape,
     isLegacyConfigShape,
     normalizeLegacyConfig,
     parseAppConfig,
@@ -15,6 +14,7 @@ import { log } from '../utils/logger';
 
 export const CONFIG_FILE = 'config.json';
 export const LEGACY_MESSAGES_FILE = 'messages.json';
+export const DEFAULT_CONFIG_BASE_DIR = path.resolve(__dirname, '..', '..');
 
 export type AppConfigReadResult =
     | { kind: 'ok'; config: AppConfig }
@@ -26,7 +26,7 @@ export type LegacyMessagesReadResult =
     | { kind: 'missing' }
     | { kind: 'invalid'; error: string };
 
-export function resolveConfigPaths(baseDir: string = process.cwd()): ConfigPaths {
+export function resolveConfigPaths(baseDir: string = DEFAULT_CONFIG_BASE_DIR): ConfigPaths {
     return {
         configFile: path.join(baseDir, CONFIG_FILE),
         messagesFile: path.join(baseDir, LEGACY_MESSAGES_FILE)
@@ -51,20 +51,6 @@ function formatError(error: unknown): string {
     }
 
     return String(error);
-}
-
-export function readLegacyConfig(paths: ConfigPaths = resolveConfigPaths()): LegacyConfig | null {
-    try {
-        const raw = readJsonFile(paths.configFile);
-        if (raw === null || !isLegacyConfigShape(raw)) {
-            return null;
-        }
-
-        return parseLegacyConfig(raw);
-    } catch (error) {
-        log('System', `Error loading legacy config: ${formatError(error)}`, 'red');
-        return null;
-    }
 }
 
 export function readLegacyMessagesResult(paths: ConfigPaths = resolveConfigPaths()): LegacyMessagesReadResult {
@@ -93,16 +79,20 @@ export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): 
         return { kind: 'missing' };
     }
 
-    if (isCanonicalConfigShape(raw)) {
+    const canonicalParseResult = (() => {
         try {
-            return { kind: 'ok', config: parseAppConfig(raw) };
+            return { kind: 'ok' as const, config: parseAppConfig(raw) };
         } catch (error) {
-            return { kind: 'invalid', error: `Error loading config: ${formatError(error)}` };
+            return { kind: 'invalid' as const, error };
         }
+    })();
+
+    if (canonicalParseResult.kind === 'ok') {
+        return canonicalParseResult;
     }
 
     if (!isLegacyConfigShape(raw)) {
-        return { kind: 'invalid', error: 'Error loading config: unsupported config shape.' };
+        return { kind: 'invalid', error: `Error loading config: ${formatError(canonicalParseResult.error)}` };
     }
 
     try {

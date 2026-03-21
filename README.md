@@ -2,6 +2,12 @@
 
 CLI tool for sending repeated text messages to one or more Discord channels using a personal Discord account token.
 
+## Disclaimer
+
+- Automating a personal Discord account can violate Discord's Terms of Service and platform policies.
+- Sending repeated or unsolicited messages can trigger rate limits, temporary access restrictions, or account termination.
+- Use this tool only if you understand and accept that risk.
+
 ## Security Model
 
 - Authentication uses `DISCORD_TOKEN` from your environment or local `.env`.
@@ -27,6 +33,7 @@ npm install
 2. Copy `.env.example` to `.env`.
 3. Set `DISCORD_TOKEN` in `.env` to your personal Discord token.
 4. Update channel IDs and message groups in `config.json`.
+5. Run the CLI from the project root, or keep `config.json` and `.env` in the project root so the default paths resolve correctly.
 
 ## Configuration
 
@@ -66,7 +73,7 @@ Field reference:
 | `channels[].name` | `string` | Yes | Display label used in logs. |
 | `channels[].id` | `string` | Yes | Discord channel ID. Must be a valid snowflake. |
 | `channels[].referrer` | `string` | No | URL sent as HTTP Referer header. Defaults to `https://discord.com/channels/@me/{id}` when omitted. |
-| `channels[].messageGroup` | `string` | Yes | Must reference a key in `messageGroups`. |
+| `channels[].messageGroup` | `string` | No | Must reference a key in `messageGroups`. Defaults to `default` when omitted. |
 | `messageGroups` | `Record<string, string[]>` | Yes | Non-empty map of message groups. |
 
 Legacy compatibility:
@@ -104,8 +111,10 @@ At startup the app validates:
 Then it:
 
 - starts one worker per channel
+- serializes outbound API requests through a shared coordinator to reduce cross-channel bursts
 - retries transient send failures up to 3 times with exponential backoff and jitter
-- handles `429` rate limits by waiting the `retry_after` duration
+- handles `429` rate limits by waiting the `retry_after` duration and stopping a worker after repeated consecutive rate limits
+- stops all workers if Discord returns `401`, which usually indicates an invalid or expired token
 
 ## Troubleshooting
 

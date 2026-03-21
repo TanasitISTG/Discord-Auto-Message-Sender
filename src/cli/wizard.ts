@@ -143,13 +143,14 @@ async function configureMessages(current: AppConfig) {
         }
         else if (action === 'Add New Group') {
             const { name } = await inquirer.prompt([{ type: 'input', name: 'name', message: 'Group Name:' }]);
-            if (name && !current.messageGroups[name]) {
+            const normalizedName = typeof name === 'string' ? name.trim() : '';
+            if (normalizedName && !current.messageGroups[normalizedName]) {
                 try {
-                    current.messageGroups[name] = ['New Message'];
+                    current.messageGroups[normalizedName] = ['New Message'];
                     writeAppConfig(current);
-                    console.log(chalk.green(`Group '${name}' created!`));
+                    console.log(chalk.green(`Group '${normalizedName}' created!`));
                 } catch (error) {
-                    delete current.messageGroups[name];
+                    delete current.messageGroups[normalizedName];
                     console.log(chalk.red(getErrorMessage(error)));
                 }
             } else {

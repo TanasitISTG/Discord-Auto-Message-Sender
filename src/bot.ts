@@ -1,17 +1,61 @@
-import 'dotenv/config';
+import path from 'path';
+import dotenv from 'dotenv';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { ZodError } from 'zod';
 import { startWizard } from './cli/wizard';
-import { readAppConfigResult } from './config/store';
+import { DEFAULT_CONFIG_BASE_DIR, readAppConfigResult } from './config/store';
 import { formatZodError, parseEnvironment, parseRuntimeOptions } from './config/schema';
-import { runChannel } from './core/sender';
+import { createSenderCoordinator, runChannel } from './core/sender';
+
+dotenv.config({ path: path.join(DEFAULT_CONFIG_BASE_DIR, '.env') });
+
+function validateRuntimeNumberInput(label: string, options: { integer?: boolean } = {}) {
+    return (value: string) => {
+        if (value.trim().length === 0) {
+            return `${label} is required.`;
+        }
+
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return `${label} must be a valid number.`;
+        }
+
+        if (options.integer && !Number.isInteger(numericValue)) {
+            return `${label} must be a whole number.`;
+        }
+
+        if (numericValue < 0) {
+            return `${label} must be zero or greater.`;
+        }
+
+        return true;
+    };
+}
 
 async function promptRuntimeOptions() {
     const answers = await inquirer.prompt([
-        { type: 'input', name: 'numMessages', message: 'Messages to send per channel (0 = infinite):', default: '0' },
-        { type: 'input', name: 'baseWaitSeconds', message: 'Base wait time in seconds:', default: '5' },
-        { type: 'input', name: 'marginSeconds', message: 'Random margin in seconds:', default: '2' }
+        {
+            type: 'input',
+            name: 'numMessages',
+            message: 'Messages to send per channel (0 = infinite):',
+            default: '0',
+            validate: validateRuntimeNumberInput('Number of messages', { integer: true })
+        },
+        {
+            type: 'input',
+            name: 'baseWaitSeconds',
+            message: 'Base wait time in seconds:',
+            default: '5',
+            validate: validateRuntimeNumberInput('Base wait time')
+        },
+        {
+            type: 'input',
+            name: 'marginSeconds',
+            message: 'Random margin in seconds:',
+            default: '2',
+            validate: validateRuntimeNumberInput('Random margin')
+        }
     ]);
 
     try {
@@ -67,6 +111,7 @@ async function main() {
     console.log(`Loaded groups: ${Object.keys(config.messageGroups).join(', ')}`);
 
     const runtime = await promptRuntimeOptions();
+    const coordinator = createSenderCoordinator();
     await Promise.all(config.channels.map((target) => runChannel({
         target,
         numMessages: runtime.numMessages,
@@ -74,8 +119,14 @@ async function main() {
         marginSeconds: runtime.marginSeconds,
         token: env.DISCORD_TOKEN,
         userAgent: config.userAgent,
-        messageGroups: config.messageGroups
+        messageGroups: config.messageGroups,
+        coordinator
     })));
+
+    if (coordinator.isAborted()) {
+        throw new Error(coordinator.getAbortReason() ?? 'Sending aborted.');
+    }
+
     console.log('\nSession complete.');
 }
 

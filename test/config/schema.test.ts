@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeLegacyConfig, parseAppConfig } from '../../src/config/schema';
+import { normalizeLegacyConfig, parseAppConfig, parseRuntimeOptions } from '../../src/config/schema';
 import { ZodError } from 'zod';
 
 test('parseAppConfig accepts canonical config and preserves camelCase shape', () => {
@@ -75,4 +75,23 @@ test('parseAppConfig rejects duplicate channel IDs', () => {
             default: ['Hello!']
         }
     }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate channel ID')));
+});
+
+test('parseAppConfig rejects message group names that collide after trimming whitespace', () => {
+    assert.throws(() => parseAppConfig({
+        userAgent: 'UA',
+        channels: [],
+        messageGroups: {
+            default: ['Hello!'],
+            ' default ': ['Hello again!']
+        }
+    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate message group name')));
+});
+
+test('parseRuntimeOptions rejects blank string inputs instead of coercing them to zero', () => {
+    assert.throws(() => parseRuntimeOptions({
+        numMessages: ' ',
+        baseWaitSeconds: ' ',
+        marginSeconds: ' '
+    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('is required')));
 });

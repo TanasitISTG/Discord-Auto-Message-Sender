@@ -4,6 +4,7 @@ import {
     EnvironmentConfig,
     LegacyConfig,
     LegacyMessages,
+    MessageGroups,
     RuntimeOptions
 } from '../types';
 
@@ -13,10 +14,13 @@ export const DEFAULT_MESSAGE_GROUP = 'default';
 export const DEFAULT_MESSAGE = 'Hello from your Discord bot!';
 
 const messageSchema = z.string().trim().min(1, 'Messages cannot be empty').max(2000, 'Discord messages are limited to 2000 characters');
+const messageGroupNameSchema = z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long');
+const messageListSchema = z.array(messageSchema).min(1, 'Each group must contain at least one message');
+const rawMessageGroupsSchema = z.record(z.string(), z.unknown());
 
 const messageGroupsSchema = z.record(
-    z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long'),
-    z.array(messageSchema).min(1, 'Each group must contain at least one message')
+    messageGroupNameSchema,
+    messageListSchema
 ).superRefine((groups, ctx) => {
     if (Object.keys(groups).length === 0) {
         ctx.addIssue({
@@ -74,7 +78,7 @@ const rawAppChannelSchema = z.object({
 const rawAppConfigSchema = z.object({
     userAgent: z.string().trim().min(1, 'userAgent is required'),
     channels: z.array(rawAppChannelSchema),
-    messageGroups: messageGroupsSchema
+    messageGroups: z.unknown()
 });
 
 const legacyChannelSchema = z.object({
@@ -94,9 +98,55 @@ const envSchema = z.object({
 });
 
 export const runtimeOptionsSchema = z.object({
-    numMessages: z.coerce.number().int().min(0, 'Number of messages must be zero or greater'),
-    baseWaitSeconds: z.coerce.number().finite().min(0, 'Base wait time must be zero or greater'),
-    marginSeconds: z.coerce.number().finite().min(0, 'Random margin must be zero or greater')
+    numMessages: z.preprocess(
+        (value) => {
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed.length === 0) {
+                    return undefined;
+                }
+                return Number(trimmed);
+            }
+
+            return value;
+        },
+        z.number({ error: 'Number of messages is required' })
+            .int('Number of messages must be a whole number')
+            .finite('Number of messages must be a valid number')
+            .min(0, 'Number of messages must be zero or greater')
+    ),
+    baseWaitSeconds: z.preprocess(
+        (value) => {
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed.length === 0) {
+                    return undefined;
+                }
+                return Number(trimmed);
+            }
+
+            return value;
+        },
+        z.number({ error: 'Base wait time is required' })
+            .finite('Base wait time must be a valid number')
+            .min(0, 'Base wait time must be zero or greater')
+    ),
+    marginSeconds: z.preprocess(
+        (value) => {
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed.length === 0) {
+                    return undefined;
+                }
+                return Number(trimmed);
+            }
+
+            return value;
+        },
+        z.number({ error: 'Random margin is required' })
+            .finite('Random margin must be a valid number')
+            .min(0, 'Random margin must be zero or greater')
+    )
 });
 
 export function buildDefaultReferrer(channelId: string): string {
@@ -112,6 +162,68 @@ export function formatZodError(error: z.ZodError): string {
         .join('; ');
 }
 
+function parseMessageGroups(value: unknown, pathPrefix: Array<string | number>): MessageGroups {
+    const rawGroups = rawMessageGroupsSchema.safeParse(value);
+    if (!rawGroups.success) {
+        throw new z.ZodError(
+            rawGroups.error.issues.map((issue) => ({
+                ...issue,
+                path: [...pathPrefix, ...issue.path]
+            }))
+        );
+    }
+
+    const issues: z.ZodIssue[] = [];
+    const groups: MessageGroups = {};
+    const entries = Object.entries(rawGroups.data);
+
+    if (entries.length === 0) {
+        issues.push({
+            code: z.ZodIssueCode.custom,
+            path: pathPrefix,
+            message: 'At least one message group is required'
+        });
+    }
+
+    for (const [rawName, rawMessages] of entries) {
+        const parsedName = messageGroupNameSchema.safeParse(rawName);
+        if (!parsedName.success) {
+            issues.push(...parsedName.error.issues.map((issue) => ({
+                ...issue,
+                path: [...pathPrefix, rawName]
+            })));
+            continue;
+        }
+
+        const normalizedName = parsedName.data;
+        if (normalizedName in groups) {
+            issues.push({
+                code: z.ZodIssueCode.custom,
+                path: [...pathPrefix, rawName],
+                message: `Duplicate message group name '${normalizedName}' after trimming whitespace`
+            });
+            continue;
+        }
+
+        const parsedMessages = messageListSchema.safeParse(rawMessages);
+        if (!parsedMessages.success) {
+            issues.push(...parsedMessages.error.issues.map((issue) => ({
+                ...issue,
+                path: [...pathPrefix, normalizedName, ...issue.path]
+            })));
+            continue;
+        }
+
+        groups[normalizedName] = parsedMessages.data;
+    }
+
+    if (issues.length > 0) {
+        throw new z.ZodError(issues);
+    }
+
+    return groups;
+}
+
 export function parseAppConfig(value: unknown): AppConfig {
     const parsed = rawAppConfigSchema.parse(value);
     return appConfigSchema.parse({
@@ -122,7 +234,7 @@ export function parseAppConfig(value: unknown): AppConfig {
             referrer: channel.referrer ?? buildDefaultReferrer(channel.id),
             messageGroup: channel.messageGroup ?? DEFAULT_MESSAGE_GROUP
         })),
-        messageGroups: parsed.messageGroups
+        messageGroups: parseMessageGroups(parsed.messageGroups, ['messageGroups'])
     });
 }
 
@@ -131,7 +243,7 @@ export function parseLegacyConfig(value: unknown): LegacyConfig {
 }
 
 export function parseLegacyMessages(value: unknown): LegacyMessages {
-    return messageGroupsSchema.parse(Array.isArray(value) ? { [DEFAULT_MESSAGE_GROUP]: value } : value);
+    return parseMessageGroups(Array.isArray(value) ? { [DEFAULT_MESSAGE_GROUP]: value } : value, []);
 }
 
 export function normalizeLegacyConfig(config: LegacyConfig, messages: LegacyMessages): AppConfig {
@@ -171,12 +283,4 @@ export function isLegacyConfigShape(value: unknown): boolean {
     }
 
     return 'user_agent' in value;
-}
-
-export function isCanonicalConfigShape(value: unknown): boolean {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return false;
-    }
-
-    return 'userAgent' in value;
 }
