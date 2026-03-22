@@ -9,13 +9,13 @@ type LogSink = (entry: LogEntry) => void;
 
 export interface StructuredLogger {
     emit(entry: Omit<LogEntry, 'id' | 'timestamp'> & { timestamp?: string }): LogEntry;
-    child(defaults: Partial<Pick<LogEntry, 'context' | 'sessionId'>>): StructuredLogger;
+    child(defaults: Partial<Pick<LogEntry, 'context' | 'sessionId' | 'segmentId' | 'segmentKind'>>): StructuredLogger;
     getEntries(): LogEntry[];
 }
 
 export interface StructuredLoggerOptions {
     sinks?: LogSink[];
-    defaults?: Partial<Pick<LogEntry, 'context' | 'sessionId'>>;
+    defaults?: Partial<Pick<LogEntry, 'context' | 'sessionId' | 'segmentId' | 'segmentKind'>>;
 }
 
 function createEntryId(): string {
@@ -93,7 +93,9 @@ export function createStructuredLogger(options: StructuredLoggerOptions = {}): S
                 context: entry.context ?? defaults.context ?? 'System',
                 message: entry.message,
                 meta: entry.meta,
-                sessionId: entry.sessionId ?? defaults.sessionId
+                sessionId: entry.sessionId ?? defaults.sessionId,
+                segmentId: entry.segmentId ?? defaults.segmentId,
+                segmentKind: entry.segmentKind ?? defaults.segmentKind
             };
 
             entries.push(nextEntry);

@@ -3,9 +3,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { PreflightResult, RuntimeOptions, SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
-import { NumberField, StateRow } from '@/shared/components';
+import { InlineNotice, NumberField, StateRow } from '@/shared/components';
 import type { AppReadiness } from '@/shared/readiness';
 import { describeBlockingIssue } from '@/shared/readiness';
+import type { RecoveryState, SurfaceNotice } from '@/shared/use-desktop-controller';
 
 interface SessionScreenProps {
     runtime: RuntimeOptions;
@@ -15,6 +16,8 @@ interface SessionScreenProps {
     senderState: SenderStateRecord;
     preflight: PreflightResult | null;
     appReadiness: AppReadiness;
+    recoveryState: RecoveryState | null;
+    notice?: SurfaceNotice;
     runtimeMessage?: string | null;
     onStart(): void | Promise<void>;
     onRunPreflight(): void | Promise<void>;
@@ -32,6 +35,8 @@ export function SessionScreen({
     senderState,
     preflight,
     appReadiness,
+    recoveryState,
+    notice,
     runtimeMessage,
     onStart,
     onRunPreflight,
@@ -42,6 +47,20 @@ export function SessionScreen({
 }: SessionScreenProps) {
     const healthEntries = Object.values(session?.channelHealth ?? senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const resumeSession = senderState.resumeSession;
+    const suppressedEntries = Object.values(session?.channelProgress ?? {}).filter((entry) => entry.status === 'suppressed');
+    const runModeLabel = recoveryState
+        ? 'Runtime interrupted'
+        : session?.status === 'stopping'
+            ? 'Stopping after current send'
+            : suppressedEntries.length > 0
+                ? 'Waiting on cooldown'
+                : session?.resumedFromCheckpoint
+                    ? 'Resumed from checkpoint'
+                    : session
+                        ? 'Fresh run'
+                        : resumeSession
+                            ? 'Next start will resume checkpoint'
+                            : 'Fresh run';
 
     return (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -51,6 +70,36 @@ export function SessionScreen({
                     <CardDescription>Run validation, inspect per-channel access results, and control the active sender worker.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Badge tone={recoveryState || suppressedEntries.length > 0 || session?.status === 'stopping' || session?.resumedFromCheckpoint ? 'warning' : 'success'}>
+                            {runModeLabel}
+                        </Badge>
+                        {session?.currentSegmentId ? (
+                            <span className="font-mono text-xs text-muted-foreground">{session.currentSegmentId}</span>
+                        ) : null}
+                    </div>
+
+                    {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
+
+                    {recoveryState ? (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                            <div className="font-semibold">Runtime interrupted</div>
+                            <div className="mt-1 text-red-50/80">{recoveryState.message}</div>
+                            <div className="mt-2 text-xs text-red-50/70">
+                                Interrupted {new Date(recoveryState.interruptedAt).toLocaleString()}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {suppressedEntries.length > 0 ? (
+                        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                            <div className="font-semibold">Waiting on cooldown</div>
+                            <div className="mt-1 text-amber-50/80">
+                                {suppressedEntries.length} channel{suppressedEntries.length === 1 ? '' : 's'} currently suppressed and waiting for the next retry window.
+                            </div>
+                        </div>
+                    ) : null}
+
                     <div className="grid gap-3 md:grid-cols-3">
                         <NumberField label="Messages / channel" value={runtime.numMessages} onChange={(value) => setRuntime({ ...runtime, numMessages: Number(value) })} />
                         <NumberField label="Base wait (sec)" value={runtime.baseWaitSeconds} onChange={(value) => setRuntime({ ...runtime, baseWaitSeconds: Number(value) })} />

@@ -74,12 +74,25 @@ export default function App() {
                             ) : null}
                             <Badge tone={toneFromStatus(controller.session?.status)}>{controller.session?.status ?? 'idle'}</Badge>
                             <Badge tone={toneFromSidecarStatus(controller.sidecarStatus)}>runtime {controller.sidecarStatus}</Badge>
-                            <Badge tone={controller.appReadiness.token.status === 'missing' ? 'danger' : controller.appReadiness.token.status === 'warning' ? 'warning' : 'success'}>
-                                token {controller.appReadiness.token.status}
+                            <Badge
+                                tone={
+                                    controller.appReadiness.token.status === 'missing' || controller.appReadiness.token.status === 'corrupted'
+                                        ? 'danger'
+                                        : controller.appReadiness.token.status === 'environment'
+                                            ? 'warning'
+                                            : 'success'
+                                }
+                            >
+                                token {controller.appReadiness.token.label}
                             </Badge>
                             <Badge tone={controller.appReadiness.config.status === 'invalid' || controller.appReadiness.config.status === 'missing' ? 'warning' : 'success'}>
                                 config {controller.appReadiness.config.status}
                             </Badge>
+                            {!controller.setupChecklist.complete ? (
+                                <Badge tone="warning">
+                                    setup {controller.setupChecklist.completedCount}/{controller.setupChecklist.totalCount}
+                                </Badge>
+                            ) : null}
                             {controller.session?.id ? <span className="font-mono text-xs text-muted-foreground">{controller.session.id}</span> : null}
                             {controller.draft.validationErrors.length > 0 ? <Badge tone="warning">{controller.draft.validationErrors.length} validation issue{controller.draft.validationErrors.length === 1 ? '' : 's'}</Badge> : null}
                         </div>
@@ -147,8 +160,11 @@ export default function App() {
                         senderState={controller.senderState}
                         hasActiveSession={controller.hasActiveSession}
                         appReadiness={controller.appReadiness}
+                        setupChecklist={controller.setupChecklist}
+                        recoveryState={controller.recoveryState}
                         runtimeMessage={controller.sidecarMessage}
                         onOpenConfig={() => setScreen('config')}
+                        onOpenSession={() => setScreen('session')}
                         onRunDryRun={async () => {
                             await controller.runDryRunCommand();
                             setScreen('preview');
@@ -175,6 +191,9 @@ export default function App() {
                     <ConfigScreen
                         draft={controller.draft}
                         setup={controller.setup}
+                        tokenStatus={controller.appReadiness.token}
+                        setupChecklist={controller.setupChecklist}
+                        notice={controller.surfaceNotices.config}
                         environmentDraft={controller.environmentDraft}
                         runtime={controller.runtime}
                         onEnvironmentDraftChange={controller.setEnvironmentDraft}
@@ -187,6 +206,12 @@ export default function App() {
                         onOpenDataDirectory={async () => {
                             await controller.openDesktopDataDirectory();
                         }}
+                        onOpenConfig={() => setScreen('config')}
+                        onRunPreflight={async () => {
+                            await controller.runPreflightCommand();
+                            setScreen('session');
+                        }}
+                        onOpenSession={() => setScreen('session')}
                         onSaveConfig={async () => {
                             await controller.saveConfigDraft();
                         }}
@@ -218,6 +243,8 @@ export default function App() {
                         senderState={controller.senderState}
                         preflight={controller.preflight}
                         appReadiness={controller.appReadiness}
+                        recoveryState={controller.recoveryState}
+                        notice={controller.surfaceNotices.session}
                         runtimeMessage={controller.sidecarMessage}
                         onStart={async () => {
                             await controller.startSessionCommand();
@@ -241,6 +268,8 @@ export default function App() {
                 {screen === 'logs' ? (
                     <LogsScreen
                         logs={controller.logs}
+                        sessionId={controller.currentLogSessionId}
+                        notice={controller.surfaceNotices.logs}
                         onRefresh={async () => {
                             await controller.loadCurrentLogs();
                         }}

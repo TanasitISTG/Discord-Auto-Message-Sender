@@ -266,6 +266,12 @@ function normalizeSessionState(value: unknown): SessionState | undefined {
         status: state.status,
         startedAt: typeof state.startedAt === 'string' ? state.startedAt : undefined,
         updatedAt: state.updatedAt,
+        currentSegmentId: typeof state.currentSegmentId === 'string' ? state.currentSegmentId : undefined,
+        currentSegmentKind: state.currentSegmentKind === 'fresh' || state.currentSegmentKind === 'resumed'
+            ? state.currentSegmentKind
+            : undefined,
+        currentSegmentStartedAt: typeof state.currentSegmentStartedAt === 'string' ? state.currentSegmentStartedAt : undefined,
+        resumedFromCheckpointAt: typeof state.resumedFromCheckpointAt === 'string' ? state.resumedFromCheckpointAt : undefined,
         activeChannels: state.activeChannels.filter((channelId): channelId is string => typeof channelId === 'string'),
         completedChannels: state.completedChannels.filter((channelId): channelId is string => typeof channelId === 'string'),
         failedChannels: state.failedChannels.filter((channelId): channelId is string => typeof channelId === 'string'),

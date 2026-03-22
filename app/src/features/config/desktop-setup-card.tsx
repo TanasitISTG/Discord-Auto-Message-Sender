@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import type { DesktopSetupState } from '@/lib/desktop';
+import type { TokenReadiness } from '@/shared/readiness';
 import { DetailBlock, Field, StateRow } from '@/shared/components';
 
 interface DesktopSetupCardProps {
     setup: DesktopSetupState | null;
+    tokenStatus: TokenReadiness;
     environmentDraft: string;
     showToken: boolean;
     showRuntimePaths: boolean;
@@ -21,6 +23,7 @@ interface DesktopSetupCardProps {
 
 export function DesktopSetupCard({
     setup,
+    tokenStatus,
     environmentDraft,
     showToken,
     showRuntimePaths,
@@ -32,13 +35,20 @@ export function DesktopSetupCard({
     onOpenDataDirectory
 }: DesktopSetupCardProps) {
     const hasDraftToken = environmentDraft.trim().length > 0;
-    const tokenSourceLabel = setup
-        ? {
-            secure: 'Secure stored',
-            environment: 'Environment fallback',
-            missing: 'Missing'
-        }[setup.tokenStorage]
-        : 'Loading';
+    const tokenFieldLabel = setup?.tokenPresent ? 'Replace Discord Token' : 'Discord Token';
+    const tokenPlaceholder = setup?.tokenPresent
+        ? 'Paste a new token to replace the stored one'
+        : 'Paste your personal Discord token';
+    const tokenSourceLabel = {
+        secure: 'Secure store',
+        environment: 'Environment fallback',
+        corrupted: 'Unreadable',
+        loading: 'Loading',
+        missing: 'Missing'
+    }[tokenStatus.status];
+    const tokenHelper = setup?.tokenPresent
+        ? 'A secure token is already stored for this Windows user. The field stays blank and only accepts replacement values.'
+        : 'The packaged app stores the token securely for this Windows user and never echoes it back into the UI.';
 
     return (
         <Card>
@@ -47,16 +57,29 @@ export function DesktopSetupCard({
                 <CardDescription>Store the Discord token securely for this Windows user profile without turning config editing into a diagnostics wall.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <StateRow label="Discord token" value={setup?.tokenPresent ? 'Configured' : 'Missing'} />
+                <StateRow
+                    label="Discord token"
+                    value={
+                        tokenStatus.status === 'secure'
+                            ? 'Stored securely'
+                            : tokenStatus.status === 'environment'
+                                ? 'Environment fallback'
+                                : tokenStatus.status === 'corrupted'
+                                    ? 'Stored token unreadable'
+                                    : tokenStatus.status === 'loading'
+                                        ? 'Loading'
+                                        : 'No token stored'
+                    }
+                />
                 <StateRow label="Token source" value={tokenSourceLabel} />
 
-                <Field label="Discord Token">
+                <Field label={tokenFieldLabel}>
                     <div className="flex gap-2">
                         <Input
                             className="min-w-0 flex-1"
                             type={hasDraftToken && showToken ? 'text' : 'password'}
                             value={environmentDraft}
-                            placeholder={setup?.tokenPresent ? 'Stored securely. Paste a new token to replace it.' : 'Paste your personal Discord token'}
+                            placeholder={tokenPlaceholder}
                             onChange={(event: ChangeEvent<HTMLInputElement>) => onEnvironmentDraftChange(event.target.value)}
                         />
                         {hasDraftToken ? (
@@ -66,6 +89,12 @@ export function DesktopSetupCard({
                         ) : null}
                     </div>
                 </Field>
+                <div className="text-xs leading-relaxed text-muted-foreground">
+                    {tokenHelper}
+                </div>
+                <div className="text-xs leading-relaxed text-muted-foreground">
+                    {tokenStatus.detail}
+                </div>
 
                 <div className="grid gap-3">
                     <Button className="w-full" onClick={onSaveEnvironment} disabled={!environmentDraft.trim()}>
@@ -82,10 +111,6 @@ export function DesktopSetupCard({
                         <FolderOpen className="mr-2 h-4 w-4" />
                         Open Data Folder
                     </Button>
-                </div>
-
-                <div className="text-xs leading-relaxed text-muted-foreground">
-                    Saved tokens are write-only. The packaged app stores the token outside `config.json`, keeps the field blank after save, and cannot reveal the stored token back into the UI.
                 </div>
 
                 {setup?.warning ? (

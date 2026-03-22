@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { ConfigScreen } from '../../app/src/features/config/config-screen';
 import type { AppConfig, DesktopSetupState, RuntimeOptions } from '../../app/src/lib/desktop';
 import type { ConfigDraftController } from '../../app/src/features/config/use-config-draft';
+import type { SetupChecklist, TokenReadiness } from '../../app/src/shared/readiness';
 
 const baseConfig: AppConfig = {
     userAgent: 'Mozilla/5.0',
@@ -58,6 +59,20 @@ const runtime: RuntimeOptions = {
     marginSeconds: 2
 };
 
+const tokenStatus: TokenReadiness = {
+    status: 'secure',
+    label: 'secure',
+    detail: 'Stored securely for this Windows user.',
+    blocking: false
+};
+
+const setupChecklist: SetupChecklist = {
+    items: [],
+    completedCount: 5,
+    totalCount: 5,
+    complete: true
+};
+
 function createDraft(overrides: Partial<ConfigDraftController> = {}): ConfigDraftController {
     const selectedChannel = overrides.selectedChannel === undefined ? baseConfig.channels[0] : overrides.selectedChannel;
 
@@ -109,12 +124,17 @@ function renderConfigScreen(draft: ConfigDraftController, environmentDraft: stri
         <ConfigScreen
             draft={draft}
             setup={setup}
+            tokenStatus={tokenStatus}
+            setupChecklist={setupChecklist}
             environmentDraft={environmentDraft}
             runtime={runtime}
             onEnvironmentDraftChange={() => undefined}
             onSaveEnvironment={() => undefined}
             onClearSecureToken={() => undefined}
             onOpenDataDirectory={() => undefined}
+            onOpenConfig={() => undefined}
+            onRunPreflight={() => undefined}
+            onOpenSession={() => undefined}
             onSaveConfig={() => undefined}
             onPreviewDryRun={() => undefined}
         />
@@ -159,7 +179,9 @@ test('ConfigScreen keeps the selected channel highlighted in the left rail', () 
 test('ConfigScreen keeps saved tokens write-only until the user types a replacement token', () => {
     renderConfigScreen(createDraft());
 
-    expect(screen.getByPlaceholderText('Stored securely. Paste a new token to replace it.')).toBeTruthy();
+    expect(screen.getByText('Setup Complete')).toBeTruthy();
+    expect(screen.getByLabelText('Replace Discord Token')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Paste a new token to replace the stored one')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Show' })).toBeNull();
-    expect(screen.getByText(/Saved tokens are write-only/i)).toBeTruthy();
+    expect(screen.getByText(/field stays blank and only accepts replacement values/i)).toBeTruthy();
 });

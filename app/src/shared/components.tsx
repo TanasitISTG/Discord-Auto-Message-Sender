@@ -58,3 +58,24 @@ export function Field({ label, children }: { label: string; children: ReactNode 
         </label>
     );
 }
+
+export function InlineNotice({
+    tone,
+    message
+}: {
+    tone: 'neutral' | 'success' | 'warning' | 'danger';
+    message: string;
+}) {
+    const toneClass = {
+        neutral: 'border-border bg-background/40 text-muted-foreground',
+        success: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100',
+        warning: 'border-amber-500/20 bg-amber-500/10 text-amber-100',
+        danger: 'border-red-500/20 bg-red-500/10 text-red-100'
+    }[tone];
+
+    return (
+        <div className={`rounded-xl border px-3 py-2 text-sm ${toneClass}`}>
+            {message}
+        </div>
+    );
+}

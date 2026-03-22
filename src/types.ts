@@ -29,6 +29,7 @@ export interface AppConfig {
 }
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'debug';
+export type SessionSegmentKind = 'fresh' | 'resumed';
 
 export interface LogEntry {
     id: string;
@@ -38,6 +39,8 @@ export interface LogEntry {
     message: string;
     meta?: Record<string, string | number | boolean | null>;
     sessionId?: string;
+    segmentId?: string;
+    segmentKind?: SessionSegmentKind;
 }
 
 export interface AdaptivePacingState {
@@ -117,6 +120,10 @@ export interface SessionState {
     status: SessionStatus;
     startedAt?: string;
     updatedAt: string;
+    currentSegmentId?: string;
+    currentSegmentKind?: SessionSegmentKind;
+    currentSegmentStartedAt?: string;
+    resumedFromCheckpointAt?: string;
     activeChannels: string[];
     completedChannels: string[];
     failedChannels: string[];

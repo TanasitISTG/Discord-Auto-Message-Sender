@@ -7,6 +7,7 @@ import {
     ChannelProgressRecord,
     RuntimeOptions,
     SenderStateRecord,
+    SessionSegmentKind,
     SessionState,
     SessionSummary,
     SessionStatus
@@ -22,6 +23,13 @@ const RECENT_MESSAGE_HISTORY_LIMIT = 20;
 type SleepFn = (ms: number) => Promise<void>;
 type ResumeSessionRecord = NonNullable<SenderStateRecord['resumeSession']>;
 type SessionUpdateReason = Extract<AppEvent, { type: 'session_state_updated' }>['reason'];
+
+interface SessionSegment {
+    id: string;
+    kind: SessionSegmentKind;
+    startedAt: string;
+    resumedFromCheckpointAt?: string;
+}
 
 export interface SessionServiceOptions {
     config: AppConfig;
@@ -98,10 +106,20 @@ function createInitialPacing(): AdaptivePacingState {
     };
 }
 
+function createSessionSegment(kind: SessionSegmentKind, resumedFromCheckpointAt?: string): SessionSegment {
+    return {
+        id: `segment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind,
+        startedAt: new Date().toISOString(),
+        resumedFromCheckpointAt
+    };
+}
+
 function createInitialState(
     sessionId: string,
     runtime: RuntimeOptions,
     config: AppConfig,
+    segment: SessionSegment,
     persistedHealth?: Record<string, ChannelHealthRecord>
 ): SessionState {
     const now = new Date().toISOString();
@@ -109,6 +127,10 @@ function createInitialState(
         id: sessionId,
         status: 'idle',
         updatedAt: now,
+        currentSegmentId: segment.id,
+        currentSegmentKind: segment.kind,
+        currentSegmentStartedAt: segment.startedAt,
+        resumedFromCheckpointAt: segment.resumedFromCheckpointAt,
         activeChannels: [],
         completedChannels: [],
         failedChannels: [],
@@ -123,11 +145,16 @@ function createInitialState(
 function restoreStateFromResume(
     resumeSession: ResumeSessionRecord,
     config: AppConfig,
+    segment: SessionSegment,
     persistedHealth?: Record<string, ChannelHealthRecord>
 ): SessionState {
     const restored = structuredClone(resumeSession.state);
     restored.status = 'idle';
     restored.updatedAt = new Date().toISOString();
+    restored.currentSegmentId = segment.id;
+    restored.currentSegmentKind = segment.kind;
+    restored.currentSegmentStartedAt = segment.startedAt;
+    restored.resumedFromCheckpointAt = segment.resumedFromCheckpointAt;
     restored.runtime = resumeSession.runtime;
     restored.resumedFromCheckpoint = true;
     restored.channelProgress = buildChannelProgress(config, restored.channelProgress);
@@ -188,6 +215,7 @@ export class SessionService {
     private readonly coordinator;
     private readonly state: SessionState;
     private readonly recentMessageHistory: Record<string, string[]>;
+    private readonly segment: SessionSegment;
     private paused = false;
     private stopping = false;
     private readonly logger: StructuredLogger;
@@ -204,10 +232,14 @@ export class SessionService {
 
         const persistedState = loadSenderState(this.baseDir);
         this.sessionId = options.sessionId ?? this.resumeSession?.sessionId ?? `session-${Date.now()}`;
+        this.segment = createSessionSegment(
+            this.resumeSession ? 'resumed' : 'fresh',
+            this.resumeSession?.updatedAt
+        );
         this.coordinator = createSenderCoordinator(250, this.resumeSession?.state.pacing);
         this.state = this.resumeSession
-            ? restoreStateFromResume(this.resumeSession, this.config, persistedState.channelHealth)
-            : createInitialState(this.sessionId, this.runtime, this.config, persistedState.channelHealth);
+            ? restoreStateFromResume(this.resumeSession, this.config, this.segment, persistedState.channelHealth)
+            : createInitialState(this.sessionId, this.runtime, this.config, this.segment, persistedState.channelHealth);
         this.state.id = this.sessionId;
         this.state.runtime = this.runtime;
         this.state.pacing = this.coordinator.getPacingState();
@@ -219,7 +251,7 @@ export class SessionService {
         );
 
         const logFile = path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`);
-        this.logger = options.logger ?? createStructuredLogger({
+        const baseLogger = options.logger ?? createStructuredLogger({
             sinks: [
                 createFileSink(logFile),
                 (entry) => this.emitEvent?.({ type: 'log_event_emitted', entry })
@@ -227,6 +259,11 @@ export class SessionService {
             defaults: {
                 sessionId: this.sessionId
             }
+        });
+        this.logger = baseLogger.child({
+            sessionId: this.sessionId,
+            segmentId: this.segment.id,
+            segmentKind: this.segment.kind
         });
     }
 
@@ -281,6 +318,16 @@ export class SessionService {
         this.state.stopReason = undefined;
         this.syncPacingState();
         this.bumpState();
+        this.logger.emit({
+            context: 'Session',
+            level: 'info',
+            message: this.state.resumedFromCheckpoint ? 'Resumed from saved checkpoint.' : 'Fresh session segment started.',
+            meta: {
+                event: 'session_segment_started',
+                segmentStartedAt: this.segment.startedAt,
+                resumedFromCheckpointAt: this.segment.resumedFromCheckpointAt ?? null
+            }
+        });
         this.persistState();
         this.emitEvent?.({ type: 'session_started', state: this.getState() });
 

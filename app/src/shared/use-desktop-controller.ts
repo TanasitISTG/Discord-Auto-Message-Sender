@@ -36,7 +36,27 @@ import {
 } from '@/lib/desktop';
 import type { AppConfig, RuntimeOptions } from '@/lib/desktop';
 import { useConfigDraft } from '@/features/config/use-config-draft';
-import { AppReadiness, ConfigReadinessStatus, deriveAppReadiness, describeBlockingIssue } from '@/shared/readiness';
+import {
+    AppReadiness,
+    ConfigReadinessStatus,
+    deriveAppReadiness,
+    deriveSetupChecklist,
+    describeBlockingIssue,
+    SetupChecklist
+} from '@/shared/readiness';
+
+export type SurfaceNoticeScope = 'config' | 'session' | 'logs';
+export type SurfaceNoticeTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+export interface SurfaceNotice {
+    tone: SurfaceNoticeTone;
+    message: string;
+}
+
+export interface RecoveryState {
+    interruptedAt: string;
+    message: string;
+}
 
 async function copyTextToClipboard(text: string) {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -120,6 +140,8 @@ export function useDesktopController() {
     const [configIssue, setConfigIssue] = useState<string | null>(null);
     const [sidecarStatus, setSidecarStatus] = useState<SidecarStatus>('connecting');
     const [sidecarMessage, setSidecarMessage] = useState<string | null>(null);
+    const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
+    const [surfaceNotices, setSurfaceNotices] = useState<Partial<Record<SurfaceNoticeScope, SurfaceNotice>>>({});
     const [environmentDraft, setEnvironmentDraft] = useState('');
     const [notice, setNotice] = useState('Loading desktop state...');
     const [preferredScreen, setPreferredScreen] = useState<'session' | 'preview' | null>(null);
@@ -177,7 +199,25 @@ export function useDesktopController() {
         configError: configIssue,
         sidecarStatus
     }), [setup, configStatus, configIssue, sidecarStatus]);
+    const setupChecklist = useMemo<SetupChecklist>(() => deriveSetupChecklist({
+        setup,
+        config: draft.state.config,
+        configStatus,
+        validationErrors: draft.validationErrors,
+        preflight
+    }), [setup, draft.state.config, draft.validationErrors, configStatus, preflight]);
+    const currentLogSessionId = session?.id ?? senderState.lastSession?.id ?? senderState.resumeSession?.sessionId ?? null;
     const startBlockingIssue = appReadiness.blockingIssues[0];
+
+    function setSurfaceNotice(scope: SurfaceNoticeScope, tone: SurfaceNoticeTone, message: string) {
+        setSurfaceNotices((previous) => ({
+            ...previous,
+            [scope]: {
+                tone,
+                message
+            }
+        }));
+    }
 
     async function refreshAll() {
         try {
@@ -203,6 +243,9 @@ export function useDesktopController() {
             setEnvironmentDraft('');
             if (!activeSession && persistedState.resumeSession) {
                 setRuntime(persistedState.resumeSession.runtime);
+            }
+            if (!activeSession && !persistedState.resumeSession) {
+                setRecoveryState(null);
             }
             if (setupState.warning) {
                 setNotice(setupState.warning);
@@ -248,6 +291,9 @@ export function useDesktopController() {
             case 'session_state_updated':
             case 'summary_ready':
                 setSession(event.state);
+                if (event.type === 'session_started' || event.type === 'summary_ready') {
+                    setRecoveryState(null);
+                }
                 void refreshState();
                 return;
             case 'log_event_emitted':
@@ -270,9 +316,15 @@ export function useDesktopController() {
                 setSidecarStatus(event.status);
                 setSidecarMessage(event.message);
                 if (sessionRef.current && ['running', 'paused', 'stopping'].includes(sessionRef.current.status)) {
+                    setRecoveryState({
+                        interruptedAt: new Date().toISOString(),
+                        message: event.message
+                    });
                     setSession(null);
                     setPreferredScreen('session');
                     setNotice('The desktop runtime was interrupted while a session was active. Review the saved checkpoint before resuming.');
+                    setSurfaceNotice('session', 'warning', 'Runtime interrupted while a session was active. Review the saved checkpoint before resuming.');
+                    void refreshState();
                 } else {
                     setNotice(event.message);
                 }
@@ -301,13 +353,17 @@ export function useDesktopController() {
         configStatus,
         sidecarStatus,
         sidecarMessage,
+        recoveryState,
         appReadiness,
+        setupChecklist,
         environmentDraft,
         notice,
         runtime,
         groupedMetrics,
         latestSummary,
         hasActiveSession,
+        currentLogSessionId,
+        surfaceNotices,
         preferredScreen,
         setNotice,
         setRuntime,
@@ -315,6 +371,7 @@ export function useDesktopController() {
         async saveConfigDraft() {
             if (draft.validationErrors.length > 0) {
                 setNotice(draft.validationErrors[0]);
+                setSurfaceNotice('config', 'danger', draft.validationErrors[0]);
                 return false;
             }
 
@@ -324,10 +381,13 @@ export function useDesktopController() {
                 setConfigStatus('ready');
                 setConfigIssue(null);
                 setNotice('Configuration saved locally.');
+                setSurfaceNotice('config', 'success', 'Config saved locally.');
                 await refreshState();
                 return true;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('config', 'danger', message);
                 return false;
             }
         },
@@ -336,9 +396,12 @@ export function useDesktopController() {
                 const result = await runPreflight();
                 setPreflight(result);
                 setNotice(result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
+                setSurfaceNotice('session', result.ok ? 'success' : 'warning', result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
                 return result;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('session', 'danger', message);
                 return null;
             }
         },
@@ -356,21 +419,29 @@ export function useDesktopController() {
         async startSessionCommand() {
             if (draft.validationErrors.length > 0) {
                 setNotice(draft.validationErrors[0]);
+                setSurfaceNotice('session', 'danger', draft.validationErrors[0]);
                 return null;
             }
 
             if (startBlockingIssue) {
-                setNotice(describeBlockingIssue(startBlockingIssue));
+                const message = describeBlockingIssue(startBlockingIssue);
+                setNotice(message);
+                setSurfaceNotice('session', 'warning', message);
                 return null;
             }
 
             try {
                 const nextState = await startSession(runtime);
                 setSession(nextState);
-                setNotice(nextState.resumedFromCheckpoint ? 'Session resumed from the saved checkpoint.' : 'Session started from the desktop shell.');
+                setRecoveryState(null);
+                const message = nextState.resumedFromCheckpoint ? 'Session resumed from the saved checkpoint.' : 'Session started from the desktop shell.';
+                setNotice(message);
+                setSurfaceNotice('session', 'success', message);
                 return nextState;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('session', 'danger', message);
                 return null;
             }
         },
@@ -385,10 +456,13 @@ export function useDesktopController() {
                     : await pauseSession();
                 if (nextState) {
                     setSession(nextState);
+                    setSurfaceNotice('session', 'neutral', nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.');
                 }
                 return nextState;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('session', 'danger', message);
                 return null;
             }
         },
@@ -405,20 +479,25 @@ export function useDesktopController() {
                 const nextState = await stopSession();
                 setSession(nextState);
                 setNotice('Stopping the active session after the current send finishes.');
+                setSurfaceNotice('session', 'warning', 'Stopping after the current send finishes.');
                 return nextState;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('session', 'danger', message);
                 return null;
             }
         },
         async discardResumeCheckpoint() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
                 setNotice('Stop the active session before discarding the saved checkpoint.');
+                setSurfaceNotice('session', 'warning', 'Stop the active session before discarding the saved checkpoint.');
                 return null;
             }
 
             if (!senderState.resumeSession) {
                 setNotice('No saved checkpoint is available.');
+                setSurfaceNotice('session', 'warning', 'No saved checkpoint is available.');
                 return null;
             }
 
@@ -429,48 +508,61 @@ export function useDesktopController() {
             try {
                 const nextState = await discardResumeSession();
                 setSenderState(nextState);
+                 setRecoveryState(null);
                 setNotice('Saved checkpoint discarded.');
+                setSurfaceNotice('session', 'success', 'Checkpoint discarded.');
                 return nextState;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('session', 'danger', message);
                 return null;
             }
         },
         async loadCurrentLogs() {
-            const sessionId = session?.id ?? senderState.lastSession?.id;
+            const sessionId = currentLogSessionId;
             if (!sessionId) {
                 setNotice('Start a session before loading log output.');
+                setSurfaceNotice('logs', 'warning', 'Start or resume a session before loading log output.');
                 return null;
             }
 
             try {
                 const result = await loadLogs(sessionId);
                 setLogs(mergeLogsById(result.entries.slice().reverse()));
+                setSurfaceNotice('logs', 'success', `Loaded ${result.entries.length} log entr${result.entries.length === 1 ? 'y' : 'ies'} from disk.`);
                 return result;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('logs', 'danger', message);
                 return null;
             }
         },
         async openCurrentLogFile() {
-            const sessionId = session?.id ?? senderState.lastSession?.id;
+            const sessionId = currentLogSessionId;
             if (!sessionId) {
                 setNotice('No session log is available yet.');
+                setSurfaceNotice('logs', 'warning', 'No session log is available yet.');
                 return null;
             }
 
             try {
                 const result = await openLogFile(sessionId);
                 setNotice(`Opening ${result}`);
+                setSurfaceNotice('logs', 'neutral', `Opening ${result}`);
                 return result;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('logs', 'danger', message);
                 return null;
             }
         },
         async saveEnvironmentDraft() {
             if (!environmentDraft.trim()) {
                 setNotice('DISCORD_TOKEN is required.');
+                setSurfaceNotice('config', 'danger', 'Paste a Discord token before saving it securely.');
                 return null;
             }
 
@@ -486,15 +578,19 @@ export function useDesktopController() {
                 }
                 setEnvironmentDraft('');
                 setNotice('Discord token saved securely for this Windows user profile.');
+                setSurfaceNotice('config', 'success', 'Discord token saved securely for this Windows user.');
                 return nextSetup;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('config', 'danger', message);
                 return null;
             }
         },
         async clearSecureToken() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
                 setNotice('Removing the stored token does not stop the active session, but it only affects future starts.');
+                setSurfaceNotice('config', 'warning', 'Removing the stored token only affects future starts.');
             }
 
             if (!window.confirm('Remove the securely stored Discord token? Future preflight and session starts will require a new token.')) {
@@ -511,9 +607,12 @@ export function useDesktopController() {
                     setSidecarStatus(diagnostics.sidecarStatus);
                 }
                 setNotice('Secure Discord token removed from this Windows profile.');
+                setSurfaceNotice('config', 'warning', 'Secure Discord token removed from this Windows user.');
                 return nextSetup;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                setSurfaceNotice('config', 'danger', message);
                 return null;
             }
         },

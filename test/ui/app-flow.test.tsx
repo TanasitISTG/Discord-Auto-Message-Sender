@@ -386,6 +386,24 @@ test('App keeps preflight available when token readiness is blocked', async () =
     });
 });
 
+test('App shows the setup checklist until preflight succeeds, then collapses it to setup complete', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByText('Setup Checklist');
+    await screen.findByText('Run preflight successfully');
+
+    await user.click(await screen.findByRole('button', { name: 'Preflight' }));
+    await waitFor(() => {
+        expect(desktopMock.mocks.runPreflight).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Dashboard' }));
+    await screen.findByText('Setup Complete');
+});
+
 test('App shows the public beta version and support diagnostics', async () => {
     resetDesktopState();
     const user = userEvent.setup();
@@ -490,4 +508,33 @@ test('App shows a sidecar restart banner and clears it when the runtime recovers
         expect(screen.queryAllByText('Desktop runtime restarted after an unexpected sidecar exit.')).toHaveLength(0);
     });
     await screen.findByText('runtime ready');
+});
+
+test('App keeps a recovery card visible after runtime interruption during an active session', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+    });
+    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
+        .find((button) => button.className.includes('h-10'));
+    expect(headerResumeButton).toBeTruthy();
+    await user.click(headerResumeButton!);
+    await screen.findByRole('button', { name: 'Stop Session' });
+
+    await act(async () => {
+        desktopMock.state.eventHandler?.({
+            type: 'sidecar_error',
+            status: 'restarting',
+            message: 'Desktop runtime restarted after an unexpected sidecar exit.'
+        });
+    });
+
+    await screen.findAllByText('Runtime interrupted');
+    await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
+    expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Discard Checkpoint' })).toBeTruthy();
 });

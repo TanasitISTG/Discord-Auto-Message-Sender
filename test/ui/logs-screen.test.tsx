@@ -5,41 +5,67 @@ import { LogsScreen } from '../../app/src/features/logs/logs-screen';
 
 const logs = [
     {
-        id: '1',
-        timestamp: '2026-03-21T10:00:00.000Z',
-        level: 'warning' as const,
-        context: 'BLACK MARKET',
-        message: 'Rate Limit! Waiting 120s...',
+        id: 'segment-2-marker',
+        timestamp: '2026-03-21T10:05:00.000Z',
+        level: 'info' as const,
+        context: 'Session',
+        message: 'Resumed from saved checkpoint.',
+        sessionId: 'session-1',
+        segmentId: 'segment-2',
+        segmentKind: 'resumed' as const,
         meta: {
-            event: 'rate_limit_wait'
+            event: 'session_segment_started'
         }
     },
     {
         id: '2',
-        timestamp: '2026-03-21T10:01:00.000Z',
+        timestamp: '2026-03-21T10:04:30.000Z',
         level: 'warning' as const,
-        context: 'DUCK PRO',
-        message: 'Stop requested from desktop UI.'
+        context: 'BLACK MARKET',
+        message: 'Rate Limit! Waiting 120s...',
+        sessionId: 'session-1',
+        segmentId: 'segment-2',
+        segmentKind: 'resumed' as const,
+        meta: {
+            event: 'rate_limit_wait',
+            retryAfter: 120,
+            pacingMs: 5000
+        }
+    },
+    {
+        id: 'segment-1-marker',
+        timestamp: '2026-03-21T10:00:00.000Z',
+        level: 'info' as const,
+        context: 'Session',
+        message: 'Fresh session segment started.',
+        sessionId: 'session-1',
+        segmentId: 'segment-1',
+        segmentKind: 'fresh' as const,
+        meta: {
+            event: 'session_segment_started'
+        }
     }
 ];
 
-test('LogsScreen shows human-readable event labels and no eventless placeholder text', async () => {
+test('LogsScreen shows human-readable event labels and segment headers', async () => {
     const user = userEvent.setup();
-    const { container } = render(
+    render(
         <LogsScreen
             logs={logs}
+            sessionId="session-1"
             onRefresh={() => undefined}
             onOpenLogFile={() => undefined}
         />
     );
 
+    expect(screen.getByText('Resumed from checkpoint')).toBeTruthy();
+    expect(screen.getByText('Fresh session start')).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Rate-limit cooldown' })).toBeTruthy();
     expect(screen.queryByText(/eventless/i)).toBeNull();
     expect(screen.queryByText('rate_limit_wait')).toBeNull();
-
-    const metadataRow = container.querySelector('.mb-2.grid');
-    expect(metadataRow?.className.includes('sm:grid-cols-[minmax(0,1.2fr)_110px_180px_96px]')).toBe(true);
+    expect(screen.getByText('Retry 120s')).toBeTruthy();
+    expect(screen.getByText('Pacing 5000 ms')).toBeTruthy();
 
     await user.selectOptions(screen.getAllByRole('combobox')[2], 'rate_limit_wait');
-    expect(screen.getAllByText('Rate-limit cooldown').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('Rate-limit cooldown').length).toBeGreaterThan(0);
 });

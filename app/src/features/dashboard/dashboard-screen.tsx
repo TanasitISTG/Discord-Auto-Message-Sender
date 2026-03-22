@@ -2,8 +2,10 @@ import { ActionTile, MetricCard, StateRow } from '@/shared/components';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
-import type { AppReadiness } from '@/shared/readiness';
+import type { AppReadiness, SetupChecklist } from '@/shared/readiness';
 import { describeBlockingIssue } from '@/shared/readiness';
+import { SetupChecklistCard } from '@/shared/setup-checklist-card';
+import type { RecoveryState } from '@/shared/use-desktop-controller';
 
 interface DashboardScreenProps {
     groupedMetrics: {
@@ -15,8 +17,11 @@ interface DashboardScreenProps {
     senderState: SenderStateRecord;
     hasActiveSession: boolean;
     appReadiness: AppReadiness;
+    setupChecklist: SetupChecklist;
+    recoveryState: RecoveryState | null;
     runtimeMessage?: string | null;
     onOpenConfig(): void;
+    onOpenSession(): void;
     onRunDryRun(): void | Promise<void>;
     onRunPreflight(): void | Promise<void>;
     onOpenLogs(): void | Promise<void>;
@@ -30,8 +35,11 @@ export function DashboardScreen({
     senderState,
     hasActiveSession,
     appReadiness,
+    setupChecklist,
+    recoveryState,
     runtimeMessage,
     onOpenConfig,
+    onOpenSession,
     onRunDryRun,
     onRunPreflight,
     onOpenLogs,
@@ -40,9 +48,20 @@ export function DashboardScreen({
 }: DashboardScreenProps) {
     const healthEntries = Object.values(senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const suppressedCount = healthEntries.filter((entry) => entry.status === 'suppressed').length;
+    const nextStartMode = senderState.resumeSession ? 'Resumed from checkpoint' : 'Fresh run';
 
     return (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="md:col-span-2 xl:col-span-4">
+                <SetupChecklistCard
+                    checklist={setupChecklist}
+                    currentScreen="dashboard"
+                    onOpenConfig={onOpenConfig}
+                    onRunPreflight={onRunPreflight}
+                    onOpenSession={onOpenSession}
+                />
+            </div>
+
             {appReadiness.blockingIssues.length > 0 || appReadiness.warnings.length > 0 || runtimeMessage ? (
                 <Card className="md:col-span-2 xl:col-span-4">
                     <CardHeader>
@@ -79,7 +98,7 @@ export function DashboardScreen({
             <MetricCard label="Configured Channels" value={String(groupedMetrics.channelCount)} detail="Ready for desktop sessions." />
             <MetricCard label="Message Groups" value={String(groupedMetrics.groupCount)} detail={`${groupedMetrics.messageCount} total messages`} />
             <MetricCard label="Last Run" value={latestSummary ? `${latestSummary.sentMessages}` : '0'} detail={latestSummary ? `${latestSummary.completedChannels}/${latestSummary.totalChannels} channels completed` : 'No session summary yet.'} />
-            <MetricCard label="Suppressed Channels" value={String(suppressedCount)} detail={senderState.resumeSession ? 'Checkpoint available for continuation.' : 'No saved recovery checkpoint.'} />
+            <MetricCard label="Next Start" value={nextStartMode} detail={senderState.resumeSession ? 'Saved checkpoint is ready for continuation.' : `${suppressedCount} suppressed channels tracked locally.`} />
 
             <Card className="md:col-span-2 xl:col-span-2">
                 <CardHeader>
@@ -120,11 +139,23 @@ export function DashboardScreen({
                     <CardDescription>Suppressed and degraded channels are persisted locally so the dashboard can explain current runtime posture.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                    {recoveryState ? (
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                            <div className="font-medium">Runtime interrupted during an active session</div>
+                            <div className="mt-1 text-red-50/80">{recoveryState.message}</div>
+                            <div className="mt-2 text-xs text-red-50/70">
+                                Interrupted {new Date(recoveryState.interruptedAt).toLocaleString()}
+                            </div>
+                        </div>
+                    ) : null}
                     {senderState.resumeSession ? (
                         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm">
                             <div className="font-medium text-cyan-100">Resume checkpoint available</div>
                             <div className="mt-1 text-cyan-50/80">
                                 Updated {new Date(senderState.resumeSession.updatedAt).toLocaleString()}
+                            </div>
+                            <div className="mt-2 text-cyan-50/80">
+                                Next start: {nextStartMode}
                             </div>
                             <div className="mt-2 text-cyan-50/80">
                                 Runtime: {senderState.resumeSession.runtime.numMessages === 0 ? 'infinite' : senderState.resumeSession.runtime.numMessages} messages, {senderState.resumeSession.runtime.baseWaitSeconds}s base wait, {senderState.resumeSession.runtime.marginSeconds}s margin
@@ -144,6 +175,13 @@ export function DashboardScreen({
                                     onClick={() => void onDiscardCheckpoint()}
                                 >
                                     Discard Checkpoint
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => void onOpenLogs()}
+                                >
+                                    Open Logs
                                 </Button>
                             </div>
                         </div>
