@@ -249,21 +249,23 @@ test('App flips the header CTA to stop and disables the session start button aft
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
     });
-    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
-        .find((button) => button.className.includes('h-10'));
-    expect(headerResumeButton).toBeTruthy();
-    await user.click(headerResumeButton!);
+    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
 
     await waitFor(() => {
         expect(desktopMock.mocks.startSession).toHaveBeenCalledTimes(1);
     });
-    await screen.findByRole('button', { name: 'Stop Session' });
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+    });
 
     await user.click(screen.getByRole('button', { name: 'Session' }));
 
-    const startButton = await screen.findByRole('button', { name: 'Start' });
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Start' }).length).toBeGreaterThan(0);
+    });
+    const startButton = screen.getAllByRole('button', { name: 'Start' })[0];
     expect((startButton as HTMLButtonElement).disabled).toBe(true);
 });
 
@@ -283,7 +285,9 @@ test('App can discard a saved checkpoint from the rendered session flow', async 
     await waitFor(() => {
         expect(screen.queryByText('Interrupted session available')).toBeNull();
     });
-    await screen.findByRole('button', { name: 'Start Session' });
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Start' }).length).toBeGreaterThan(0);
+    });
 });
 
 test('App reacts to streamed session events in the rendered flow', async () => {
@@ -329,7 +333,7 @@ test('App can remove the secure token and block new session starts', async () =>
     });
     await screen.findByText('Save a Discord token securely before starting a session.');
 
-    const startButton = screen.getByRole('button', { name: 'Resume Session' });
+    const startButton = screen.getByRole('button', { name: 'Resume' });
     expect((startButton as HTMLButtonElement).disabled).toBe(true);
 
     confirmSpy.mockRestore();
@@ -343,13 +347,12 @@ test('App keeps an active session running after the secure token is removed', as
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
     });
-    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
-        .find((button) => button.className.includes('h-10'));
-    expect(headerResumeButton).toBeTruthy();
-    await user.click(headerResumeButton!);
-    await screen.findByRole('button', { name: 'Stop Session' });
+    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+    });
 
     await user.click(screen.getByRole('button', { name: 'Config' }));
     await user.click(await screen.findByRole('button', { name: 'Remove Token' }));
@@ -359,7 +362,7 @@ test('App keeps an active session running after the secure token is removed', as
     });
 
     await screen.findByText('Save a Discord token securely before starting a session.');
-    expect(screen.getByRole('button', { name: 'Stop Session' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
 
     confirmSpy.mockRestore();
 });
@@ -443,13 +446,12 @@ test('App disables runtime reset while a session is active', async () => {
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
     });
-    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
-        .find((button) => button.className.includes('h-10'));
-    expect(headerResumeButton).toBeTruthy();
-    await user.click(headerResumeButton!);
-    await screen.findByRole('button', { name: 'Stop Session' });
+    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+    });
 
     await user.click(screen.getByRole('button', { name: 'Support' }));
     const resetButton = await screen.findByRole('button', { name: 'Reset Runtime State' });
@@ -496,7 +498,7 @@ test('App shows a sidecar restart banner and clears it when the runtime recovers
     });
 
     await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
-    await screen.findByText('runtime restarting');
+    await screen.findByText('restarting');
 
     await act(async () => {
         desktopMock.state.eventHandler?.({
@@ -507,7 +509,7 @@ test('App shows a sidecar restart banner and clears it when the runtime recovers
     await waitFor(() => {
         expect(screen.queryAllByText('Desktop runtime restarted after an unexpected sidecar exit.')).toHaveLength(0);
     });
-    await screen.findByText('runtime ready');
+    await screen.findByText('ready');
 });
 
 test('App keeps a recovery card visible after runtime interruption during an active session', async () => {
@@ -517,13 +519,12 @@ test('App keeps a recovery card visible after runtime interruption during an act
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
     });
-    const headerResumeButton = screen.getAllByRole('button', { name: 'Resume Session' })
-        .find((button) => button.className.includes('h-10'));
-    expect(headerResumeButton).toBeTruthy();
-    await user.click(headerResumeButton!);
-    await screen.findByRole('button', { name: 'Stop Session' });
+    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await waitFor(() => {
+        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+    });
 
     await act(async () => {
         desktopMock.state.eventHandler?.({
@@ -535,6 +536,6 @@ test('App keeps a recovery card visible after runtime interruption during an act
 
     await screen.findAllByText('Runtime interrupted');
     await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
-    expect(screen.getAllByRole('button', { name: 'Resume Session' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Discard Checkpoint' })).toBeTruthy();
 });

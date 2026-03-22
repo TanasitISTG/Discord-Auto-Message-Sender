@@ -13,12 +13,14 @@ import {
     SessionStatus
 } from '../types';
 import { createSenderCoordinator, runChannel } from '../core/sender';
-import { createFileSink, createStructuredLogger, StructuredLogger } from '../utils/logger';
+import { createBufferedFileWriter, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import { loadSenderState, saveSenderState } from './state-store';
 
 const SESSION_LOG_DIR = 'logs';
 const RESUME_POLL_INTERVAL_MS = 150;
 const RECENT_MESSAGE_HISTORY_LIMIT = 20;
+const STATE_FLUSH_DEBOUNCE_MS = 250;
+const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 type SleepFn = (ms: number) => Promise<void>;
 type ResumeSessionRecord = NonNullable<SenderStateRecord['resumeSession']>;
@@ -113,6 +115,14 @@ function createSessionSegment(kind: SessionSegmentKind, resumedFromCheckpointAt?
         startedAt: new Date().toISOString(),
         resumedFromCheckpointAt
     };
+}
+
+function validateSessionId(sessionId: string): string {
+    if (!SESSION_ID_PATTERN.test(sessionId)) {
+        throw new Error('Invalid session id.');
+    }
+
+    return sessionId;
 }
 
 function createInitialState(
@@ -215,10 +225,15 @@ export class SessionService {
     private readonly coordinator;
     private readonly state: SessionState;
     private readonly recentMessageHistory: Record<string, string[]>;
+    private readonly senderStateRecord: SenderStateRecord;
     private readonly segment: SessionSegment;
     private paused = false;
     private stopping = false;
     private readonly logger: StructuredLogger;
+    private readonly logWriter: ReturnType<typeof createBufferedFileWriter>;
+    private stateFlushTimer: NodeJS.Timeout | null = null;
+    private stateFlushPending = false;
+    private stateFlushInFlight: Promise<void> | null = null;
 
     constructor(options: SessionServiceOptions) {
         this.config = options.config;
@@ -231,7 +246,8 @@ export class SessionService {
         this.resumeSession = options.resumeSession;
 
         const persistedState = loadSenderState(this.baseDir);
-        this.sessionId = options.sessionId ?? this.resumeSession?.sessionId ?? `session-${Date.now()}`;
+        this.senderStateRecord = structuredClone(persistedState);
+        this.sessionId = validateSessionId(options.sessionId ?? this.resumeSession?.sessionId ?? `session-${Date.now()}`);
         this.segment = createSessionSegment(
             this.resumeSession ? 'resumed' : 'fresh',
             this.resumeSession?.updatedAt
@@ -250,11 +266,25 @@ export class SessionService {
             ?? {}
         );
 
-        const logFile = path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`);
-        const baseLogger = options.logger ?? createStructuredLogger({
+        this.logWriter = createBufferedFileWriter(path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`));
+        const baseLogger = createStructuredLogger({
             sinks: [
-                createFileSink(logFile),
-                (entry) => this.emitEvent?.({ type: 'log_event_emitted', entry })
+                this.logWriter.sink,
+                (entry) => this.emitEvent?.({ type: 'log_event_emitted', entry }),
+                ...(options.logger
+                    ? [((entry: ReturnType<StructuredLogger['emit']>) => {
+                        options.logger?.emit({
+                            timestamp: entry.timestamp,
+                            context: entry.context,
+                            level: entry.level,
+                            message: entry.message,
+                            meta: entry.meta,
+                            sessionId: entry.sessionId,
+                            segmentId: entry.segmentId,
+                            segmentKind: entry.segmentKind
+                        });
+                    })]
+                    : [])
             ],
             defaults: {
                 sessionId: this.sessionId
@@ -402,12 +432,12 @@ export class SessionService {
                     getRecentMessages: (channel) => {
                         return this.recentMessageHistory[channel.id] ?? [];
                     },
-                    onMessageSent: (channel, message) => {
+                    onMessageSent: (channel, details) => {
                         const progress = this.ensureChannelProgress(channel.id);
                         progress.sentMessages += 1;
                         progress.sentToday += 1;
                         progress.consecutiveRateLimits = 0;
-                        progress.lastMessage = message;
+                        progress.lastMessage = details.rendered;
                         progress.lastSentAt = new Date().toISOString();
                         progress.lastError = undefined;
                         progress.suppressedUntil = undefined;
@@ -430,7 +460,7 @@ export class SessionService {
                         this.state.sentMessages += 1;
                         this.recentMessageHistory[channel.id] = [
                             ...(this.recentMessageHistory[channel.id] ?? []),
-                            message
+                            details.template
                         ].slice(-RECENT_MESSAGE_HISTORY_LIMIT);
                         this.syncPacingState();
                         this.bumpState();
@@ -510,24 +540,26 @@ export class SessionService {
             this.state.status = status;
             this.state.summary = this.buildSummary();
             this.bumpState();
-            this.persistState(true);
+            await this.persistStateNow(true);
             this.emitEvent?.({
                 type: 'summary_ready',
                 summary: this.state.summary,
                 state: this.getState()
             });
+            await this.logWriter.close();
             return this.getState();
         } catch (error) {
             this.state.status = 'failed';
             this.state.stopReason = error instanceof Error ? error.message : String(error);
             this.state.summary = this.buildSummary();
             this.bumpState();
-            this.persistState(true);
+            await this.persistStateNow(true);
             this.emitEvent?.({
                 type: 'summary_ready',
                 summary: this.state.summary,
                 state: this.getState()
             });
+            await this.logWriter.close();
             throw error;
         }
     }
@@ -619,17 +651,27 @@ export class SessionService {
         });
     }
 
-    private persistState(finalize: boolean = false) {
-        const senderState = loadSenderState(this.baseDir);
-        senderState.lastSession = this.getState();
-        senderState.recentMessageHistory = structuredClone(this.recentMessageHistory);
-        senderState.channelHealth = structuredClone(this.state.channelHealth ?? {});
+    private persistState() {
+        this.updatePersistedStateRecord(false);
+        this.scheduleStateFlush();
+    }
+
+    private async persistStateNow(finalize: boolean = false) {
+        this.updatePersistedStateRecord(finalize);
+        this.clearStateFlushTimer();
+        await this.flushStateNow();
+    }
+
+    private updatePersistedStateRecord(finalize: boolean) {
+        this.senderStateRecord.lastSession = this.getState();
+        this.senderStateRecord.recentMessageHistory = structuredClone(this.recentMessageHistory);
+        this.senderStateRecord.channelHealth = structuredClone(this.state.channelHealth ?? {});
 
         if (finalize) {
-            senderState.resumeSession = undefined;
+            this.senderStateRecord.resumeSession = undefined;
 
             if (this.state.summary) {
-                senderState.summaries = [this.state.summary, ...senderState.summaries].slice(0, 10);
+                this.senderStateRecord.summaries = [this.state.summary, ...this.senderStateRecord.summaries].slice(0, 10);
             }
 
             const newFailures = this.state.failedChannels.map((channelId) => {
@@ -642,9 +684,12 @@ export class SessionService {
                     timestamp: new Date().toISOString()
                 };
             });
-            senderState.recentFailures = [...newFailures, ...senderState.recentFailures].slice(0, 25);
-        } else if (['running', 'paused', 'stopping'].includes(this.state.status)) {
-            senderState.resumeSession = {
+            this.senderStateRecord.recentFailures = [...newFailures, ...this.senderStateRecord.recentFailures].slice(0, 25);
+            return;
+        }
+
+        if (['running', 'paused', 'stopping'].includes(this.state.status)) {
+            this.senderStateRecord.resumeSession = {
                 sessionId: this.sessionId,
                 updatedAt: this.state.updatedAt,
                 runtime: this.runtime,
@@ -653,8 +698,50 @@ export class SessionService {
                 recentMessageHistory: structuredClone(this.recentMessageHistory)
             };
         }
+    }
 
-        saveSenderState(this.baseDir, senderState);
+    private scheduleStateFlush() {
+        this.stateFlushPending = true;
+        if (this.stateFlushTimer) {
+            return;
+        }
+
+        this.stateFlushTimer = setTimeout(() => {
+            this.stateFlushTimer = null;
+            void this.flushStateNow();
+        }, STATE_FLUSH_DEBOUNCE_MS);
+    }
+
+    private clearStateFlushTimer() {
+        if (this.stateFlushTimer) {
+            clearTimeout(this.stateFlushTimer);
+            this.stateFlushTimer = null;
+        }
+    }
+
+    private async flushStateNow() {
+        if (this.stateFlushInFlight) {
+            await this.stateFlushInFlight;
+            return;
+        }
+
+        if (!this.stateFlushPending) {
+            return;
+        }
+
+        this.stateFlushPending = false;
+        this.stateFlushInFlight = (async () => {
+            saveSenderState(this.baseDir, this.senderStateRecord);
+        })();
+
+        try {
+            await this.stateFlushInFlight;
+        } finally {
+            this.stateFlushInFlight = null;
+            if (this.stateFlushPending) {
+                await this.flushStateNow();
+            }
+        }
     }
 
     private bumpState() {

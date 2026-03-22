@@ -141,6 +141,7 @@ export interface ChannelPreflightResult {
     channelId: string;
     channelName: string;
     ok: boolean;
+    skipped?: boolean;
     reason?: string;
     status?: number;
 }

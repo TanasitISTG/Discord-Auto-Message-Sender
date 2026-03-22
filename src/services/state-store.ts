@@ -38,9 +38,9 @@ export function loadSenderState(baseDir: string): SenderStateRecord {
 
     try {
         const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as RawSenderState;
-        const { state, migrated, warning } = normalizeSenderState(raw);
+        const { state, shouldWriteBack, warning } = normalizeSenderState(raw);
 
-        if (migrated) {
+        if (shouldWriteBack) {
             saveSenderState(baseDir, state);
             return {
                 ...state,
@@ -78,13 +78,13 @@ export function clearResumeSession(baseDir: string): SenderStateRecord {
 
 function normalizeSenderState(raw: RawSenderState): {
     state: SenderStateRecord;
-    migrated: boolean;
+    shouldWriteBack: boolean;
     warning?: string;
 } {
     const rawVersion = typeof raw.schemaVersion === 'number' && Number.isFinite(raw.schemaVersion)
         ? raw.schemaVersion
         : 0;
-    const migrated = rawVersion !== STATE_SCHEMA_VERSION;
+    const shouldWriteBack = rawVersion === 0 || rawVersion < STATE_SCHEMA_VERSION;
     const warning = rawVersion === 0
         ? 'Local sender state was migrated to the latest format.'
         : rawVersion > STATE_SCHEMA_VERSION
@@ -103,7 +103,7 @@ function normalizeSenderState(raw: RawSenderState): {
             channelHealth: normalizeChannelHealthMap(raw.channelHealth),
             resumeSession: normalizeResumeSession(raw.resumeSession)
         },
-        migrated,
+        shouldWriteBack,
         warning
     };
 }

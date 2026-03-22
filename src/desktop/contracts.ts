@@ -29,6 +29,7 @@ export type LogLoadResult = {
     ok: true;
     path: string;
     entries: LogEntry[];
+    warnings?: string[];
 };
 export type StateLoadResult = SenderStateRecord;
 export type TokenStorageMode = 'secure' | 'environment' | 'missing';

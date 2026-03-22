@@ -172,7 +172,7 @@ test('ConfigScreen keeps the selected channel highlighted in the left rail', () 
     const selectedButton = screen.getByText('General').closest('button');
     const secondaryButton = screen.getByText('Black Market').closest('button');
 
-    expect(selectedButton?.className).toContain('border-primary/40');
+    expect(selectedButton?.className).toContain('border-primary/50');
     expect(secondaryButton?.className).toContain('border-border');
 });
 

@@ -22,6 +22,17 @@ function readRequiredString(value: unknown, field: string): string {
     return value;
 }
 
+function isValidClockTime(value: string): boolean {
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
+    if (!match) {
+        return false;
+    }
+
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+
 function readOptionalNumber(value: unknown, field: string): number | null {
     if (value === null || value === undefined || value === '') {
         return null;
@@ -114,8 +125,8 @@ export function validateAppConfig(config: AppConfig): string[] {
                 errors.push(`Channel '${channel.name || channel.id}' has an invalid timezone '${channel.schedule.timezone}'.`);
             }
             if (channel.schedule.quietHours) {
-                if (!/^\d{2}:\d{2}$/.test(channel.schedule.quietHours.start) || !/^\d{2}:\d{2}$/.test(channel.schedule.quietHours.end)) {
-                    errors.push(`Channel '${channel.name || channel.id}' must use HH:MM quiet hours.`);
+                if (!isValidClockTime(channel.schedule.quietHours.start) || !isValidClockTime(channel.schedule.quietHours.end)) {
+                    errors.push(`Channel '${channel.name || channel.id}' must use valid 24-hour HH:MM quiet hours.`);
                 }
             }
         }
@@ -156,15 +167,18 @@ export function normalizeImportedConfig(value: unknown): AppConfig {
 
         const rawSchedule = channel.schedule;
         const schedule = isRecord(rawSchedule)
-            ? {
-                intervalSeconds: readRequiredNumber(rawSchedule.intervalSeconds, `channels[${index}].schedule.intervalSeconds`),
-                randomMarginSeconds: readRequiredNumber(rawSchedule.randomMarginSeconds, `channels[${index}].schedule.randomMarginSeconds`),
+            ? (() => {
+                const maxSendsPerDay = readOptionalNumber(rawSchedule.maxSendsPerDay, `channels[${index}].schedule.maxSendsPerDay`);
+                const cooldownWindowSize = readOptionalNumber(rawSchedule.cooldownWindowSize, `channels[${index}].schedule.cooldownWindowSize`);
+                return {
+                    intervalSeconds: readRequiredNumber(rawSchedule.intervalSeconds, `channels[${index}].schedule.intervalSeconds`),
+                    randomMarginSeconds: readRequiredNumber(rawSchedule.randomMarginSeconds, `channels[${index}].schedule.randomMarginSeconds`),
                 ...(typeof rawSchedule.timezone === 'string' ? { timezone: rawSchedule.timezone } : {}),
-                ...(readOptionalNumber(rawSchedule.maxSendsPerDay, `channels[${index}].schedule.maxSendsPerDay`) !== null
-                    ? { maxSendsPerDay: readOptionalNumber(rawSchedule.maxSendsPerDay, `channels[${index}].schedule.maxSendsPerDay`) }
+                ...(maxSendsPerDay !== null
+                    ? { maxSendsPerDay }
                     : {}),
-                ...(readOptionalNumber(rawSchedule.cooldownWindowSize, `channels[${index}].schedule.cooldownWindowSize`) !== null
-                    ? { cooldownWindowSize: readOptionalNumber(rawSchedule.cooldownWindowSize, `channels[${index}].schedule.cooldownWindowSize`) ?? undefined }
+                ...(cooldownWindowSize !== null
+                    ? { cooldownWindowSize: cooldownWindowSize ?? undefined }
                     : {}),
                 ...(isRecord(rawSchedule.quietHours)
                     ? {
@@ -174,7 +188,8 @@ export function normalizeImportedConfig(value: unknown): AppConfig {
                         }
                     }
                     : {})
-            }
+                };
+            })()
             : undefined;
 
         return {

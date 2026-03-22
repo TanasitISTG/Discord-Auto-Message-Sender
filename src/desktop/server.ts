@@ -62,7 +62,7 @@ async function main() {
         }
 
         try {
-            if (!(request.command in handlers)) {
+            if (!Object.prototype.hasOwnProperty.call(handlers, request.command)) {
                 throw new Error(`Unsupported desktop command '${request.command}'.`);
             }
 
@@ -77,11 +77,15 @@ async function main() {
                 | 'open_logs_directory'
                 | 'export_support_bundle'
                 | 'reset_runtime_state'
-            >] as (
+            >];
+            if (typeof handler !== 'function') {
+                throw new Error(`Unsupported desktop command '${request.command}'.`);
+            }
+
+            const result = await (handler as (
                 runtime: DesktopRuntime,
                 payload: unknown
-            ) => Promise<unknown>;
-            const result = await handler(runtime, request.payload);
+            ) => Promise<unknown>)(runtime, request.payload);
             writeMessage({
                 type: 'response',
                 id: request.id,

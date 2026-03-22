@@ -7,7 +7,6 @@ import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
 import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
 import { clearResumeSession, loadSenderState } from '../services/state-store';
-import { createFileSink, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import {
     ConfigLoadResult,
     DesktopCommandMap,
@@ -26,6 +25,8 @@ interface DesktopRuntimeOptions {
     emitEvent?: (event: DesktopEvent) => void;
     sessionFactory?: SessionFactory;
 }
+
+const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 const DEFAULT_RUNTIME = {
     numMessages: 0,
@@ -96,11 +97,12 @@ export class DesktopRuntime {
     async runPreflight(payload: DesktopCommandMap['run_preflight']['request']): Promise<DesktopCommandMap['run_preflight']['response']> {
         const configResult = readAppConfigResult(this.resolveConfigPaths());
         if (configResult.kind !== 'ok') {
+            const token = this.readToken(payload.token);
             const result = {
                 ok: false,
                 checkedAt: new Date().toISOString(),
                 configValid: false,
-                tokenPresent: configResult.kind !== 'missing',
+                tokenPresent: Boolean(token),
                 issues: [configResult.kind === 'invalid' ? configResult.error : 'Config is missing.'],
                 channels: []
             };
@@ -158,15 +160,13 @@ export class DesktopRuntime {
         const resumeSession = canResumeSession(persistedState.resumeSession, configResult.config, runtime)
             ? persistedState.resumeSession
             : undefined;
-        const sessionId = resumeSession?.sessionId ?? `session-${Date.now()}`;
-        const logger = this.createSessionLogger(sessionId);
+        const sessionId = validateSessionId(resumeSession?.sessionId ?? `session-${Date.now()}`);
         const session = this.sessionFactory({
             baseDir: this.baseDir,
             config: configResult.config,
             token,
             runtime,
             sessionId,
-            logger,
             resumeSession,
             emitEvent: (event) => {
                 if ('state' in event) {
@@ -217,22 +217,37 @@ export class DesktopRuntime {
     }
 
     async loadLogs(payload: DesktopCommandMap['load_logs']['request']): Promise<LogLoadResult> {
-        const logPath = path.join(this.baseDir, 'logs', `${payload.sessionId}.jsonl`);
+        const logPath = resolveSessionLogPath(this.baseDir, payload.sessionId);
         if (!fs.existsSync(logPath)) {
             return {
                 ok: true,
                 path: logPath,
-                entries: []
+                entries: [],
+                warnings: []
             };
         }
+
+        const warnings: string[] = [];
+        const entries = fs.readFileSync(logPath, 'utf8')
+            .split(/\r?\n/)
+            .flatMap((line, index) => {
+                if (line.trim().length === 0) {
+                    return [];
+                }
+
+                try {
+                    return [JSON.parse(line)];
+                } catch {
+                    warnings.push(`Skipped invalid log line ${index + 1}.`);
+                    return [];
+                }
+            });
 
         return {
             ok: true,
             path: logPath,
-            entries: fs.readFileSync(logPath, 'utf8')
-                .split(/\r?\n/)
-                .filter((line) => line.trim().length > 0)
-                .map((line) => JSON.parse(line))
+            entries,
+            ...(warnings.length > 0 ? { warnings } : {})
         };
     }
 
@@ -247,21 +262,6 @@ export class DesktopRuntime {
         }
 
         return clearResumeSession(this.baseDir);
-    }
-
-    private createSessionLogger(sessionId: string): StructuredLogger {
-        return createStructuredLogger({
-            sinks: [
-                createFileSink(path.join(this.baseDir, 'logs', `${sessionId}.jsonl`)),
-                (entry) => this.publish({
-                    type: 'log_event_emitted',
-                    entry
-                })
-            ],
-            defaults: {
-                sessionId
-            }
-        });
     }
 
     private resolveConfigPaths() {
@@ -324,4 +324,25 @@ export class DesktopRuntime {
 
         this.emitEvent?.(event);
     }
+}
+
+export function validateSessionId(sessionId: string): string {
+    if (!SESSION_ID_PATTERN.test(sessionId)) {
+        throw new Error('Invalid session id.');
+    }
+
+    return sessionId;
+}
+
+export function resolveSessionLogPath(baseDir: string, sessionId: string): string {
+    const validSessionId = validateSessionId(sessionId);
+    const logsDir = path.resolve(baseDir, 'logs');
+    const logPath = path.resolve(logsDir, `${validSessionId}.jsonl`);
+
+    const relativePath = path.relative(logsDir, logPath);
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        throw new Error('Invalid session id.');
+    }
+
+    return logPath;
 }

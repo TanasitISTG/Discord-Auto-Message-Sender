@@ -16,6 +16,16 @@ export const DEFAULT_MESSAGE = 'Hello from your Discord bot!';
 const messageSchema = z.string().trim().min(1, 'Messages cannot be empty').max(2000, 'Discord messages are limited to 2000 characters');
 const messageGroupNameSchema = z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long');
 const messageListSchema = z.array(messageSchema).min(1, 'Each group must contain at least one message');
+function isValidClockTime(value: string): boolean {
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
+    if (!match) {
+        return false;
+    }
+
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
 function isValidTimeZone(value: string): boolean {
     try {
         new Intl.DateTimeFormat('en-US', { timeZone: value });
@@ -25,8 +35,8 @@ function isValidTimeZone(value: string): boolean {
     }
 }
 const quietHoursSchema = z.object({
-    start: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours start must use HH:MM'),
-    end: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours end must use HH:MM')
+    start: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours start must use HH:MM').refine(isValidClockTime, 'Quiet hours start must use a valid 24-hour time'),
+    end: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours end must use HH:MM').refine(isValidClockTime, 'Quiet hours end must use a valid 24-hour time')
 });
 const scheduleSchema = z.object({
     intervalSeconds: z.number().finite().min(0, 'Interval must be zero or greater'),
@@ -85,7 +95,7 @@ const rawAppChannelSchema = z.object({
     id: z.string().trim().regex(DISCORD_SNOWFLAKE_REGEX, 'Channel ID must be a valid Discord snowflake'),
     referrer: z.string().trim().url('Referrer must be a valid URL').optional(),
     messageGroup: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long').optional(),
-    schedule: scheduleSchema.partial().optional()
+    schedule: scheduleSchema.optional()
 });
 
 const rawAppConfigSchema = z.object({

@@ -43,5 +43,7 @@ test('dry run marks channels with missing groups as skipped', () => {
     });
 
     assert.equal(result.willSendMessages, false);
+    assert.equal(result.summary.selectedChannels, 0);
+    assert.equal(result.summary.skippedChannels, 1);
     assert.match(result.channels[0].skipReasons[0], /no messages/i);
 });

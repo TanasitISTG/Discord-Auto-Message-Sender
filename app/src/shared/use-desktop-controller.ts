@@ -508,7 +508,7 @@ export function useDesktopController() {
             try {
                 const nextState = await discardResumeSession();
                 setSenderState(nextState);
-                 setRecoveryState(null);
+                setRecoveryState(null);
                 setNotice('Saved checkpoint discarded.');
                 setSurfaceNotice('session', 'success', 'Checkpoint discarded.');
                 return nextState;
@@ -530,7 +530,11 @@ export function useDesktopController() {
             try {
                 const result = await loadLogs(sessionId);
                 setLogs(mergeLogsById(result.entries.slice().reverse()));
-                setSurfaceNotice('logs', 'success', `Loaded ${result.entries.length} log entr${result.entries.length === 1 ? 'y' : 'ies'} from disk.`);
+                if (result.warnings && result.warnings.length > 0) {
+                    setSurfaceNotice('logs', 'warning', 'Some log lines were skipped because they were invalid or incomplete.');
+                } else {
+                    setSurfaceNotice('logs', 'success', `Loaded ${result.entries.length} log entr${result.entries.length === 1 ? 'y' : 'ies'} from disk.`);
+                }
                 return result;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);

@@ -87,16 +87,17 @@ export async function runPreflight(config: AppConfig, options: PreflightOptions 
         : config.channels.map((channel) => ({
             channelId: channel.id,
             channelName: channel.name,
-            ok: false,
+            ok: tokenPresent,
+            skipped: tokenPresent,
             reason: tokenPresent ? 'Access check skipped.' : 'Missing token.'
         }));
 
-    if (channels.some((channel) => !channel.ok && channel.reason !== 'Access check skipped.')) {
+    if (channels.some((channel) => !channel.ok && !channel.skipped)) {
         issues.push('One or more channels failed access verification.');
     }
 
     return {
-        ok: configValid && tokenPresent && channels.every((channel) => channel.ok || channel.reason === 'Access check skipped.'),
+        ok: configValid && tokenPresent && channels.every((channel) => channel.ok || channel.skipped),
         checkedAt,
         configValid,
         tokenPresent,

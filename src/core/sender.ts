@@ -63,7 +63,7 @@ export interface SenderLifecycle {
     isStopping(): boolean;
     getStopReason(): string | null;
     onChannelEvent?(target: AppChannel, phase: 'started' | 'completed' | 'failed'): void;
-    onMessageSent?(target: AppChannel, message: string): void;
+    onMessageSent?(target: AppChannel, details: { template: string; rendered: string }): void;
     getRecentMessages?(target: AppChannel): string[];
     onRateLimit?(target: AppChannel, waitSeconds: number, consecutiveRateLimits: number): void;
     onChannelSuppressed?(target: AppChannel, details: { waitMs: number; suppressedUntil: string; reason: string }): void;
@@ -678,7 +678,6 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                     return;
                 }
             }
-            lifecycle?.onChannelRecovered?.(target);
         }
     }
 
@@ -748,7 +747,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                     lifecycle?.onChannelRecovered?.(target);
                     recoveringFromSuppression = false;
                 }
-                lifecycle?.onMessageSent?.(target, message);
+                lifecycle?.onMessageSent?.(target, {
+                    template: rawMessage,
+                    rendered: message
+                });
                 break;
             }
 
@@ -777,7 +779,6 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                     }
                     consecutiveRateLimitWaits = 0;
                     recoveringFromSuppression = true;
-                    lifecycle?.onChannelRecovered?.(target);
                     continue;
                 }
 

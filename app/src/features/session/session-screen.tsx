@@ -168,8 +168,8 @@ export function SessionScreen({
                                             <div className="font-medium text-foreground">{channel.channelName}</div>
                                             <div className="text-[11px] font-semibold tracking-tight text-muted-foreground mt-0.5">{channel.reason ?? 'Access verified.'}</div>
                                         </div>
-                                        <Badge tone={channel.ok ? 'success' : 'danger'}>
-                                            {channel.ok ? 'ok' : channel.status ?? 'fail'}
+                                        <Badge tone={channel.skipped ? 'neutral' : channel.ok ? 'success' : 'danger'}>
+                                            {channel.skipped ? 'skipped' : channel.ok ? 'ok' : channel.status ?? 'fail'}
                                         </Badge>
                                     </div>
                                 ))}

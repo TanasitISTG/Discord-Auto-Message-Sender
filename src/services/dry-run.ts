@@ -38,7 +38,7 @@ export function createDryRun(config: AppConfig, runtime: RuntimeOptions): DryRun
         willSendMessages: channels.some((channel) => channel.skipReasons.length === 0),
         channels,
         summary: {
-            selectedChannels: channels.length,
+            selectedChannels: channels.filter((channel) => channel.skipReasons.length === 0).length,
             skippedChannels,
             totalSampleMessages
         }

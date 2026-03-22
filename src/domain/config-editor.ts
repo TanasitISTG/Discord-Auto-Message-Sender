@@ -192,6 +192,9 @@ export function reorderGroupMessages(config: AppConfig, groupName: string, fromI
     const next = cloneConfig(config);
     ensureGroupExists(next, groupName);
     const messages = [...next.messageGroups[groupName]];
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= messages.length || toIndex >= messages.length) {
+        throw new Error(`Message index out of range for group '${groupName}'.`);
+    }
     const [message] = messages.splice(fromIndex, 1);
     messages.splice(toIndex, 0, message);
     next.messageGroups[groupName] = messages;

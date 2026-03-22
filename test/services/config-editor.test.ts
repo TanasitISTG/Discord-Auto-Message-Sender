@@ -31,3 +31,10 @@ test('config editor can reorder messages inside a group', () => {
     const reordered = reorderGroupMessages(createDefaultAppConfig(), 'default', 0, 0);
     assert.deepEqual(reordered.messageGroups.default, ['Hello from your Discord bot!']);
 });
+
+test('config editor rejects out-of-range message reorder indices', () => {
+    assert.throws(
+        () => reorderGroupMessages(createDefaultAppConfig(), 'default', 0, 1),
+        /Message index out of range/
+    );
+});

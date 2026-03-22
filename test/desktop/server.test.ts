@@ -117,6 +117,10 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
         const discardedState = discardResponse.result as { resumeSession?: unknown; schemaVersion: number };
         assert.equal(discardedState.schemaVersion, STATE_SCHEMA_VERSION);
         assert.equal(discardedState.resumeSession, undefined);
+
+        const invalidCommandResponse = await request('__proto__', {});
+        assert.equal(invalidCommandResponse.ok, false);
+        assert.match(invalidCommandResponse.error ?? '', /Unsupported desktop command/);
     } finally {
         child.kill();
     }

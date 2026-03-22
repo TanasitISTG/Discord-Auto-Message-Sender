@@ -134,3 +134,48 @@ test('parseAppConfig reports invalid message paths using the raw group key from 
     }), (error) => error instanceof ZodError
         && error.issues.some((issue) => issue.path.join('.') === 'messageGroups. default .0'));
 });
+
+test('parseAppConfig rejects invalid quiet-hours clock values', () => {
+    assert.throws(() => parseAppConfig({
+        userAgent: 'UA',
+        channels: [
+            {
+                name: 'general',
+                id: '123456789012345678',
+                referrer: 'https://discord.com/channels/@me/123456789012345678',
+                messageGroup: 'default',
+                schedule: {
+                    intervalSeconds: 5,
+                    randomMarginSeconds: 2,
+                    quietHours: {
+                        start: '99:99',
+                        end: '06:00'
+                    }
+                }
+            }
+        ],
+        messageGroups: {
+            default: ['Hello!']
+        }
+    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('valid 24-hour time')));
+});
+
+test('parseAppConfig rejects partially specified schedules immediately', () => {
+    assert.throws(() => parseAppConfig({
+        userAgent: 'UA',
+        channels: [
+            {
+                name: 'general',
+                id: '123456789012345678',
+                referrer: 'https://discord.com/channels/@me/123456789012345678',
+                messageGroup: 'default',
+                schedule: {
+                    intervalSeconds: 5
+                }
+            }
+        ],
+        messageGroups: {
+            default: ['Hello!']
+        }
+    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.path.join('.') === 'channels.0.schedule.randomMarginSeconds'));
+});

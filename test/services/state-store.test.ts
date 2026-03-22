@@ -131,3 +131,27 @@ test('loadSenderState migrates legacy versionless state files to the current sch
     assert.match(state.warning ?? '', /migrated/i);
     assert.equal(raw.schemaVersion, STATE_SCHEMA_VERSION);
 });
+
+test('loadSenderState keeps newer schema files read-only while exposing a warning', () => {
+    const tempDir = createTempDir();
+    const filePath = resolveStateFile(tempDir);
+    const original = {
+        schemaVersion: STATE_SCHEMA_VERSION + 1,
+        summaries: [],
+        recentFailures: [],
+        recentMessageHistory: {
+            '123': ['hello']
+        },
+        unknownFutureField: {
+            preserved: true
+        }
+    };
+    fs.writeFileSync(filePath, JSON.stringify(original, null, 2), 'utf8');
+
+    const state = loadSenderState(tempDir);
+    const rawAfterLoad = JSON.parse(fs.readFileSync(filePath, 'utf8')) as typeof original;
+
+    assert.equal(state.schemaVersion, STATE_SCHEMA_VERSION);
+    assert.match(state.warning ?? '', /newer app version/i);
+    assert.deepEqual(rawAfterLoad, original);
+});

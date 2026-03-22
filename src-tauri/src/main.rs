@@ -35,6 +35,7 @@ const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
     "desktop-sidecar"
 };
 const LEGACY_RUNTIME_FILES: [&str; 4] = [".env", "config.json", "messages.json", ".sender-state.json"];
+const SESSION_ID_MAX_LEN: usize = 128;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,6 +83,8 @@ struct LogEntry {
     message: String,
     meta: Option<HashMap<String, Value>>,
     session_id: Option<String>,
+    segment_id: Option<String>,
+    segment_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -161,6 +164,10 @@ struct SessionSnapshot {
     status: String,
     started_at: Option<String>,
     updated_at: String,
+    current_segment_id: Option<String>,
+    current_segment_kind: Option<String>,
+    current_segment_started_at: Option<String>,
+    resumed_from_checkpoint_at: Option<String>,
     active_channels: Vec<String>,
     completed_channels: Vec<String>,
     failed_channels: Vec<String>,
@@ -180,6 +187,7 @@ struct ChannelPreflightResult {
     channel_id: String,
     channel_name: String,
     ok: bool,
+    skipped: Option<bool>,
     reason: Option<String>,
     status: Option<u16>,
 }
@@ -286,6 +294,7 @@ struct LogLoadResult {
     ok: bool,
     path: String,
     entries: Vec<LogEntry>,
+    warnings: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -492,6 +501,46 @@ fn config_path(paths: &RuntimePaths) -> PathBuf {
 
 fn sender_state_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(".sender-state.json")
+}
+
+fn validate_session_id(session_id: &str) -> Result<&str, String> {
+    if session_id.is_empty() || session_id.len() > SESSION_ID_MAX_LEN {
+        return Err("Invalid session id.".to_string());
+    }
+
+    let mut chars = session_id.chars();
+    let Some(first) = chars.next() else {
+        return Err("Invalid session id.".to_string());
+    };
+
+    if !first.is_ascii_alphanumeric() {
+        return Err("Invalid session id.".to_string());
+    }
+
+    if !chars.all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-') {
+        return Err("Invalid session id.".to_string());
+    }
+
+    Ok(session_id)
+}
+
+fn resolve_session_log_path(paths: &RuntimePaths, session_id: &str) -> Result<PathBuf, String> {
+    let valid_session_id = validate_session_id(session_id)?;
+    let log_path = paths.logs_dir.join(format!("{valid_session_id}.jsonl"));
+    let canonical_logs_dir = paths
+        .logs_dir
+        .canonicalize()
+        .unwrap_or_else(|_| paths.logs_dir.clone());
+    let canonical_parent = log_path
+        .parent()
+        .map(|parent| parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf()))
+        .ok_or_else(|| "Invalid session id.".to_string())?;
+
+    if !canonical_parent.starts_with(&canonical_logs_dir) {
+        return Err("Invalid session id.".to_string());
+    }
+
+    Ok(log_path)
 }
 
 fn support_bundle_dir(paths: &RuntimePaths) -> PathBuf {
@@ -1597,9 +1646,8 @@ fn reset_runtime_state(app: AppHandle) -> Result<ResetRuntimeStateResult, String
 
 #[tauri::command]
 fn open_log_file(app: AppHandle, request: OpenLogFileRequest) -> Result<String, String> {
-    let log_path = runtime_paths(&app)?
-        .logs_dir
-        .join(format!("{}.jsonl", request.session_id));
+    let paths = runtime_paths(&app)?;
+    let log_path = resolve_session_log_path(&paths, &request.session_id)?;
     open_path_in_file_manager(&log_path)
 }
 

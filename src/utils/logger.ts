@@ -7,6 +7,12 @@ type LogColor = 'green' | 'red' | 'yellow' | 'blue' | 'cyan';
 type LogMeta = Record<string, string | number | boolean | undefined>;
 type LogSink = (entry: LogEntry) => void;
 
+export interface BufferedFileWriter {
+    sink: LogSink;
+    flush(): Promise<void>;
+    close(): Promise<void>;
+}
+
 export interface StructuredLogger {
     emit(entry: Omit<LogEntry, 'id' | 'timestamp'> & { timestamp?: string }): LogEntry;
     child(defaults: Partial<Pick<LogEntry, 'context' | 'sessionId' | 'segmentId' | 'segmentKind'>>): StructuredLogger;
@@ -16,6 +22,7 @@ export interface StructuredLogger {
 export interface StructuredLoggerOptions {
     sinks?: LogSink[];
     defaults?: Partial<Pick<LogEntry, 'context' | 'sessionId' | 'segmentId' | 'segmentKind'>>;
+    maxEntries?: number;
 }
 
 function createEntryId(): string {
@@ -79,10 +86,130 @@ export function createFileSink(filePath: string): LogSink {
     };
 }
 
+export function createBufferedFileWriter(filePath: string): BufferedFileWriter {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    const stream = fs.createWriteStream(filePath, {
+        flags: 'a',
+        encoding: 'utf8'
+    });
+
+    const queue: string[] = [];
+    let writeInFlight = false;
+    let writerFailed = false;
+    let reportedFailure = false;
+    let destroyed = false;
+    let waiters: Array<() => void> = [];
+
+    function reportFailure(error: unknown) {
+        if (reportedFailure) {
+            return;
+        }
+
+        reportedFailure = true;
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Buffered log writer failed for '${filePath}': ${message}`);
+    }
+
+    function releaseWaiters() {
+        const next = waiters;
+        waiters = [];
+        for (const resolve of next) {
+            resolve();
+        }
+    }
+
+    function waitForIdle() {
+        if (!writeInFlight && queue.length === 0) {
+            return Promise.resolve();
+        }
+
+        return new Promise<void>((resolve) => {
+            waiters.push(resolve);
+        });
+    }
+
+    async function drainQueue() {
+        if (writeInFlight || writerFailed || destroyed) {
+            return;
+        }
+
+        writeInFlight = true;
+
+        try {
+            while (queue.length > 0 && !writerFailed && !destroyed) {
+                const chunk = queue.shift()!;
+                const canContinue = stream.write(chunk);
+                if (!canContinue) {
+                    await new Promise<void>((resolve, reject) => {
+                        const onDrain = () => {
+                            cleanup();
+                            resolve();
+                        };
+                        const onError = (error: Error) => {
+                            cleanup();
+                            reject(error);
+                        };
+                        const cleanup = () => {
+                            stream.off('drain', onDrain);
+                            stream.off('error', onError);
+                        };
+
+                        stream.once('drain', onDrain);
+                        stream.once('error', onError);
+                    });
+                }
+            }
+        } catch (error) {
+            writerFailed = true;
+            queue.length = 0;
+            reportFailure(error);
+        } finally {
+            writeInFlight = false;
+            releaseWaiters();
+        }
+    }
+
+    stream.on('error', (error) => {
+        writerFailed = true;
+        queue.length = 0;
+        reportFailure(error);
+        releaseWaiters();
+    });
+
+    return {
+        sink(entry) {
+            if (writerFailed || destroyed) {
+                return;
+            }
+
+            queue.push(`${JSON.stringify(entry)}\n`);
+            void drainQueue();
+        },
+        async flush() {
+            await drainQueue();
+            await waitForIdle();
+        },
+        async close() {
+            if (destroyed) {
+                return;
+            }
+
+            await drainQueue();
+            await waitForIdle();
+            await new Promise<void>((resolve) => {
+                stream.end(() => resolve());
+            });
+            destroyed = true;
+        }
+    };
+}
+
 export function createStructuredLogger(options: StructuredLoggerOptions = {}): StructuredLogger {
     const entries: LogEntry[] = [];
     const sinks = options.sinks ?? [];
     const defaults = options.defaults ?? {};
+    const maxEntries = options.maxEntries ?? 1000;
 
     return {
         emit(entry) {
@@ -98,7 +225,12 @@ export function createStructuredLogger(options: StructuredLoggerOptions = {}): S
                 segmentKind: entry.segmentKind ?? defaults.segmentKind
             };
 
-            entries.push(nextEntry);
+            if (maxEntries > 0) {
+                entries.push(nextEntry);
+                if (entries.length > maxEntries) {
+                    entries.splice(0, entries.length - maxEntries);
+                }
+            }
             for (const sink of sinks) {
                 sink(nextEntry);
             }
@@ -111,7 +243,8 @@ export function createStructuredLogger(options: StructuredLoggerOptions = {}): S
                 defaults: {
                     ...defaults,
                     ...childDefaults
-                }
+                },
+                maxEntries
             });
         },
         getEntries() {

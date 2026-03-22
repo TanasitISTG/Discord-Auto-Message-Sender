@@ -267,6 +267,19 @@ test('pickNextMessage preserves duplicate weighting among remaining unsent messa
     assert.equal(forcedRemainingPick, 'B');
 });
 
+test('pickNextMessage filters recent history using raw template keys', () => {
+    const sentCache = new Set<string>();
+
+    const next = pickNextMessage(
+        ['Hello {channel}', 'Backup'],
+        sentCache,
+        () => 0,
+        ['Hello {channel}']
+    );
+
+    assert.equal(next, 'Backup');
+});
+
 test('getQuietHoursDelayMs returns remaining quiet-time for same-day windows', () => {
     const delayMs = getQuietHoursDelayMs({
         ...channel,
@@ -375,6 +388,7 @@ test('runChannel suppresses a channel after repeated consecutive rate limits and
     let sends = 0;
     const sleepCalls: number[] = [];
     const suppressed: string[] = [];
+    let recovered = 0;
 
     await runChannel({
         target: channel,
@@ -406,11 +420,15 @@ test('runChannel suppresses a channel after repeated consecutive rate limits and
             getStopReason: () => null,
             onChannelSuppressed: (_target, details) => {
                 suppressed.push(details.suppressedUntil);
+            },
+            onChannelRecovered: () => {
+                recovered += 1;
             }
         }
     });
 
     assert.equal(sends, 4);
     assert.equal(suppressed.length, 1);
+    assert.equal(recovered, 1);
     assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1500 + 1500 + getSuppressionDelayMs(1, 3));
 });
