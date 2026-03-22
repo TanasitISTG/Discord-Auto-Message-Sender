@@ -114,12 +114,12 @@ export function DesktopSetupCard({
                 </div>
 
                 {setup?.warning ? (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100 shadow-sm backdrop-blur-sm">
                         {setup.warning}
                     </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-border bg-background/30 p-4">
+                <div className="rounded-xl border border-border/50 bg-background/50 p-4 transition-colors hover:bg-card/60">
                     <button
                         className="flex w-full items-center justify-between gap-3 text-left"
                         onClick={onToggleRuntimePaths}
@@ -146,7 +146,7 @@ export function DesktopSetupCard({
                                     <DetailBlock label="Logs dir" value={setup.logsDir} />
                                 </>
                             ) : (
-                                <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                                <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-4 text-sm text-muted-foreground text-center">
                                     Loading desktop setup details...
                                 </div>
                             )}

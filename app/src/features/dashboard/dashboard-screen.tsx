@@ -70,24 +70,24 @@ export function DashboardScreen({
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {appReadiness.blockingIssues.map((issue) => (
-                            <div key={issue} className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                            <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-sm backdrop-blur-sm">
                                 <div className="font-medium">{describeBlockingIssue(issue)}</div>
                                 {(issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid') ? (
-                                    <Button size="sm" className="mt-3" onClick={onOpenConfig}>
+                                    <Button size="sm" variant="secondary" className="mt-3" onClick={onOpenConfig}>
                                         Open Config
                                     </Button>
                                 ) : null}
                             </div>
                         ))}
                         {runtimeMessage ? (
-                            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-sm backdrop-blur-sm">
                                 {runtimeMessage}
                             </div>
                         ) : null}
                         {appReadiness.warnings
                             .filter((warning) => warning !== runtimeMessage)
                             .map((warning) => (
-                                <div key={warning} className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+                                <div key={warning} className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
                                     {warning}
                                 </div>
                             ))}
@@ -140,27 +140,27 @@ export function DashboardScreen({
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {recoveryState ? (
-                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
-                            <div className="font-medium">Runtime interrupted during an active session</div>
-                            <div className="mt-1 text-red-50/80">{recoveryState.message}</div>
-                            <div className="mt-2 text-xs text-red-50/70">
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-sm backdrop-blur-sm">
+                            <div className="font-medium text-red-50">Runtime interrupted during an active session</div>
+                            <div className="mt-1 leading-relaxed text-red-50/80">{recoveryState.message}</div>
+                            <div className="mt-2 text-[11px] text-red-50/70">
                                 Interrupted {new Date(recoveryState.interruptedAt).toLocaleString()}
                             </div>
                         </div>
                     ) : null}
                     {senderState.resumeSession ? (
-                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm">
-                            <div className="font-medium text-cyan-100">Resume checkpoint available</div>
-                            <div className="mt-1 text-cyan-50/80">
+                        <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm shadow-sm backdrop-blur-sm">
+                            <div className="font-semibold tracking-tight text-cyan-100">Resume checkpoint available</div>
+                            <div className="mt-1 text-xs text-primary/80">
                                 Updated {new Date(senderState.resumeSession.updatedAt).toLocaleString()}
                             </div>
-                            <div className="mt-2 text-cyan-50/80">
+                            <div className="mt-3 text-cyan-50/90">
                                 Next start: {nextStartMode}
                             </div>
-                            <div className="mt-2 text-cyan-50/80">
+                            <div className="mt-1 text-cyan-50/90">
                                 Runtime: {senderState.resumeSession.runtime.numMessages === 0 ? 'infinite' : senderState.resumeSession.runtime.numMessages} messages, {senderState.resumeSession.runtime.baseWaitSeconds}s base wait, {senderState.resumeSession.runtime.marginSeconds}s margin
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-3">
+                            <div className="mt-5 flex flex-wrap gap-2.5">
                                 <Button
                                     size="sm"
                                     disabled={hasActiveSession || !appReadiness.canStartSession}
@@ -190,15 +190,15 @@ export function DashboardScreen({
                     )}
 
                     {healthEntries.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">All tracked channels are healthy.</div>
+                        <div className="text-sm text-muted-foreground pb-1">All tracked channels are healthy.</div>
                     ) : healthEntries.map((entry) => (
-                        <div key={entry.channelId} className="rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                        <div key={entry.channelId} className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm transition-colors hover:bg-card/80">
                             <div className="flex items-center justify-between gap-3">
-                                <div className="font-medium">{entry.channelName}</div>
-                                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{entry.status}</div>
+                                <div className="font-medium text-foreground">{entry.channelName}</div>
+                                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500/90">{entry.status}</div>
                             </div>
-                            <div className="mt-2 text-muted-foreground">{entry.lastReason ?? 'No reason recorded.'}</div>
-                            <div className="mt-2 text-xs text-muted-foreground">
+                            <div className="mt-2 leading-relaxed text-muted-foreground">{entry.lastReason ?? 'No reason recorded.'}</div>
+                            <div className="mt-2 text-[11px] text-muted-foreground/70">
                                 {entry.suppressedUntil ? `Suppressed until ${new Date(entry.suppressedUntil).toLocaleString()}` : `${entry.consecutiveRateLimits} recent rate limits, ${entry.consecutiveFailures} recent failures`}
                             </div>
                         </div>
@@ -213,18 +213,18 @@ export function DashboardScreen({
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {senderState.summaries.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No historical sessions recorded yet.</div>
+                        <div className="text-sm text-muted-foreground pb-1">No historical sessions recorded yet.</div>
                     ) : senderState.summaries.map((summary) => (
-                        <div key={`${summary.startedAt}-${summary.finishedAt ?? 'running'}`} className="grid gap-3 rounded-2xl border border-border bg-background/30 p-4 md:grid-cols-[1.3fr_1fr_1fr_1fr]">
+                        <div key={`${summary.startedAt}-${summary.finishedAt ?? 'running'}`} className="grid gap-3 rounded-xl border border-border/50 bg-background/50 p-4 transition-colors hover:bg-card/80 md:grid-cols-[1.3fr_1fr_1fr_1fr]">
                             <div>
-                                <div className="font-medium">{new Date(summary.startedAt).toLocaleString()}</div>
+                                <div className="font-medium text-foreground">{new Date(summary.startedAt).toLocaleString()}</div>
                                 <div className="text-xs text-muted-foreground">
                                     {summary.finishedAt ? `Finished ${new Date(summary.finishedAt).toLocaleString()}` : 'In progress'}
                                 </div>
                             </div>
                             <div className="text-sm text-muted-foreground">{summary.sentMessages} messages sent</div>
-                            <div className="text-sm text-muted-foreground">{summary.completedChannels}/{summary.totalChannels} channels completed</div>
-                            <div className="text-sm text-muted-foreground">{summary.stopReason ?? 'Completed without stop reason'}</div>
+                            <div className="text-sm text-muted-foreground">{summary.completedChannels}/{summary.totalChannels} channels</div>
+                            <div className="text-sm text-muted-foreground truncate" title={summary.stopReason ?? 'Completed without stop reason'}>{summary.stopReason ?? 'Completed'}</div>
                         </div>
                     ))}
                 </CardContent>

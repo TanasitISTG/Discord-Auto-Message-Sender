@@ -82,19 +82,19 @@ export function SessionScreen({
                     {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
 
                     {recoveryState ? (
-                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
-                            <div className="font-semibold">Runtime interrupted</div>
-                            <div className="mt-1 text-red-50/80">{recoveryState.message}</div>
-                            <div className="mt-2 text-xs text-red-50/70">
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-sm backdrop-blur-sm">
+                            <div className="font-semibold tracking-tight">Runtime interrupted</div>
+                            <div className="mt-1 text-red-50/80 leading-relaxed">{recoveryState.message}</div>
+                            <div className="mt-3 text-[11px] font-semibold tracking-tight text-red-50/70">
                                 Interrupted {new Date(recoveryState.interruptedAt).toLocaleString()}
                             </div>
                         </div>
                     ) : null}
 
                     {suppressedEntries.length > 0 ? (
-                        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-                            <div className="font-semibold">Waiting on cooldown</div>
-                            <div className="mt-1 text-amber-50/80">
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-sm backdrop-blur-sm">
+                            <div className="font-semibold tracking-tight">Waiting on cooldown</div>
+                            <div className="mt-1 text-amber-50/80 leading-relaxed">
                                 {suppressedEntries.length} channel{suppressedEntries.length === 1 ? '' : 's'} currently suppressed and waiting for the next retry window.
                             </div>
                         </div>
@@ -124,19 +124,19 @@ export function SessionScreen({
                     </div>
 
                     {appReadiness.blockingIssues.length > 0 || runtimeMessage ? (
-                        <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4 text-sm">
+                        <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm shadow-sm backdrop-blur-sm">
                             {appReadiness.blockingIssues.map((issue) => (
-                                <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-amber-100">
-                                    <div>{describeBlockingIssue(issue)}</div>
+                                <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-sm">
+                                    <div className="leading-relaxed">{describeBlockingIssue(issue)}</div>
                                     {(issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid') ? (
-                                        <Button size="sm" className="mt-3" onClick={onOpenConfig}>
+                                        <Button size="sm" className="mt-4" onClick={onOpenConfig}>
                                             Open Config
                                         </Button>
                                     ) : null}
                                 </div>
                             ))}
                             {runtimeMessage ? (
-                                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-100">
+                                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-100 leading-relaxed shadow-sm">
                                     {runtimeMessage}
                                 </div>
                             ) : null}
@@ -144,29 +144,29 @@ export function SessionScreen({
                     ) : null}
 
                     {preflight ? (
-                        <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4">
+                        <div className="space-y-4 rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm backdrop-blur-sm">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <div className="text-sm font-semibold">Preflight Result</div>
-                                    <div className="text-xs text-muted-foreground">{new Date(preflight.checkedAt).toLocaleString()}</div>
+                                    <div className="text-sm font-semibold tracking-tight">Preflight Result</div>
+                                    <div className="text-[11px] font-semibold tracking-tight text-muted-foreground mt-0.5">{new Date(preflight.checkedAt).toLocaleString()}</div>
                                 </div>
                                 <Badge tone={preflight.ok ? 'success' : 'danger'}>{preflight.ok ? 'pass' : 'fail'}</Badge>
                             </div>
 
                             {preflight.issues.length > 0 ? (
-                                <div className="space-y-2 text-sm text-amber-300">
+                                <div className="space-y-2 text-xs leading-relaxed text-amber-300">
                                     {preflight.issues.map((issue) => <div key={issue}>{issue}</div>)}
                                 </div>
                             ) : (
-                                <div className="text-sm text-muted-foreground">No blocking issues.</div>
+                                <div className="text-xs leading-relaxed text-muted-foreground">No blocking issues.</div>
                             )}
 
-                            <div className="space-y-2">
+                            <div className="grid gap-2">
                                 {preflight.channels.map((channel) => (
-                                    <div key={channel.channelId} className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2 text-sm">
+                                    <div key={channel.channelId} className="flex items-center justify-between rounded-xl border border-border/60 bg-background/40 shadow-inner-glow px-4 py-3 text-sm">
                                         <div>
-                                            <div>{channel.channelName}</div>
-                                            <div className="text-xs text-muted-foreground">{channel.reason ?? 'Access verified.'}</div>
+                                            <div className="font-medium text-foreground">{channel.channelName}</div>
+                                            <div className="text-[11px] font-semibold tracking-tight text-muted-foreground mt-0.5">{channel.reason ?? 'Access verified.'}</div>
                                         </div>
                                         <Badge tone={channel.ok ? 'success' : 'danger'}>
                                             {channel.ok ? 'ok' : channel.status ?? 'fail'}
@@ -178,15 +178,15 @@ export function SessionScreen({
                     ) : null}
 
                     {resumeSession && !session ? (
-                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
-                            <div className="font-semibold">Interrupted session available</div>
-                            <div className="mt-1 text-cyan-50/80">
+                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50 shadow-sm backdrop-blur-sm">
+                            <div className="font-semibold tracking-tight">Interrupted session available</div>
+                            <div className="mt-1 text-[11px] font-semibold tracking-tight text-cyan-50/70">
                                 Last checkpoint: {new Date(resumeSession.updatedAt).toLocaleString()}
                             </div>
-                            <div className="mt-1 text-cyan-50/80">
+                            <div className="mt-3 text-cyan-50/80 leading-relaxed">
                                 Start will continue with {resumeSession.runtime.numMessages === 0 ? 'infinite' : resumeSession.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-3">
+                            <div className="mt-5 flex flex-wrap gap-3">
                                 <Button size="sm" onClick={onStart} disabled={!appReadiness.canStartSession}>
                                     <Play className="mr-2 h-4 w-4" />
                                     Resume Session
@@ -215,9 +215,9 @@ export function SessionScreen({
                         <StateRow label="Peak pacing" value={session?.pacing ? `${session.pacing.maxRequestIntervalMs} ms` : 'Baseline'} />
                         <StateRow label="Rate-limit count" value={String(session?.pacing?.recentRateLimitCount ?? 0)} />
                         {session?.summary ? (
-                            <div className="rounded-xl border border-border bg-background/40 p-3">
-                                <div className="mb-2 text-sm font-semibold">Final Summary</div>
-                                <div className="space-y-2 text-muted-foreground">
+                            <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-sm mt-2">
+                                <div className="mb-2 text-sm font-semibold tracking-tight">Final Summary</div>
+                                <div className="space-y-2 text-muted-foreground leading-relaxed">
                                     <div>{session.summary.completedChannels}/{session.summary.totalChannels} channels completed</div>
                                     <div>{session.summary.sentMessages} messages sent</div>
                                     <div>{session.summary.rateLimitEvents ?? 0} rate-limit events</div>
@@ -225,12 +225,12 @@ export function SessionScreen({
                             </div>
                         ) : null}
                         {session?.stopReason ? (
-                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-red-200">
-                                <div className="mb-1 flex items-center gap-2 font-medium">
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-200 shadow-sm mt-2">
+                                <div className="mb-2 flex items-center gap-2 font-medium tracking-tight">
                                     <AlertCircle className="h-4 w-4" />
                                     Stop reason
                                 </div>
-                                <div>{session.stopReason}</div>
+                                <div className="leading-relaxed">{session.stopReason}</div>
                             </div>
                         ) : null}
                     </CardContent>
@@ -245,15 +245,15 @@ export function SessionScreen({
                         {healthEntries.length === 0 ? (
                             <div className="text-sm text-muted-foreground">All tracked channels are healthy.</div>
                         ) : healthEntries.map((entry) => (
-                            <div key={entry.channelId} className="rounded-xl border border-border bg-background/40 p-3 text-sm">
+                            <div key={entry.channelId} className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm shadow-sm transition-colors hover:bg-card/60">
                                 <div className="flex items-center justify-between gap-3">
-                                    <div className="font-medium">{entry.channelName}</div>
+                                    <div className="font-medium text-foreground">{entry.channelName}</div>
                                     <Badge tone={entry.status === 'suppressed' ? 'warning' : entry.status === 'failed' ? 'danger' : 'neutral'}>
                                         {entry.status}
                                     </Badge>
                                 </div>
-                                <div className="mt-2 text-muted-foreground">{entry.lastReason ?? 'No reason recorded.'}</div>
-                                <div className="mt-2 text-xs text-muted-foreground">
+                                <div className="mt-3 text-muted-foreground leading-relaxed">{entry.lastReason ?? 'No reason recorded.'}</div>
+                                <div className="mt-3 text-[11px] font-semibold tracking-tight text-muted-foreground uppercase">
                                     {entry.suppressedUntil ? `Suppressed until ${new Date(entry.suppressedUntil).toLocaleString()}` : `${entry.consecutiveRateLimits} rate limits, ${entry.consecutiveFailures} failures`}
                                 </div>
                             </div>

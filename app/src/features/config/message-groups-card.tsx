@@ -36,20 +36,20 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                             {groupEntries.map(([groupName, messages]) => (
                                 <button
                                     key={groupName}
-                                    className={`rounded-xl border p-3 text-left transition ${
+                                    className={`rounded-xl border p-3 text-left transition-all ${
                                         draft.state.selectedGroupName === groupName
-                                            ? 'border-primary/40 bg-primary/10'
-                                            : 'border-border bg-background/30 hover:border-border/80 hover:bg-accent/40'
+                                            ? 'border-primary/50 bg-primary/10 shadow-glow-sm'
+                                            : 'border-border/50 bg-background/50 hover:border-border/80 hover:bg-accent/50'
                                     }`}
                                     onClick={() => draft.setSelectedGroup(groupName)}
                                 >
-                                    <div className="font-medium">{groupName}</div>
-                                    <div className="text-xs text-muted-foreground">{messages.length} messages</div>
+                                    <div className="font-medium text-foreground">{groupName}</div>
+                                    <div className="text-[11px] font-semibold tracking-tight text-muted-foreground mt-0.5">{messages.length} messages</div>
                                 </button>
                             ))}
                         </div>
 
-                        <div className="space-y-3 rounded-2xl border border-border bg-background/30 p-4">
+                        <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 shadow-sm">
                             <Field label="Selected group name">
                                 <Input value={draft.state.selectedGroupName} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.renameGroup(event.target.value)} />
                             </Field>
@@ -67,9 +67,9 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
 
                         <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
                             {draft.selectedGroupMessages.map((message, index) => (
-                                <div key={`${draft.state.selectedGroupName}-${index}`} className="rounded-2xl border border-border bg-background/30 p-3">
+                                <div key={`${draft.state.selectedGroupName}-${index}`} className="rounded-xl border border-border/50 bg-background/50 p-3 shadow-sm transition-colors hover:bg-card/60">
                                     <div className="mb-2 flex items-center justify-between gap-2">
-                                        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Message {index + 1}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Message {index + 1}</span>
                                         <div className="flex gap-2">
                                             <Button variant="ghost" onClick={() => draft.moveMessage(draft.state.selectedGroupName, index, -1)} disabled={index === 0}>
                                                 <ArrowUp className="h-4 w-4" />
@@ -88,7 +88,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                         </div>
                     </>
                 ) : (
-                    <div className="rounded-2xl border border-dashed border-border bg-background/20 p-6 text-sm text-muted-foreground">
+                    <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-6 text-sm text-center text-muted-foreground">
                         Create a message group before editing reusable message sets.
                     </div>
                 )}

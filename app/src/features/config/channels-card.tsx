@@ -36,10 +36,10 @@ export function ChannelsCard({
                     ) : channels.map((channel) => (
                         <button
                             key={channel.id}
-                            className={`w-full rounded-xl border p-3 text-left transition ${
+                            className={`w-full rounded-xl border p-3 text-left transition-all ${
                                 selectedChannelId === channel.id
-                                    ? 'border-primary/40 bg-primary/10'
-                                    : 'border-border bg-background/30 hover:border-border/80 hover:bg-accent/40'
+                                    ? 'border-primary/50 bg-primary/10 shadow-glow-sm'
+                                    : 'border-border/50 bg-background/50 hover:border-border/80 hover:bg-accent/50'
                             }`}
                             onClick={() => onSelectChannel(channel.id)}
                         >
