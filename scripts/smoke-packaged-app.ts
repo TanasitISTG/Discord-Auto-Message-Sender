@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { spawn, spawnSync } from 'child_process';
 
-const rootDir = path.resolve(process.cwd());
+const rootDir = path.resolve(import.meta.dir, '..');
 const executablePath = path.join(rootDir, 'src-tauri', 'target', 'release', process.platform === 'win32' ? 'discord-auto-message-sender.exe' : 'discord-auto-message-sender');
 const diagnosticsFlag = '--print-release-diagnostics-json';
 const exportSupportBundleFlag = '--export-support-bundle-json';

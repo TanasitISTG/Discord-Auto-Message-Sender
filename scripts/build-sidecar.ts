@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const rootDir = path.resolve(process.cwd());
+const rootDir = path.resolve(import.meta.dir, '..');
 const outputDir = path.join(rootDir, 'src-tauri', 'resources', 'sidecar');
 const outputFile = path.join(outputDir, process.platform === 'win32' ? 'desktop-sidecar.exe' : 'desktop-sidecar');
 
