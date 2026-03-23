@@ -2,6 +2,7 @@ import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { DesktopConfirmDialog } from '../../app/src/shared/desktop-confirm-dialog';
 import { useDesktopController } from '../../app/src/shared/use-desktop-controller';
 
 const desktopMock = vi.hoisted(() => {
@@ -136,6 +137,14 @@ const desktopMock = vi.hoisted(() => {
 
 vi.mock('../../app/src/lib/desktop', () => desktopMock.mocks);
 vi.mock('@/lib/desktop', () => desktopMock.mocks);
+const toastMock = vi.hoisted(() => ({
+    showSuccessToast: vi.fn(),
+    showWarningToast: vi.fn(),
+    showErrorToast: vi.fn(),
+    showInfoToast: vi.fn()
+}));
+vi.mock('../../app/src/shared/toast', () => toastMock);
+vi.mock('@/shared/toast', () => toastMock);
 
 function resetDesktopState() {
     desktopMock.state.session = null;
@@ -192,6 +201,12 @@ function Harness() {
             <button onClick={() => void controller.loadCurrentLogs()}>load logs</button>
             <button onClick={() => void controller.exportSupportBundle()}>export bundle</button>
             <button onClick={() => void controller.resetRuntimeState()}>reset runtime</button>
+            <DesktopConfirmDialog
+                dialog={controller.confirmDialog}
+                pending={controller.confirmDialogPending}
+                onClose={controller.closeConfirmation}
+                onConfirm={controller.confirmCurrentDialog}
+            />
         </div>
     );
 }
@@ -222,7 +237,6 @@ test('desktop controller reports the exported support bundle path back to the UI
 test('desktop controller refreshes sender state and clears logs after a runtime reset', async () => {
     resetDesktopState();
     const user = userEvent.setup();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<Harness />);
 
@@ -230,14 +244,13 @@ test('desktop controller refreshes sender state and clears logs after a runtime 
     await screen.findByText('logs:1');
 
     await user.click(screen.getByRole('button', { name: 'reset runtime' }));
+    await user.click(await screen.findByRole('button', { name: 'Reset Runtime State' }));
 
     await waitFor(() => {
         expect(desktopMock.mocks.resetRuntimeState).toHaveBeenCalledTimes(1);
     });
     await screen.findByText('summaries:0');
     await screen.findByText('logs:0');
-
-    confirmSpy.mockRestore();
 });
 
 test('desktop controller deduplicates repeated live log events by entry id', async () => {
@@ -266,4 +279,16 @@ test('desktop controller deduplicates repeated live log events by entry id', asy
     });
 
     await screen.findByText('logs:1');
+});
+
+test('desktop controller opens a confirmation dialog instead of calling window.confirm', async () => {
+    resetDesktopState();
+    const user = userEvent.setup();
+
+    render(<Harness />);
+
+    await user.click(screen.getByRole('button', { name: 'reset runtime' }));
+
+    await screen.findByRole('alertdialog');
+    expect(desktopMock.mocks.resetRuntimeState).not.toHaveBeenCalled();
 });

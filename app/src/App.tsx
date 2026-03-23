@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Play, Send, Shuffle, Square, TimerReset } from 'lucide-react';
+import { Toaster } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfigScreen } from '@/features/config/config-screen';
@@ -8,6 +9,7 @@ import { LogsScreen } from '@/features/logs/logs-screen';
 import { PreviewScreen } from '@/features/preview/preview-screen';
 import { SessionScreen } from '@/features/session/session-screen';
 import { SupportScreen } from '@/features/support/support-screen';
+import { DesktopConfirmDialog } from '@/shared/desktop-confirm-dialog';
 import { navigation, Screen } from '@/shared/screens';
 import { toneFromStatus, useDesktopController } from '@/shared/use-desktop-controller';
 import { describeBlockingIssue } from '@/shared/readiness';
@@ -343,6 +345,25 @@ export default function App() {
                     ) : null}
                 </div>
             </main>
+            <DesktopConfirmDialog
+                dialog={controller.confirmDialog}
+                pending={controller.confirmDialogPending}
+                onClose={controller.closeConfirmation}
+                onConfirm={controller.confirmCurrentDialog}
+            />
+            <Toaster
+                position="top-right"
+                richColors
+                closeButton
+                theme="dark"
+                toastOptions={{
+                    classNames: {
+                        toast: 'border border-border/60 bg-card/95 text-foreground shadow-[0_18px_48px_rgba(0,0,0,0.4)]',
+                        title: 'text-sm font-medium',
+                        description: 'text-xs text-muted-foreground'
+                    }
+                }}
+            />
         </div>
     );
 }

@@ -45,6 +45,8 @@ import {
     describeBlockingIssue,
     SetupChecklist
 } from '@/shared/readiness';
+import type { ConfirmDialogState } from '@/shared/desktop-confirm-dialog';
+import { showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from '@/shared/toast';
 
 export type SurfaceNoticeScope = 'config' | 'session' | 'logs';
 export type SurfaceNoticeTone = 'neutral' | 'success' | 'warning' | 'danger';
@@ -58,6 +60,21 @@ export interface RecoveryState {
     interruptedAt: string;
     message: string;
 }
+
+interface ConfirmDialogRequest extends ConfirmDialogState {
+    onConfirm: (() => Promise<void> | void) | null;
+}
+
+const closedConfirmDialog: ConfirmDialogRequest = {
+    open: false,
+    title: '',
+    description: '',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    pendingLabel: 'Working...',
+    tone: 'danger',
+    onConfirm: null
+};
 
 async function copyTextToClipboard(text: string) {
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
@@ -135,6 +152,8 @@ export function useDesktopController() {
     const [environmentDraft, setEnvironmentDraft] = useState('');
     const [notice, setNotice] = useState('Loading desktop state...');
     const [preferredScreen, setPreferredScreen] = useState<'session' | 'preview' | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogRequest>(closedConfirmDialog);
+    const [confirmDialogPending, setConfirmDialogPending] = useState(false);
     const [runtime, setRuntime] = useState<RuntimeOptions>({
         numMessages: 0,
         baseWaitSeconds: 5,
@@ -207,6 +226,37 @@ export function useDesktopController() {
                 message
             }
         }));
+    }
+
+    function requestConfirmation(request: Omit<ConfirmDialogRequest, 'open'>) {
+        setConfirmDialog({
+            ...request,
+            open: true
+        });
+    }
+
+    function closeConfirmation() {
+        if (confirmDialogPending) {
+            return;
+        }
+        setConfirmDialog(closedConfirmDialog);
+    }
+
+    async function confirmCurrentDialog() {
+        if (confirmDialogPending || !confirmDialog.open || !confirmDialog.onConfirm) {
+            return;
+        }
+
+        setConfirmDialogPending(true);
+        try {
+            await confirmDialog.onConfirm();
+            setConfirmDialog(closedConfirmDialog);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            showErrorToast(message);
+        } finally {
+            setConfirmDialogPending(false);
+        }
     }
 
     async function refreshAll() {
@@ -372,6 +422,7 @@ export function useDesktopController() {
                 setConfigIssue(null);
                 setNotice('Configuration saved locally.');
                 setSurfaceNotice('config', 'success', 'Config saved locally.');
+                showSuccessToast('Config saved locally.');
                 await refreshState();
                 return true;
             } catch (error) {
@@ -387,6 +438,11 @@ export function useDesktopController() {
                 setPreflight(result);
                 setNotice(result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
                 setSurfaceNotice('session', result.ok ? 'success' : 'warning', result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
+                if (result.ok) {
+                    showSuccessToast('Preflight passed.');
+                } else {
+                    showWarningToast('Preflight reported issues.');
+                }
                 return result;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -427,6 +483,7 @@ export function useDesktopController() {
                 const message = nextState.resumedFromCheckpoint ? 'Session resumed from the saved checkpoint.' : 'Session started from the desktop shell.';
                 setNotice(message);
                 setSurfaceNotice('session', 'success', message);
+                showSuccessToast(nextState.resumedFromCheckpoint ? 'Session resumed from checkpoint.' : 'Session started.');
                 return nextState;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -447,6 +504,7 @@ export function useDesktopController() {
                 if (nextState) {
                     setSession(nextState);
                     setSurfaceNotice('session', 'neutral', nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.');
+                    showInfoToast(nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.');
                 }
                 return nextState;
             } catch (error) {
@@ -458,56 +516,63 @@ export function useDesktopController() {
         },
         async stopCurrentSession() {
             if (!session || ['completed', 'failed'].includes(session.status)) {
+                showInfoToast('No active session to stop.');
                 return null;
             }
+            requestConfirmation({
+                title: 'Stop active session?',
+                description: 'The session will stop after the current send finishes. Progress and checkpoint state remain available locally.',
+                confirmLabel: 'Stop Session',
+                cancelLabel: 'Cancel',
+                pendingLabel: 'Stopping...',
+                tone: 'warning',
+                onConfirm: async () => {
+                    if (!sessionRef.current || ['completed', 'failed'].includes(sessionRef.current.status)) {
+                        setSurfaceNotice('session', 'warning', 'No active session to stop.');
+                        showInfoToast('No active session to stop.');
+                        return;
+                    }
 
-            if (!window.confirm('Stop the active session after the current send finishes?')) {
-                return null;
-            }
-
-            try {
-                const nextState = await stopSession();
-                setSession(nextState);
-                setNotice('Stopping the active session after the current send finishes.');
-                setSurfaceNotice('session', 'warning', 'Stopping after the current send finishes.');
-                return nextState;
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                setNotice(message);
-                setSurfaceNotice('session', 'danger', message);
-                return null;
-            }
+                    const nextState = await stopSession();
+                    setSession(nextState);
+                    setNotice('Stopping the active session after the current send finishes.');
+                    setSurfaceNotice('session', 'warning', 'Stopping after the current send finishes.');
+                    showWarningToast('Stopping after the current send finishes.');
+                }
+            });
+            return null;
         },
         async discardResumeCheckpoint() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
                 setNotice('Stop the active session before discarding the saved checkpoint.');
                 setSurfaceNotice('session', 'warning', 'Stop the active session before discarding the saved checkpoint.');
+                showWarningToast('Stop the active session before discarding the checkpoint.');
                 return null;
             }
 
             if (!senderState.resumeSession) {
                 setNotice('No saved checkpoint is available.');
                 setSurfaceNotice('session', 'warning', 'No saved checkpoint is available.');
+                showInfoToast('No saved checkpoint is available.');
                 return null;
             }
-
-            if (!window.confirm('Discard the saved resume checkpoint? This cannot be undone.')) {
-                return null;
-            }
-
-            try {
-                const nextState = await discardResumeSession();
-                setSenderState(nextState);
-                setRecoveryState(null);
-                setNotice('Saved checkpoint discarded.');
-                setSurfaceNotice('session', 'success', 'Checkpoint discarded.');
-                return nextState;
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                setNotice(message);
-                setSurfaceNotice('session', 'danger', message);
-                return null;
-            }
+            requestConfirmation({
+                title: 'Discard saved checkpoint?',
+                description: 'This removes the saved resume point and cannot be undone.',
+                confirmLabel: 'Discard Checkpoint',
+                cancelLabel: 'Cancel',
+                pendingLabel: 'Discarding...',
+                tone: 'danger',
+                onConfirm: async () => {
+                    const nextState = await discardResumeSession();
+                    setSenderState(nextState);
+                    setRecoveryState(null);
+                    setNotice('Saved checkpoint discarded.');
+                    setSurfaceNotice('session', 'success', 'Checkpoint discarded.');
+                    showSuccessToast('Checkpoint discarded.');
+                }
+            });
+            return null;
         },
         async loadCurrentLogs() {
             const sessionId = currentLogSessionId;
@@ -543,8 +608,8 @@ export function useDesktopController() {
 
             try {
                 const result = await openLogFile(sessionId);
-                setNotice(`Opening ${result}`);
                 setSurfaceNotice('logs', 'neutral', `Opening ${result}`);
+                showInfoToast('Opening session log file.');
                 return result;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -573,6 +638,7 @@ export function useDesktopController() {
                 setEnvironmentDraft('');
                 setNotice('Discord token saved securely for this Windows user profile.');
                 setSurfaceNotice('config', 'success', 'Discord token saved securely for this Windows user.');
+                showSuccessToast('Discord token saved securely.');
                 return nextSetup;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -586,29 +652,28 @@ export function useDesktopController() {
                 setNotice('Removing the stored token does not stop the active session, but it only affects future starts.');
                 setSurfaceNotice('config', 'warning', 'Removing the stored token only affects future starts.');
             }
-
-            if (!window.confirm('Remove the securely stored Discord token? Future preflight and session starts will require a new token.')) {
-                return null;
-            }
-
-            try {
-                const nextSetup = await clearSecureTokenCommand();
-                setSetup(nextSetup);
-                setEnvironmentDraft('');
-                const diagnostics = await loadReleaseDiagnostics().catch(() => null);
-                if (diagnostics) {
-                    setReleaseDiagnostics(diagnostics);
-                    setSidecarStatus(diagnostics.sidecarStatus);
+            requestConfirmation({
+                title: 'Remove stored Discord token?',
+                description: 'Future preflight and session starts will require a new token. Active sessions are not stopped.',
+                confirmLabel: 'Remove Token',
+                cancelLabel: 'Cancel',
+                pendingLabel: 'Removing...',
+                tone: 'danger',
+                onConfirm: async () => {
+                    const nextSetup = await clearSecureTokenCommand();
+                    setSetup(nextSetup);
+                    setEnvironmentDraft('');
+                    const diagnostics = await loadReleaseDiagnostics().catch(() => null);
+                    if (diagnostics) {
+                        setReleaseDiagnostics(diagnostics);
+                        setSidecarStatus(diagnostics.sidecarStatus);
+                    }
+                    setNotice('Secure Discord token removed from this Windows profile.');
+                    setSurfaceNotice('config', 'warning', 'Secure Discord token removed from this Windows user.');
+                    showWarningToast('Secure token removed.');
                 }
-                setNotice('Secure Discord token removed from this Windows profile.');
-                setSurfaceNotice('config', 'warning', 'Secure Discord token removed from this Windows user.');
-                return nextSetup;
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                setNotice(message);
-                setSurfaceNotice('config', 'danger', message);
-                return null;
-            }
+            });
+            return null;
         },
         async copyReleaseDiagnostics() {
             if (!releaseDiagnostics) {
@@ -618,17 +683,19 @@ export function useDesktopController() {
 
             try {
                 await copyTextToClipboard(JSON.stringify(releaseDiagnostics, null, 2));
-                setNotice('Release diagnostics copied to the clipboard.');
+                showSuccessToast('Release diagnostics copied.');
                 return true;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Could not copy release diagnostics.');
                 return false;
             }
         },
         async openDesktopDataDirectory() {
             try {
                 const result = await openDataDirectory();
-                setNotice(`Opening ${result}`);
+                showInfoToast('Opening data folder.');
                 return result;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));
@@ -638,7 +705,7 @@ export function useDesktopController() {
         async openLogsDirectory() {
             try {
                 const result = await openLogsDirectoryCommand();
-                setNotice(`Opening ${result}`);
+                showInfoToast('Opening logs folder.');
                 return result;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));
@@ -650,43 +717,62 @@ export function useDesktopController() {
                 const result = await exportSupportBundleCommand();
                 setSupportBundle(result);
                 setNotice(`Support bundle exported to ${result.path}`);
+                showSuccessToast('Support bundle exported.');
                 return result;
             } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Support bundle export failed.');
                 return null;
             }
         },
         async resetRuntimeState() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
                 setNotice('Stop the active session before resetting runtime state.');
+                showWarningToast('Stop the active session before resetting runtime state.');
                 return null;
             }
-
-            if (!window.confirm('Reset local runtime state and delete session logs? This keeps config.json and the secure token store.')) {
-                return null;
-            }
-
-            try {
-                const result = await resetRuntimeStateCommand();
-                const [nextState, diagnostics] = await Promise.all([
-                    loadState(),
-                    loadReleaseDiagnostics().catch(() => null)
-                ]);
-                setSenderState(nextState);
-                setReleaseDiagnostics(diagnostics);
-                if (diagnostics) {
-                    setSidecarStatus(diagnostics.sidecarStatus);
+            requestConfirmation({
+                title: 'Reset runtime state?',
+                description: 'This deletes local session logs and .sender-state.json, but keeps config.json and the secure token store.',
+                confirmLabel: 'Reset Runtime State',
+                cancelLabel: 'Cancel',
+                pendingLabel: 'Resetting...',
+                tone: 'danger',
+                onConfirm: async () => {
+                    const result = await resetRuntimeStateCommand();
+                    const [nextState, diagnostics] = await Promise.all([
+                        loadState(),
+                        loadReleaseDiagnostics().catch(() => null)
+                    ]);
+                    setSenderState(nextState);
+                    setReleaseDiagnostics(diagnostics);
+                    if (diagnostics) {
+                        setSidecarStatus(diagnostics.sidecarStatus);
+                    }
+                    setSession(null);
+                    setLogs([]);
+                    setSupportBundle(null);
+                    setPreferredScreen(null);
+                    const message = `Runtime state reset. Deleted ${result.deletedLogFiles} log file${result.deletedLogFiles === 1 ? '' : 's'}.`;
+                    setNotice(message);
+                    showSuccessToast(message);
                 }
-                setSession(null);
-                setLogs([]);
-                setSupportBundle(null);
-                setPreferredScreen(null);
-                setNotice(`Runtime state reset. Deleted ${result.deletedLogFiles} log file${result.deletedLogFiles === 1 ? '' : 's'}.`);
-                return result;
-            } catch (error) {
-                setNotice(error instanceof Error ? error.message : String(error));
-                return null;
-            }
-        }
+            });
+            return null;
+        },
+        confirmDialog: {
+            open: confirmDialog.open,
+            title: confirmDialog.title,
+            description: confirmDialog.description,
+            confirmLabel: confirmDialog.confirmLabel,
+            cancelLabel: confirmDialog.cancelLabel,
+            pendingLabel: confirmDialog.pendingLabel,
+            tone: confirmDialog.tone
+        },
+        confirmDialogPending,
+        closeConfirmation,
+        confirmCurrentDialog,
+        
     };
 }
