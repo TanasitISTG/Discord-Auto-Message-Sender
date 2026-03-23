@@ -49,7 +49,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                             ))}
                         </div>
 
-                        <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 shadow-sm">
+                        <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs">
                             <Field label="Selected group name">
                                 <Input value={draft.state.selectedGroupName} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.renameGroup(event.target.value)} />
                             </Field>
@@ -67,7 +67,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
 
                         <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
                             {draft.selectedGroupMessages.map((message, index) => (
-                                <div key={`${draft.state.selectedGroupName}-${index}`} className="rounded-xl border border-border/50 bg-background/50 p-3 shadow-sm transition-colors hover:bg-card/60">
+                                <div key={`${draft.state.selectedGroupName}-${index}`} className="rounded-xl border border-border/50 bg-background/50 p-3 shadow-xs transition-colors hover:bg-card/60">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Message {index + 1}</span>
                                         <div className="flex gap-2">

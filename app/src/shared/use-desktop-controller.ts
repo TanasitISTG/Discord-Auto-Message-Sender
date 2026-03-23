@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-manager';
 import {
     clearSecureToken as clearSecureTokenCommand,
     ConfigLoadResult,
@@ -59,28 +60,17 @@ export interface RecoveryState {
 }
 
 async function copyTextToClipboard(text: string) {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        await writeClipboardText(text);
+        return;
+    }
+
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
         return;
     }
 
-    if (typeof document === 'undefined') {
-        throw new Error('Clipboard access is unavailable in this environment.');
-    }
-
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'absolute';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand('copy');
-    document.body.removeChild(textarea);
-
-    if (!copied) {
-        throw new Error('Clipboard access was denied.');
-    }
+    throw new Error('Clipboard access is unavailable in this environment.');
 }
 
 const emptyConfig: AppConfig = {

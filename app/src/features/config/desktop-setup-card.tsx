@@ -114,7 +114,7 @@ export function DesktopSetupCard({
                 </div>
 
                 {setup?.warning ? (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100 shadow-sm backdrop-blur-sm">
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100 shadow-xs backdrop-blur-xs">
                         {setup.warning}
                     </div>
                 ) : null}

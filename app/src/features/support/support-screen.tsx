@@ -4,7 +4,7 @@ import type { DesktopSetupState, ReleaseDiagnostics, SupportBundleResult } from 
 
 function DetailRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-sm hover:bg-card/60 transition-colors">
+        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs hover:bg-card/60 transition-colors">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
             <div className="mt-2 break-all font-mono text-xs text-foreground/90">{value}</div>
         </div>
@@ -91,7 +91,7 @@ export function SupportScreen({
                     >
                         Reset Runtime State
                     </Button>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
                         {hasActiveSession
                             ? 'Stop the active session before resetting runtime state.'
                             : 'Reset Runtime State removes .sender-state.json and session logs without touching config.json or the secure token store.'}
@@ -112,7 +112,7 @@ export function SupportScreen({
                         </div>
                     ) : null}
 
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
                         {notice}
                     </div>
                 </CardContent>
@@ -124,15 +124,15 @@ export function SupportScreen({
                     <CardDescription>Release constraints for the current Windows beta.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-muted-foreground">
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="mb-2 font-semibold tracking-tight text-foreground">Unsigned Windows Public Beta</div>
                         <div className="leading-relaxed">This build is Windows-only, uses manual MSI updates, and does not ship an auto-updater.</div>
                     </div>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="mb-2 font-semibold tracking-tight text-foreground">Manual updates</div>
                         <div className="leading-relaxed">Install the newer MSI over the existing version. Downgrades are blocked.</div>
                     </div>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="mb-2 font-semibold tracking-tight text-foreground">Support export safety</div>
                         <div className="leading-relaxed">The support bundle excludes the secure token store, `.env`, and any plaintext Discord token value.</div>
                     </div>
@@ -145,20 +145,20 @@ export function SupportScreen({
                     <CardDescription>What to send when a public-beta issue needs investigation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm text-muted-foreground">
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="font-semibold tracking-tight text-foreground">1. Export a support bundle</div>
                         <div className="mt-2 leading-relaxed">Use the support bundle action after reproducing the issue if possible.</div>
                     </div>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="font-semibold tracking-tight text-foreground">2. Describe the exact action</div>
                         <div className="mt-2 leading-relaxed">Include what screen you were on, what you clicked, and what you expected to happen.</div>
                     </div>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="font-semibold tracking-tight text-foreground">3. Attach the exported ZIP</div>
                         <div className="mt-2 leading-relaxed">Attach the support bundle path or ZIP file instead of copying local app-data files manually.</div>
                     </div>
                     {setup?.warning ? (
-                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-sm backdrop-blur-sm">
+                        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-xs backdrop-blur-xs">
                             <span className="font-semibold tracking-tight">Setup warning:</span> <span className="leading-relaxed">{setup.warning}</span>
                         </div>
                     ) : null}

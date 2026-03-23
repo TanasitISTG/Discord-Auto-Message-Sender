@@ -912,7 +912,7 @@ fn add_zip_text_entry(
     contents: &[u8],
 ) -> Result<(), String> {
     archive
-        .start_file(
+        .start_file::<_, ()>(
             entry_name,
             zip::write::FileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated),
@@ -1710,6 +1710,7 @@ fn handle_cli_command(app: &AppHandle, command: CliCommand) -> Result<(), String
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppRuntime::new())
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;

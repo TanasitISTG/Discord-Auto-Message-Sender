@@ -107,7 +107,7 @@ export function SetupChecklistCard({
                 {checklist.items.map((item) => (
                     <div
                         key={item.id}
-                        className={`rounded-xl border p-5 shadow-sm backdrop-blur-sm transition-colors ${
+                        className={`rounded-xl border p-5 shadow-xs backdrop-blur-xs transition-colors ${
                             item.done
                                 ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15'
                                 : 'border-border/50 bg-background/50 hover:bg-card/60'

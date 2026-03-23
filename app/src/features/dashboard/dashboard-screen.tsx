@@ -70,7 +70,7 @@ export function DashboardScreen({
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {appReadiness.blockingIssues.map((issue) => (
-                            <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-sm backdrop-blur-sm">
+                            <div key={issue} className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-xs backdrop-blur-xs">
                                 <div className="font-medium">{describeBlockingIssue(issue)}</div>
                                 {(issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid') ? (
                                     <Button size="sm" variant="secondary" className="mt-3" onClick={onOpenConfig}>
@@ -80,7 +80,7 @@ export function DashboardScreen({
                             </div>
                         ))}
                         {runtimeMessage ? (
-                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-sm backdrop-blur-sm">
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-xs backdrop-blur-xs">
                                 {runtimeMessage}
                             </div>
                         ) : null}
@@ -140,7 +140,7 @@ export function DashboardScreen({
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {recoveryState ? (
-                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-sm backdrop-blur-sm">
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-xs backdrop-blur-xs">
                             <div className="font-medium text-red-50">Runtime interrupted during an active session</div>
                             <div className="mt-1 leading-relaxed text-red-50/80">{recoveryState.message}</div>
                             <div className="mt-2 text-[11px] text-red-50/70">
@@ -149,7 +149,7 @@ export function DashboardScreen({
                         </div>
                     ) : null}
                     {senderState.resumeSession ? (
-                        <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm shadow-sm backdrop-blur-sm">
+                        <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm shadow-xs backdrop-blur-xs">
                             <div className="font-semibold tracking-tight text-cyan-100">Resume checkpoint available</div>
                             <div className="mt-1 text-xs text-primary/80">
                                 Updated {new Date(senderState.resumeSession.updatedAt).toLocaleString()}

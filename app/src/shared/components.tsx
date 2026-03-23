@@ -48,7 +48,7 @@ export function StateRow({ label, value }: { label: string; value: string }) {
 
 export function DetailBlock({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-sm transition-colors hover:bg-card/60">
+        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs transition-colors hover:bg-card/60">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
             <div className="mt-2 break-all font-mono text-xs leading-relaxed text-foreground/90">{value}</div>
         </div>
@@ -72,14 +72,14 @@ export function InlineNotice({
     message: string;
 }) {
     const toneClass = {
-        neutral: 'border-border/50 bg-background/40 text-foreground/80 shadow-sm',
-        success: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100 shadow-sm',
-        warning: 'border-amber-500/20 bg-amber-500/10 text-amber-100 shadow-sm',
-        danger: 'border-red-500/20 bg-red-500/10 text-red-100 shadow-sm'
+        neutral: 'border-border/50 bg-background/40 text-foreground/80 shadow-xs',
+        success: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100 shadow-xs',
+        warning: 'border-amber-500/20 bg-amber-500/10 text-amber-100 shadow-xs',
+        danger: 'border-red-500/20 bg-red-500/10 text-red-100 shadow-xs'
     }[tone];
 
     return (
-        <div className={`rounded-xl border px-4 py-3 text-sm backdrop-blur-sm ${toneClass}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm backdrop-blur-xs ${toneClass}`}>
             {message}
         </div>
     );

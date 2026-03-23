@@ -37,7 +37,7 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                     ) : (
                         <div className="space-y-3">
                             {dryRun.channels.map((channel) => (
-                                <div key={channel.channelId} className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-sm">
+                                <div key={channel.channelId} className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                                     <div className="mb-2 flex items-center justify-between gap-3">
                                         <div>
                                             <div className="font-semibold text-foreground tracking-tight">{channel.channelName}</div>
@@ -80,7 +80,7 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                     <StateRow label="Selected channels" value={String(dryRun?.summary.selectedChannels ?? 0)} />
                     <StateRow label="Skipped channels" value={String(dryRun?.summary.skippedChannels ?? 0)} />
                     <StateRow label="Sample messages" value={String(dryRun?.summary.totalSampleMessages ?? 0)} />
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm leading-relaxed text-muted-foreground shadow-sm">
+                    <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm leading-relaxed text-muted-foreground shadow-xs">
                         {dryRun?.willSendMessages
                             ? 'Dry run confirms the current config can resolve at least one sendable channel.'
                             : 'Visible no-send state: fix skipped channels before starting a live session.'}
