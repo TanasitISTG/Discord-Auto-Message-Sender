@@ -16,6 +16,36 @@ export const DEFAULT_MESSAGE = 'Hello from your Discord bot!';
 const messageSchema = z.string().trim().min(1, 'Messages cannot be empty').max(2000, 'Discord messages are limited to 2000 characters');
 const messageGroupNameSchema = z.string().trim().min(1, 'Group names cannot be empty').max(100, 'Group names are too long');
 const messageListSchema = z.array(messageSchema).min(1, 'Each group must contain at least one message');
+function isValidClockTime(value: string): boolean {
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
+    if (!match) {
+        return false;
+    }
+
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+function isValidTimeZone(value: string): boolean {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: value });
+        return true;
+    } catch {
+        return false;
+    }
+}
+const quietHoursSchema = z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours start must use HH:MM').refine(isValidClockTime, 'Quiet hours start must use a valid 24-hour time'),
+    end: z.string().regex(/^\d{2}:\d{2}$/, 'Quiet hours end must use HH:MM').refine(isValidClockTime, 'Quiet hours end must use a valid 24-hour time')
+});
+const scheduleSchema = z.object({
+    intervalSeconds: z.number().finite().min(0, 'Interval must be zero or greater'),
+    randomMarginSeconds: z.number().finite().min(0, 'Random margin must be zero or greater'),
+    quietHours: quietHoursSchema.nullish(),
+    timezone: z.string().trim().min(1, 'Timezone cannot be empty').refine(isValidTimeZone, 'Timezone must be a valid IANA identifier').nullish(),
+    maxSendsPerDay: z.number().int().min(1, 'Max sends per day must be at least 1').nullish(),
+    cooldownWindowSize: z.number().int().min(1, 'Cooldown window size must be at least 1').default(3)
+});
 const normalizedMessageGroupsSchema = z.custom<MessageGroups>(
     (value): value is MessageGroups => value !== null && typeof value === 'object' && !Array.isArray(value),
     'messageGroups must be an object'
@@ -25,7 +55,8 @@ const appChannelSchema = z.object({
     name: z.string().trim().min(1, 'Channel name is required').max(100, 'Channel name is too long'),
     id: z.string().trim().regex(DISCORD_SNOWFLAKE_REGEX, 'Channel ID must be a valid Discord snowflake'),
     referrer: z.string().trim().url('Referrer must be a valid URL'),
-    messageGroup: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long')
+    messageGroup: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long'),
+    schedule: scheduleSchema.optional()
 });
 
 const appConfigBaseSchema = z.object({
@@ -63,7 +94,8 @@ const rawAppChannelSchema = z.object({
     name: z.string().trim().min(1, 'Channel name is required').max(100, 'Channel name is too long'),
     id: z.string().trim().regex(DISCORD_SNOWFLAKE_REGEX, 'Channel ID must be a valid Discord snowflake'),
     referrer: z.string().trim().url('Referrer must be a valid URL').optional(),
-    messageGroup: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long').optional()
+    messageGroup: z.string().trim().min(1, 'Message group name cannot be empty').max(100, 'Message group name is too long').optional(),
+    schedule: scheduleSchema.optional()
 });
 
 const rawAppConfigSchema = z.object({
@@ -223,7 +255,8 @@ export function parseAppConfig(value: unknown): AppConfig {
             name: channel.name,
             id: channel.id,
             referrer: channel.referrer ?? buildDefaultReferrer(channel.id),
-            messageGroup: channel.messageGroup ?? DEFAULT_MESSAGE_GROUP
+            messageGroup: channel.messageGroup ?? DEFAULT_MESSAGE_GROUP,
+            ...(channel.schedule ? { schedule: channel.schedule } : {})
         })),
         messageGroups: parseMessageGroups(parsed.messageGroups, ['messageGroups'])
     });

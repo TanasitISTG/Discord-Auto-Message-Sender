@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSenderCoordinator, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
+import { createSenderCoordinator, getQuietHoursDelayMs, getSuppressionDelayMs, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
 import { AppChannel } from '../../src/types';
 
 const channel: AppChannel = {
@@ -88,6 +88,19 @@ test('sendDiscordMessage aborts later sends after a shared 401 response', async 
     assert.deepEqual(unauthorizedResult, { type: 'fatal', reason: 'unauthorized' });
     assert.deepEqual(abortedResult, { type: 'fatal', reason: 'aborted' });
     assert.equal(attempts, 1);
+});
+
+test('shared sender coordinator increases pacing after rate limits and decays after success', () => {
+    const coordinator = createSenderCoordinator(250);
+
+    const afterRateLimit = coordinator.recordRateLimit(2);
+    const afterRecovery = coordinator.recordSuccess();
+
+    assert.equal(afterRateLimit.baseRequestIntervalMs, 250);
+    assert.ok(afterRateLimit.currentRequestIntervalMs > 250);
+    assert.ok(afterRateLimit.maxRequestIntervalMs >= afterRateLimit.currentRequestIntervalMs);
+    assert.ok(afterRecovery.currentRequestIntervalMs <= afterRateLimit.currentRequestIntervalMs);
+    assert.ok(afterRecovery.currentRequestIntervalMs >= 250);
 });
 
 test('shared sender coordinator serializes concurrent requests across channels', async () => {
@@ -254,6 +267,95 @@ test('pickNextMessage preserves duplicate weighting among remaining unsent messa
     assert.equal(forcedRemainingPick, 'B');
 });
 
+test('pickNextMessage filters recent history using raw template keys', () => {
+    const sentCache = new Set<string>();
+
+    const next = pickNextMessage(
+        ['Hello {channel}', 'Backup'],
+        sentCache,
+        () => 0,
+        ['Hello {channel}']
+    );
+
+    assert.equal(next, 'Backup');
+});
+
+test('getQuietHoursDelayMs returns remaining quiet-time for same-day windows', () => {
+    const delayMs = getQuietHoursDelayMs({
+        ...channel,
+        schedule: {
+            intervalSeconds: 5,
+            randomMarginSeconds: 0,
+            timezone: 'UTC',
+            quietHours: {
+                start: '09:00',
+                end: '17:00'
+            }
+        }
+    }, new Date('2026-03-21T10:15:00.000Z'));
+
+    assert.equal(delayMs, 24_300_000);
+});
+
+test('getQuietHoursDelayMs returns remaining quiet-time for overnight windows', () => {
+    const delayMs = getQuietHoursDelayMs({
+        ...channel,
+        schedule: {
+            intervalSeconds: 5,
+            randomMarginSeconds: 0,
+            timezone: 'UTC',
+            quietHours: {
+                start: '22:00',
+                end: '06:00'
+            }
+        }
+    }, new Date('2026-03-21T23:30:00.000Z'));
+
+    assert.equal(delayMs, 23_400_000);
+});
+
+test('runChannel waits out quiet hours before sending', async () => {
+    let sends = 0;
+    const sleepCalls: number[] = [];
+    let now = Date.parse('2026-03-21T10:15:00.000Z');
+
+    await runChannel({
+        target: {
+            ...channel,
+            schedule: {
+                intervalSeconds: 0,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                quietHours: {
+                    start: '09:00',
+                    end: '17:00'
+                }
+            }
+        },
+        numMessages: 1,
+        baseWaitSeconds: 0,
+        marginSeconds: 0,
+        token: 'token',
+        userAgent: 'UA',
+        messageGroups: {
+            default: ['Hello!']
+        },
+        fetchImpl: async () => {
+            sends += 1;
+            return createResponse(200, {});
+        },
+        sleep: async (ms) => {
+            sleepCalls.push(ms);
+            now += ms;
+        },
+        now: () => new Date(now),
+        random: () => 0
+    });
+
+    assert.equal(sends, 1);
+    assert.equal(sleepCalls[0], 24_300_000);
+});
+
 test('runChannel stops exactly at the finite message count without an extra wait', async () => {
     let sends = 0;
     const sleepCalls: number[] = [];
@@ -282,9 +384,11 @@ test('runChannel stops exactly at the finite message count without an extra wait
     assert.deepEqual(sleepCalls, []);
 });
 
-test('runChannel stops after repeated consecutive rate limits instead of waiting forever', async () => {
+test('runChannel suppresses a channel after repeated consecutive rate limits and retries later', async () => {
     let sends = 0;
     const sleepCalls: number[] = [];
+    const suppressed: string[] = [];
+    let recovered = 0;
 
     await runChannel({
         target: channel,
@@ -299,14 +403,32 @@ test('runChannel stops after repeated consecutive rate limits instead of waiting
         maxRateLimitWaits: 2,
         fetchImpl: async () => {
             sends += 1;
-            return createResponse(429, { retry_after: 1 });
+            if (sends <= 3) {
+                return createResponse(429, { retry_after: 1 });
+            }
+
+            return createResponse(200, {});
         },
         sleep: async (ms) => {
             sleepCalls.push(ms);
         },
-        random: () => 0
+        random: () => 0,
+        lifecycle: {
+            isPaused: () => false,
+            waitUntilResumed: async () => true,
+            isStopping: () => false,
+            getStopReason: () => null,
+            onChannelSuppressed: (_target, details) => {
+                suppressed.push(details.suppressedUntil);
+            },
+            onChannelRecovered: () => {
+                recovered += 1;
+            }
+        }
     });
 
-    assert.equal(sends, 3);
-    assert.deepEqual(sleepCalls, [1500, 1500]);
+    assert.equal(sends, 4);
+    assert.equal(suppressed.length, 1);
+    assert.equal(recovered, 1);
+    assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1500 + 1500 + getSuppressionDelayMs(1, 3));
 });

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Discord Auto Message Sender",
+  "version": "1.0.0",
+  "identifier": "com.local.discord-auto-message-sender",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build && bun run build:sidecar",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Discord Auto Message Sender",
+        "width": 1480,
+        "height": 960,
+        "minWidth": 1200,
+        "minHeight": 760,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' data: blob:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi"
+    ],
+    "publisher": "tana",
+    "category": "DeveloperTool",
+    "shortDescription": "Local-first desktop control plane for Discord auto-message sessions.",
+    "longDescription": "Discord Auto Message Sender is a Bun, Tauri, Vite, and React desktop app for local config editing, dry-run preview, preflight validation, session control, persistent logs, and resumable checkpoints.",
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/sidecar/desktop-sidecar.exe": "sidecar/desktop-sidecar.exe"
+    },
+    "windows": {
+      "allowDowngrades": false
+    }
+  }
+}
