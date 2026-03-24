@@ -89,6 +89,29 @@ const desktopMock = vi.hoisted(() => {
             enabled: false,
             pollIntervalSeconds: 30
         })),
+        loadNotificationDeliverySettings: vi.fn(async () => ({
+            windowsDesktopEnabled: true,
+            telegram: {
+                enabled: false,
+                botTokenStored: false,
+                chatId: '',
+                previewMode: 'full'
+            }
+        })),
+        getNotificationDeliveryState: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: false,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(),
         saveEnvironment: vi.fn(),
@@ -101,6 +124,52 @@ const desktopMock = vi.hoisted(() => {
             },
             lastSeen: {
                 channelMessageIds: {}
+            }
+        })),
+        saveNotificationDeliverySettings: vi.fn(async ({ settings }) => ({
+            settings,
+            telegramState: {
+                status: settings.telegram.enabled && settings.telegram.chatId ? 'unconfigured' : 'disabled'
+            }
+        })),
+        saveTelegramBotToken: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: true,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
+        clearTelegramBotToken: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: false,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
+        detectTelegramChat: vi.fn(async () => ({
+            chatId: '123456789',
+            title: 'tana'
+        })),
+        sendTestTelegramNotification: vi.fn(async () => ({
+            ok: true,
+            message: 'Telegram test notification sent.',
+            state: {
+                status: 'ready',
+                lastTestedAt: '2026-03-21T10:00:00.000Z'
             }
         })),
         clearSecureToken: vi.fn(),

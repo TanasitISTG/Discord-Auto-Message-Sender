@@ -732,7 +732,26 @@ export class SessionService {
 
         this.stateFlushPending = false;
         this.stateFlushInFlight = (async () => {
-            saveSenderState(this.baseDir, this.senderStateRecord);
+            const latestState = loadSenderState(this.baseDir);
+            const nextState = {
+                ...latestState,
+                lastSession: this.senderStateRecord.lastSession,
+                summaries: this.senderStateRecord.summaries,
+                recentFailures: this.senderStateRecord.recentFailures,
+                recentMessageHistory: this.senderStateRecord.recentMessageHistory,
+                channelHealth: this.senderStateRecord.channelHealth,
+                resumeSession: this.senderStateRecord.resumeSession,
+                warning: undefined
+            };
+            saveSenderState(this.baseDir, nextState);
+            this.senderStateRecord.lastSession = nextState.lastSession;
+            this.senderStateRecord.summaries = nextState.summaries;
+            this.senderStateRecord.recentFailures = nextState.recentFailures;
+            this.senderStateRecord.recentMessageHistory = nextState.recentMessageHistory ?? {};
+            this.senderStateRecord.channelHealth = nextState.channelHealth ?? {};
+            this.senderStateRecord.resumeSession = nextState.resumeSession;
+            this.senderStateRecord.inboxMonitor = nextState.inboxMonitor;
+            this.senderStateRecord.notificationDelivery = nextState.notificationDelivery;
         })();
 
         try {

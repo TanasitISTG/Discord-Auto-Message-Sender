@@ -81,6 +81,10 @@ function sleep(ms: number) {
 }
 
 function clampPollIntervalSeconds(value: number): number {
+    if (!Number.isFinite(value)) {
+        return getDefaultInboxMonitorSettings().pollIntervalSeconds;
+    }
+
     return Math.max(MIN_POLL_INTERVAL_SECONDS, Math.min(MAX_POLL_INTERVAL_SECONDS, Math.round(value)));
 }
 
@@ -288,6 +292,10 @@ export class InboxMonitorService implements InboxMonitorController {
 
             try {
                 const result = await this.poll(token);
+                if (!this.running || token !== this.currentToken) {
+                    break;
+                }
+
                 this.snapshot = {
                     ...this.snapshot,
                     lastSeen: result.lastSeen,

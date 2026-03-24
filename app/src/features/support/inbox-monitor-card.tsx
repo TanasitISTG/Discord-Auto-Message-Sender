@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,12 @@ export function InboxMonitorCard({
     tokenPresent,
     onSave
 }: InboxMonitorCardProps) {
+    const [draft, setDraft] = useState<InboxMonitorSettings>(settings);
+
+    useEffect(() => {
+        setDraft(settings);
+    }, [settings]);
+
     return (
         <Card>
             <CardHeader>
@@ -49,33 +56,33 @@ export function InboxMonitorCard({
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
                     <span className="font-medium">Enable inbox notifications</span>
                     <Checkbox
-                        checked={settings.enabled}
-                        onCheckedChange={(checked) => void onSave({
-                            ...settings,
+                        checked={draft.enabled}
+                        onCheckedChange={(checked) => setDraft((previous) => ({
+                            ...previous,
                             enabled: checked === true
-                        })}
+                        }))}
                     />
                 </label>
 
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
                     <span className="font-medium">Notify on direct messages</span>
                     <Checkbox
-                        checked={settings.notifyDirectMessages}
-                        onCheckedChange={(checked) => void onSave({
-                            ...settings,
+                        checked={draft.notifyDirectMessages}
+                        onCheckedChange={(checked) => setDraft((previous) => ({
+                            ...previous,
                             notifyDirectMessages: checked === true
-                        })}
+                        }))}
                     />
                 </label>
 
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
                     <span className="font-medium">Notify on message requests</span>
                     <Checkbox
-                        checked={settings.notifyMessageRequests}
-                        onCheckedChange={(checked) => void onSave({
-                            ...settings,
+                        checked={draft.notifyMessageRequests}
+                        onCheckedChange={(checked) => setDraft((previous) => ({
+                            ...previous,
                             notifyMessageRequests: checked === true
-                        })}
+                        }))}
                     />
                 </label>
 
@@ -85,11 +92,11 @@ export function InboxMonitorCard({
                         type="number"
                         min={15}
                         max={300}
-                        value={settings.pollIntervalSeconds}
-                        onChange={(event) => void onSave({
-                            ...settings,
-                            pollIntervalSeconds: Number(event.target.value || settings.pollIntervalSeconds)
-                        })}
+                        value={draft.pollIntervalSeconds}
+                        onChange={(event) => setDraft((previous) => ({
+                            ...previous,
+                            pollIntervalSeconds: Number(event.target.value || previous.pollIntervalSeconds)
+                        }))}
                     />
                 </label>
 
@@ -118,8 +125,8 @@ export function InboxMonitorCard({
 
                 <Button
                     variant="secondary"
-                    disabled={!settings.enabled || !tokenPresent}
-                    onClick={() => void onSave({ ...settings })}
+                    disabled={draft.enabled && !tokenPresent}
+                    onClick={() => void onSave({ ...draft })}
                 >
                     Save Notification Settings
                 </Button>

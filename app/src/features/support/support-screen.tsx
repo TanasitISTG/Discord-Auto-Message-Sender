@@ -1,7 +1,16 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { DesktopSetupState, InboxMonitorSettings, InboxMonitorState, ReleaseDiagnostics, SupportBundleResult } from '@/lib/desktop';
+import type {
+    DesktopSetupState,
+    InboxMonitorSettings,
+    InboxMonitorState,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
+    ReleaseDiagnostics,
+    SupportBundleResult
+} from '@/lib/desktop';
 import { InboxMonitorCard } from './inbox-monitor-card';
+import { TelegramNotificationsCard } from './telegram-notifications-card';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
     return (
@@ -18,6 +27,7 @@ interface SupportScreenProps {
     supportBundle: SupportBundleResult | null;
     inboxMonitorSettings: InboxMonitorSettings;
     inboxMonitorState: InboxMonitorState;
+    notificationDelivery: NotificationDeliverySnapshot;
     hasActiveSession: boolean;
     notice: string;
     onCopyDiagnostics(): void | Promise<void>;
@@ -26,6 +36,11 @@ interface SupportScreenProps {
     onExportSupportBundle(): void | Promise<void>;
     onResetRuntimeState(): void | Promise<void>;
     onSaveInboxMonitorSettings(settings: InboxMonitorSettings): void | Promise<void>;
+    onSaveNotificationDeliverySettings(settings: NotificationDeliverySettings): void | Promise<void>;
+    onSaveTelegramBotToken(botToken: string): void | Promise<void>;
+    onClearTelegramBotToken(): void | Promise<void>;
+    onDetectTelegramChat(): void | Promise<void>;
+    onSendTestTelegramNotification(): void | Promise<void>;
 }
 
 export function SupportScreen({
@@ -34,6 +49,7 @@ export function SupportScreen({
     supportBundle,
     inboxMonitorSettings,
     inboxMonitorState,
+    notificationDelivery,
     hasActiveSession,
     notice,
     onCopyDiagnostics,
@@ -41,7 +57,12 @@ export function SupportScreen({
     onOpenLogsDirectory,
     onExportSupportBundle,
     onResetRuntimeState,
-    onSaveInboxMonitorSettings
+    onSaveInboxMonitorSettings,
+    onSaveNotificationDeliverySettings,
+    onSaveTelegramBotToken,
+    onClearTelegramBotToken,
+    onDetectTelegramChat,
+    onSendTestTelegramNotification
 }: SupportScreenProps) {
     return (
         <section className="flex flex-col gap-4 xl:flex-row xl:items-start">
@@ -51,6 +72,15 @@ export function SupportScreen({
                     state={inboxMonitorState}
                     tokenPresent={Boolean(setup?.tokenPresent)}
                     onSave={onSaveInboxMonitorSettings}
+                />
+
+                <TelegramNotificationsCard
+                    delivery={notificationDelivery}
+                    onSaveSettings={onSaveNotificationDeliverySettings}
+                    onSaveBotToken={onSaveTelegramBotToken}
+                    onClearBotToken={onClearTelegramBotToken}
+                    onDetectChat={onDetectTelegramChat}
+                    onSendTest={onSendTestTelegramNotification}
                 />
 
                 <Card>
@@ -84,7 +114,7 @@ export function SupportScreen({
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
                             {hasActiveSession
                                 ? 'Stop the active session before resetting runtime state.'
-                                : 'Reset Runtime State removes .sender-state.json and session logs without touching config.json or the secure token store.'}
+                                : 'Reset Runtime State removes .sender-state.json and session logs without touching config.json or the secure token stores.'}
                         </div>
 
                         {supportBundle ? (
@@ -124,7 +154,7 @@ export function SupportScreen({
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">Support export safety</div>
-                            <div className="leading-relaxed">The support bundle excludes the secure token store, `.env`, and any plaintext Discord token value.</div>
+                            <div className="leading-relaxed">The support bundle excludes secure token stores, `.env`, and any plaintext Discord or Telegram token value.</div>
                         </div>
                     </CardContent>
                 </Card>

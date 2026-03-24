@@ -198,7 +198,13 @@ export class DesktopRuntime {
             sessionId,
             resumeSession,
             emitEvent: (event) => {
-                if ('state' in event) {
+                if (event.type === 'session_started'
+                    || event.type === 'session_paused'
+                    || event.type === 'session_resumed'
+                    || event.type === 'session_stopping'
+                    || event.type === 'channel_state_changed'
+                    || event.type === 'session_state_updated'
+                    || event.type === 'summary_ready') {
                     this.sessionState = event.state;
                 }
                 this.publish(event);
@@ -300,9 +306,7 @@ export class DesktopRuntime {
     saveInboxMonitorSettings(
         payload: DesktopCommandMap['save_inbox_monitor_settings']['request']
     ): DesktopCommandMap['save_inbox_monitor_settings']['response'] {
-        const snapshot = this.inboxMonitor.saveSettings(payload.settings);
-        this.persistInboxMonitorSnapshot(snapshot);
-        return snapshot;
+        return this.inboxMonitor.saveSettings(payload.settings);
     }
 
     getInboxMonitorState(): DesktopCommandMap['get_inbox_monitor_state']['response'] {
@@ -312,15 +316,11 @@ export class DesktopRuntime {
     async startInboxMonitor(
         payload: DesktopCommandMap['start_inbox_monitor']['request']
     ): Promise<DesktopCommandMap['start_inbox_monitor']['response']> {
-        const state = await this.inboxMonitor.start(payload);
-        this.persistInboxMonitorSnapshot(this.inboxMonitor.getSnapshot());
-        return state;
+        return await this.inboxMonitor.start(payload);
     }
 
     stopInboxMonitor(): DesktopCommandMap['stop_inbox_monitor']['response'] {
-        const state = this.inboxMonitor.stop('Inbox monitor stopped from desktop shell.');
-        this.persistInboxMonitorSnapshot(this.inboxMonitor.getSnapshot());
-        return state;
+        return this.inboxMonitor.stop('Inbox monitor stopped from desktop shell.');
     }
 
     private resolveConfigPaths() {
@@ -384,12 +384,6 @@ export class DesktopRuntime {
         this.emitEvent?.(event);
     }
 
-    private persistInboxMonitorSnapshot(snapshot: NonNullable<StateLoadResult['inboxMonitor']>) {
-        const state = loadSenderState(this.baseDir);
-        state.inboxMonitor = snapshot;
-        clearMonitorWarning(state);
-        saveSenderState(this.baseDir, state);
-    }
 }
 
 function clearMonitorWarning(state: StateLoadResult) {

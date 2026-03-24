@@ -13,6 +13,8 @@ import type {
     InboxMonitorState,
     LogLoadResult,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     ResetRuntimeStateResult,
     ReleaseDiagnostics,
@@ -36,6 +38,8 @@ export type {
     InboxMonitorState,
     LogLoadResult,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     ResetRuntimeStateResult,
     ReleaseDiagnostics,
@@ -134,6 +138,34 @@ export async function startInboxMonitor(): Promise<InboxMonitorState> {
 
 export async function stopInboxMonitor(): Promise<InboxMonitorState> {
     return desktopInvoke('stop_inbox_monitor', {});
+}
+
+export async function loadNotificationDeliverySettings(): Promise<NotificationDeliverySettings> {
+    return desktopInvoke('load_notification_delivery_settings', {});
+}
+
+export async function saveNotificationDeliverySettings(settings: NotificationDeliverySettings): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('save_notification_delivery_settings', { settings });
+}
+
+export async function getNotificationDeliveryState(): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('get_notification_delivery_state', {});
+}
+
+export async function saveTelegramBotToken(botToken: string): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('save_telegram_bot_token', { botToken });
+}
+
+export async function clearTelegramBotToken(): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('clear_telegram_bot_token', {});
+}
+
+export async function detectTelegramChat(): Promise<{ chatId: string; title?: string }> {
+    return desktopInvoke('detect_telegram_chat', {});
+}
+
+export async function sendTestTelegramNotification(): Promise<{ ok: boolean; message: string; state: NotificationDeliverySnapshot['telegramState'] }> {
+    return desktopInvoke('send_test_telegram_notification', {});
 }
 
 export async function discardResumeSession(): Promise<SenderStateRecord> {

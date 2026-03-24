@@ -3,6 +3,8 @@ import { writeText as writeClipboardText } from '@tauri-apps/plugin-clipboard-ma
 import {
     clearSecureToken as clearSecureTokenCommand,
     ConfigLoadResult,
+    clearTelegramBotToken as clearTelegramBotTokenCommand,
+    detectTelegramChat as detectTelegramChatCommand,
     DesktopEvent,
     InboxMonitorSettings,
     InboxMonitorState,
@@ -18,9 +20,11 @@ import {
     SessionSnapshot,
     getSessionState,
     getInboxMonitorState,
+    getNotificationDeliveryState,
     loadConfig,
     loadInboxMonitorSettings,
     loadLogs,
+    loadNotificationDeliverySettings,
     loadReleaseDiagnostics,
     loadSetupState,
     loadState,
@@ -35,14 +39,15 @@ import {
     runPreflight,
     saveEnvironment,
     saveInboxMonitorSettings,
+    saveNotificationDeliverySettings,
+    saveTelegramBotToken,
     saveConfig,
-    startInboxMonitor,
+    sendTestTelegramNotification as sendTestTelegramNotificationCommand,
     startSession,
-    stopInboxMonitor,
     stopSession,
     subscribeToAppEvents
 } from '@/lib/desktop';
-import type { AppConfig, RuntimeOptions } from '@/lib/desktop';
+import type { AppConfig, NotificationDeliverySettings, NotificationDeliverySnapshot, RuntimeOptions } from '@/lib/desktop';
 import { useConfigDraft } from '@/features/config/use-config-draft';
 import {
     AppReadiness,
@@ -118,6 +123,21 @@ const defaultInboxMonitorState: InboxMonitorState = {
     pollIntervalSeconds: 30
 };
 
+const defaultNotificationDeliverySnapshot: NotificationDeliverySnapshot = {
+    settings: {
+        windowsDesktopEnabled: true,
+        telegram: {
+            enabled: false,
+            botTokenStored: false,
+            chatId: '',
+            previewMode: 'full'
+        }
+    },
+    telegramState: {
+        status: 'disabled'
+    }
+};
+
 function mergeLogsById(entries: LogEntry[], limit: number = 500): LogEntry[] {
     const seen = new Set<string>();
     const merged: LogEntry[] = [];
@@ -163,6 +183,7 @@ export function useDesktopController() {
     const [setup, setSetup] = useState<DesktopSetupState | null>(null);
     const [inboxMonitorSettings, setInboxMonitorSettings] = useState<InboxMonitorSettings>(defaultInboxMonitorSettings);
     const [inboxMonitorState, setInboxMonitorState] = useState<InboxMonitorState>(defaultInboxMonitorState);
+    const [notificationDelivery, setNotificationDelivery] = useState<NotificationDeliverySnapshot>(defaultNotificationDeliverySnapshot);
     const [releaseDiagnostics, setReleaseDiagnostics] = useState<ReleaseDiagnostics | null>(null);
     const [supportBundle, setSupportBundle] = useState<SupportBundleResult | null>(null);
     const [configStatus, setConfigStatus] = useState<ConfigReadinessStatus>('loading');
@@ -283,13 +304,20 @@ export function useDesktopController() {
 
     async function refreshAll() {
         try {
-            const [configResult, activeSession, persistedState, setupState, monitorSettings, monitorState, diagnostics] = await Promise.all([
+            const [configResult, activeSession, persistedState, setupState, monitorSettings, monitorState, deliveryState, diagnostics] = await Promise.all([
                 loadConfig(),
                 getSessionState(),
                 loadState(),
                 loadSetupState(),
                 loadInboxMonitorSettings().catch(() => defaultInboxMonitorSettings),
                 getInboxMonitorState().catch(() => defaultInboxMonitorState),
+                Promise.all([
+                    loadNotificationDeliverySettings().catch(() => defaultNotificationDeliverySnapshot.settings),
+                    getNotificationDeliveryState().catch(() => defaultNotificationDeliverySnapshot)
+                ]).then(([settings, snapshot]) => ({
+                    ...snapshot,
+                    settings
+                })),
                 loadReleaseDiagnostics().catch(() => null)
             ]);
 
@@ -299,6 +327,7 @@ export function useDesktopController() {
             setSetup(setupState);
             setInboxMonitorSettings(monitorSettings);
             setInboxMonitorState(monitorState);
+            setNotificationDelivery(deliveryState);
             if (diagnostics) {
                 setReleaseDiagnostics(diagnostics);
                 setSidecarStatus(diagnostics.sidecarStatus);
@@ -380,6 +409,33 @@ export function useDesktopController() {
                 setInboxMonitorState(event.monitor);
                 setNotice(`New ${event.notification.kind === 'message_request' ? 'message request' : 'direct message'} from ${event.notification.authorName}.`);
                 return;
+            case 'notification_delivery_state_changed':
+                setNotificationDelivery(event.delivery);
+                return;
+            case 'telegram_chat_detected':
+                setNotificationDelivery((previous) => ({
+                    ...previous,
+                    settings: {
+                        ...previous.settings,
+                        telegram: {
+                            ...previous.settings.telegram,
+                            chatId: event.chatId
+                        }
+                    },
+                    telegramState: {
+                        ...previous.telegramState,
+                        lastResolvedChatTitle: event.title
+                    }
+                }));
+                setNotice(`Detected Telegram chat ${event.title ? `${event.title} ` : ''}(${event.chatId}).`);
+                return;
+            case 'telegram_test_result':
+                setNotificationDelivery((previous) => ({
+                    ...previous,
+                    telegramState: event.state
+                }));
+                setNotice(event.message);
+                return;
             case 'close_blocked':
                 setSession(event.state);
                 setNotice(event.message);
@@ -423,6 +479,7 @@ export function useDesktopController() {
         setup,
         inboxMonitorSettings,
         inboxMonitorState,
+        notificationDelivery,
         releaseDiagnostics,
         supportBundle,
         configStatus,
@@ -671,11 +728,9 @@ export function useDesktopController() {
                     setSidecarStatus(diagnostics.sidecarStatus);
                 }
                 setEnvironmentDraft('');
-                if (inboxMonitorSettings.enabled) {
-                    const nextMonitorState = await startInboxMonitor().catch(() => null);
-                    if (nextMonitorState) {
-                        setInboxMonitorState(nextMonitorState);
-                    }
+                const nextMonitorState = await getInboxMonitorState().catch(() => null);
+                if (nextMonitorState) {
+                    setInboxMonitorState(nextMonitorState);
                 }
                 setNotice('Discord token saved securely for this Windows user profile.');
                 setSurfaceNotice('config', 'success', 'Discord token saved securely for this Windows user.');
@@ -704,14 +759,14 @@ export function useDesktopController() {
                     const nextSetup = await clearSecureTokenCommand();
                     setSetup(nextSetup);
                     setEnvironmentDraft('');
-                    const nextMonitorState = await stopInboxMonitor().catch(() => null);
-                    if (nextMonitorState) {
-                        setInboxMonitorState(nextMonitorState);
-                    }
                     const diagnostics = await loadReleaseDiagnostics().catch(() => null);
                     if (diagnostics) {
                         setReleaseDiagnostics(diagnostics);
                         setSidecarStatus(diagnostics.sidecarStatus);
+                    }
+                    const nextMonitorState = await getInboxMonitorState().catch(() => null);
+                    if (nextMonitorState) {
+                        setInboxMonitorState(nextMonitorState);
                     }
                     setNotice('Secure Discord token removed from this Windows profile.');
                     setSurfaceNotice('config', 'warning', 'Secure Discord token removed from this Windows user.');
@@ -724,16 +779,12 @@ export function useDesktopController() {
             try {
                 const snapshot = await saveInboxMonitorSettings(nextSettings);
                 setInboxMonitorSettings(snapshot.settings);
-                setInboxMonitorState(snapshot.state);
+                const nextState = await getInboxMonitorState().catch(() => snapshot.state);
+                setInboxMonitorState(nextState);
+                setNotice(snapshot.settings.enabled ? 'Inbox notifications enabled.' : 'Inbox notifications disabled.');
                 if (snapshot.settings.enabled) {
-                    const nextState = await startInboxMonitor();
-                    setInboxMonitorState(nextState);
-                    setNotice('Inbox notifications enabled.');
                     showSuccessToast('Inbox notifications enabled.');
                 } else {
-                    const nextState = await stopInboxMonitor();
-                    setInboxMonitorState(nextState);
-                    setNotice('Inbox notifications disabled.');
                     showInfoToast('Inbox notifications disabled.');
                 }
                 return snapshot;
@@ -741,6 +792,105 @@ export function useDesktopController() {
                 const message = error instanceof Error ? error.message : String(error);
                 setNotice(message);
                 showErrorToast('Inbox notification settings could not be saved.');
+                return null;
+            }
+        },
+        async saveNotificationDeliverySettingsDraft(nextSettings: NotificationDeliverySettings) {
+            try {
+                const snapshot = await saveNotificationDeliverySettings(nextSettings);
+                setNotificationDelivery(snapshot);
+                setNotice('Notification delivery settings saved.');
+                showSuccessToast('Notification delivery settings saved.');
+                return snapshot;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Notification delivery settings could not be saved.');
+                return null;
+            }
+        },
+        async saveTelegramBotTokenDraft(botToken: string) {
+            if (!botToken.trim()) {
+                setNotice('Telegram bot token is required.');
+                showWarningToast('Paste a Telegram bot token before saving.');
+                return null;
+            }
+
+            try {
+                const snapshot = await saveTelegramBotToken(botToken.trim());
+                setNotificationDelivery(snapshot);
+                setNotice('Telegram bot token saved securely for this Windows user.');
+                showSuccessToast('Telegram bot token saved.');
+                return snapshot;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Telegram bot token could not be saved.');
+                return null;
+            }
+        },
+        async clearTelegramBotToken() {
+            requestConfirmation({
+                title: 'Remove stored Telegram bot token?',
+                description: 'Telegram notifications will stop until a new bot token is saved.',
+                confirmLabel: 'Remove Telegram Token',
+                cancelLabel: 'Cancel',
+                pendingLabel: 'Removing...',
+                tone: 'danger',
+                onConfirm: async () => {
+                    const snapshot = await clearTelegramBotTokenCommand();
+                    setNotificationDelivery(snapshot);
+                    setNotice('Telegram bot token removed from this Windows profile.');
+                    showWarningToast('Telegram bot token removed.');
+                }
+            });
+            return null;
+        },
+        async detectTelegramChat() {
+            try {
+                const detected = await detectTelegramChatCommand();
+                setNotificationDelivery((previous) => ({
+                    ...previous,
+                    settings: {
+                        ...previous.settings,
+                        telegram: {
+                            ...previous.settings.telegram,
+                            chatId: detected.chatId
+                        }
+                    },
+                    telegramState: {
+                        ...previous.telegramState,
+                        lastResolvedChatTitle: detected.title
+                    }
+                }));
+                setNotice(`Detected Telegram chat ${detected.title ? `${detected.title} ` : ''}(${detected.chatId}).`);
+                showSuccessToast('Telegram chat detected.');
+                return detected;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Telegram chat detection failed.');
+                return null;
+            }
+        },
+        async sendTestTelegramNotification() {
+            try {
+                const result = await sendTestTelegramNotificationCommand();
+                setNotificationDelivery((previous) => ({
+                    ...previous,
+                    telegramState: result.state
+                }));
+                setNotice(result.message);
+                if (result.ok) {
+                    showSuccessToast('Telegram test notification sent.');
+                } else {
+                    showWarningToast(result.message);
+                }
+                return result;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Telegram test notification failed.');
                 return null;
             }
         },

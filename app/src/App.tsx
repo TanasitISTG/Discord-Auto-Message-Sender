@@ -325,6 +325,7 @@ export default function App() {
                             supportBundle={controller.supportBundle}
                             inboxMonitorSettings={controller.inboxMonitorSettings}
                             inboxMonitorState={controller.inboxMonitorState}
+                            notificationDelivery={controller.notificationDelivery}
                             hasActiveSession={controller.hasActiveSession}
                             notice={controller.notice}
                             onCopyDiagnostics={async () => {
@@ -344,6 +345,21 @@ export default function App() {
                             }}
                             onSaveInboxMonitorSettings={async (settings) => {
                                 await controller.saveInboxMonitorSettingsDraft(settings);
+                            }}
+                            onSaveNotificationDeliverySettings={async (settings) => {
+                                await controller.saveNotificationDeliverySettingsDraft(settings);
+                            }}
+                            onSaveTelegramBotToken={async (botToken) => {
+                                await controller.saveTelegramBotTokenDraft(botToken);
+                            }}
+                            onClearTelegramBotToken={async () => {
+                                await controller.clearTelegramBotToken();
+                            }}
+                            onDetectTelegramChat={async () => {
+                                await controller.detectTelegramChat();
+                            }}
+                            onSendTestTelegramNotification={async () => {
+                                await controller.sendTestTelegramNotification();
                             }}
                         />
                     ) : null}
