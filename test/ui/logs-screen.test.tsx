@@ -60,12 +60,13 @@ test('LogsScreen shows human-readable event labels and segment headers', async (
 
     expect(screen.getByText('Resumed from checkpoint')).toBeTruthy();
     expect(screen.getByText('Fresh session start')).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'Rate-limit cooldown' })).toBeTruthy();
     expect(screen.queryByText(/eventless/i)).toBeNull();
     expect(screen.queryByText('rate_limit_wait')).toBeNull();
     expect(screen.getByText('Retry 120s')).toBeTruthy();
     expect(screen.getByText('Pacing 5000 ms')).toBeTruthy();
 
-    await user.selectOptions(screen.getAllByRole('combobox')[2], 'rate_limit_wait');
+    await user.click(screen.getByRole('combobox', { name: 'Filter by event' }));
+    expect(screen.getByRole('option', { name: 'Rate-limit cooldown' })).toBeTruthy();
+    await user.click(screen.getByRole('option', { name: 'Rate-limit cooldown' }));
     expect(screen.getAllByText('Rate-limit cooldown').length).toBeGreaterThan(0);
 });

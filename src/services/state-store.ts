@@ -4,6 +4,12 @@ import {
     AdaptivePacingState,
     ChannelHealthRecord,
     ChannelProgressRecord,
+    InboxMonitorLastSeen,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     RuntimeOptions,
     SenderStateRecord,
     SessionState
@@ -11,6 +17,55 @@ import {
 
 export const STATE_FILE = '.sender-state.json';
 export const STATE_SCHEMA_VERSION = 1;
+
+export function getDefaultInboxMonitorSettings(): InboxMonitorSettings {
+    return {
+        enabled: false,
+        pollIntervalSeconds: 30,
+        notifyDirectMessages: true,
+        notifyMessageRequests: true
+    };
+}
+
+export function getDefaultInboxMonitorState(settings: InboxMonitorSettings = getDefaultInboxMonitorSettings()): InboxMonitorState {
+    return {
+        status: 'stopped',
+        enabled: settings.enabled,
+        pollIntervalSeconds: settings.pollIntervalSeconds
+    };
+}
+
+export function getDefaultInboxMonitorSnapshot(): InboxMonitorSnapshot {
+    const settings = getDefaultInboxMonitorSettings();
+    return {
+        settings,
+        state: getDefaultInboxMonitorState(settings),
+        lastSeen: {
+            channelMessageIds: {}
+        }
+    };
+}
+
+export function getDefaultNotificationDeliverySettings(): NotificationDeliverySettings {
+    return {
+        windowsDesktopEnabled: true,
+        telegram: {
+            enabled: false,
+            botTokenStored: false,
+            chatId: '',
+            previewMode: 'full'
+        }
+    };
+}
+
+export function getDefaultNotificationDeliverySnapshot(): NotificationDeliverySnapshot {
+    return {
+        settings: getDefaultNotificationDeliverySettings(),
+        telegramState: {
+            status: 'disabled'
+        }
+    };
+}
 
 type RawSenderState = Partial<SenderStateRecord> & {
     schemaVersion?: unknown;
@@ -22,7 +77,9 @@ export function getDefaultSenderState(): SenderStateRecord {
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {},
-        channelHealth: {}
+        channelHealth: {},
+        inboxMonitor: getDefaultInboxMonitorSnapshot(),
+        notificationDelivery: getDefaultNotificationDeliverySnapshot()
     };
 }
 
@@ -101,10 +158,174 @@ function normalizeSenderState(raw: RawSenderState): {
             recentFailures: Array.isArray(raw.recentFailures) ? raw.recentFailures : [],
             recentMessageHistory: normalizeMessageHistory(raw.recentMessageHistory),
             channelHealth: normalizeChannelHealthMap(raw.channelHealth),
-            resumeSession: normalizeResumeSession(raw.resumeSession)
+            resumeSession: normalizeResumeSession(raw.resumeSession),
+            inboxMonitor: normalizeInboxMonitorSnapshot(raw.inboxMonitor),
+            notificationDelivery: normalizeNotificationDeliverySnapshot(raw.notificationDelivery)
         },
         shouldWriteBack,
         warning
+    };
+}
+
+function normalizeTelegramSettings(value: unknown): NotificationDeliverySettings['telegram'] {
+    const defaults = getDefaultNotificationDeliverySettings().telegram;
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const settings = value as Partial<NotificationDeliverySettings['telegram']>;
+    return {
+        enabled: typeof settings.enabled === 'boolean' ? settings.enabled : defaults.enabled,
+        botTokenStored: typeof settings.botTokenStored === 'boolean' ? settings.botTokenStored : defaults.botTokenStored,
+        chatId: typeof settings.chatId === 'string' ? settings.chatId : defaults.chatId,
+        previewMode: settings.previewMode === 'full' ? settings.previewMode : defaults.previewMode
+    };
+}
+
+function normalizeNotificationDeliverySettings(value: unknown): NotificationDeliverySettings {
+    const defaults = getDefaultNotificationDeliverySettings();
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const settings = value as Partial<NotificationDeliverySettings>;
+    return {
+        windowsDesktopEnabled: typeof settings.windowsDesktopEnabled === 'boolean'
+            ? settings.windowsDesktopEnabled
+            : defaults.windowsDesktopEnabled,
+        telegram: normalizeTelegramSettings(settings.telegram)
+    };
+}
+
+function normalizeTelegramState(value: unknown, settings: NotificationDeliverySettings): NotificationDeliverySnapshot['telegramState'] {
+    const defaultStatus = settings.telegram.enabled
+        ? (settings.telegram.botTokenStored && settings.telegram.chatId ? 'ready' : 'unconfigured')
+        : 'disabled';
+    if (!value || typeof value !== 'object') {
+        return {
+            status: defaultStatus
+        };
+    }
+
+    const state = value as Partial<NotificationDeliverySnapshot['telegramState']>;
+    const status = state.status === 'disabled'
+        || state.status === 'unconfigured'
+        || state.status === 'ready'
+        || state.status === 'testing'
+        || state.status === 'failed'
+        ? state.status
+        : defaultStatus;
+
+    return {
+        status,
+        lastCheckedAt: typeof state.lastCheckedAt === 'string' ? state.lastCheckedAt : undefined,
+        lastDeliveredAt: typeof state.lastDeliveredAt === 'string' ? state.lastDeliveredAt : undefined,
+        lastTestedAt: typeof state.lastTestedAt === 'string' ? state.lastTestedAt : undefined,
+        lastError: typeof state.lastError === 'string' ? state.lastError : undefined,
+        lastResolvedChatTitle: typeof state.lastResolvedChatTitle === 'string' ? state.lastResolvedChatTitle : undefined
+    };
+}
+
+function normalizeNotificationDeliverySnapshot(value: unknown): NotificationDeliverySnapshot {
+    const defaults = getDefaultNotificationDeliverySnapshot();
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const snapshot = value as Partial<NotificationDeliverySnapshot>;
+    const settings = normalizeNotificationDeliverySettings(snapshot.settings);
+    return {
+        settings,
+        telegramState: normalizeTelegramState(snapshot.telegramState, settings)
+    };
+}
+
+function normalizeInboxMonitorSettings(value: unknown): InboxMonitorSettings {
+    const defaults = getDefaultInboxMonitorSettings();
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const settings = value as Partial<InboxMonitorSettings>;
+    const pollIntervalSeconds = typeof settings.pollIntervalSeconds === 'number' && Number.isFinite(settings.pollIntervalSeconds)
+        ? Math.max(15, Math.min(300, Math.round(settings.pollIntervalSeconds)))
+        : defaults.pollIntervalSeconds;
+
+    return {
+        enabled: typeof settings.enabled === 'boolean' ? settings.enabled : defaults.enabled,
+        pollIntervalSeconds,
+        notifyDirectMessages: typeof settings.notifyDirectMessages === 'boolean'
+            ? settings.notifyDirectMessages
+            : defaults.notifyDirectMessages,
+        notifyMessageRequests: typeof settings.notifyMessageRequests === 'boolean'
+            ? settings.notifyMessageRequests
+            : defaults.notifyMessageRequests
+    };
+}
+
+function normalizeInboxMonitorState(value: unknown, settings: InboxMonitorSettings): InboxMonitorState {
+    const defaults = getDefaultInboxMonitorState(settings);
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const state = value as Partial<InboxMonitorState>;
+    const status = state.status === 'stopped'
+        || state.status === 'starting'
+        || state.status === 'running'
+        || state.status === 'blocked'
+        || state.status === 'degraded'
+        || state.status === 'failed'
+        ? state.status
+        : defaults.status;
+
+    return {
+        status,
+        enabled: typeof state.enabled === 'boolean' ? state.enabled : settings.enabled,
+        pollIntervalSeconds: typeof state.pollIntervalSeconds === 'number' && Number.isFinite(state.pollIntervalSeconds)
+            ? Math.max(15, Math.min(300, Math.round(state.pollIntervalSeconds)))
+            : settings.pollIntervalSeconds,
+        lastCheckedAt: typeof state.lastCheckedAt === 'string' ? state.lastCheckedAt : undefined,
+        lastSuccessfulPollAt: typeof state.lastSuccessfulPollAt === 'string' ? state.lastSuccessfulPollAt : undefined,
+        lastNotificationAt: typeof state.lastNotificationAt === 'string' ? state.lastNotificationAt : undefined,
+        lastError: typeof state.lastError === 'string' ? state.lastError : undefined,
+        backoffUntil: typeof state.backoffUntil === 'string' ? state.backoffUntil : undefined
+    };
+}
+
+function normalizeInboxMonitorLastSeen(value: unknown): InboxMonitorLastSeen {
+    if (!value || typeof value !== 'object') {
+        return { channelMessageIds: {} };
+    }
+
+    const lastSeen = value as Partial<InboxMonitorLastSeen>;
+    const channelMessageIds = lastSeen.channelMessageIds && typeof lastSeen.channelMessageIds === 'object' && !Array.isArray(lastSeen.channelMessageIds)
+        ? Object.fromEntries(
+            Object.entries(lastSeen.channelMessageIds)
+                .filter((entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string')
+        )
+        : {};
+
+    return {
+        initializedAt: typeof lastSeen.initializedAt === 'string' ? lastSeen.initializedAt : undefined,
+        selfUserId: typeof lastSeen.selfUserId === 'string' ? lastSeen.selfUserId : undefined,
+        channelMessageIds
+    };
+}
+
+function normalizeInboxMonitorSnapshot(value: unknown): InboxMonitorSnapshot {
+    const defaults = getDefaultInboxMonitorSnapshot();
+    if (!value || typeof value !== 'object') {
+        return defaults;
+    }
+
+    const snapshot = value as Partial<InboxMonitorSnapshot>;
+    const settings = normalizeInboxMonitorSettings(snapshot.settings);
+
+    return {
+        settings,
+        state: normalizeInboxMonitorState(snapshot.state, settings),
+        lastSeen: normalizeInboxMonitorLastSeen(snapshot.lastSeen)
     };
 }
 

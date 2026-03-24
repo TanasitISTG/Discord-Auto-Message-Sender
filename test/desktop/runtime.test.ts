@@ -5,8 +5,9 @@ import os from 'os';
 import path from 'path';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { DesktopRuntime, resolveSessionLogPath } from '../../src/desktop/runtime';
+import { InboxMonitorController } from '../../src/services/inbox-monitor';
 import { SessionServiceOptions } from '../../src/services/session';
-import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
+import { getDefaultInboxMonitorSnapshot, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 import { SessionState } from '../../src/types';
 
 function createTempDir(): string {
@@ -88,6 +89,66 @@ class FakeSession {
         return await new Promise<SessionState>((resolve) => {
             this.resolveStart = resolve;
         });
+    }
+}
+
+class FakeInboxMonitor implements InboxMonitorController {
+    private snapshot = getDefaultInboxMonitorSnapshot();
+
+    loadSettings() {
+        return { ...this.snapshot.settings };
+    }
+
+    saveSettings(settings: typeof this.snapshot.settings) {
+        this.snapshot = {
+            ...this.snapshot,
+            settings: { ...settings },
+            state: {
+                ...this.snapshot.state,
+                enabled: settings.enabled,
+                pollIntervalSeconds: settings.pollIntervalSeconds
+            }
+        };
+        return this.getSnapshot();
+    }
+
+    getState() {
+        return { ...this.snapshot.state };
+    }
+
+    getSnapshot() {
+        return {
+            settings: { ...this.snapshot.settings },
+            state: { ...this.snapshot.state },
+            lastSeen: {
+                initializedAt: this.snapshot.lastSeen.initializedAt,
+                selfUserId: this.snapshot.lastSeen.selfUserId,
+                channelMessageIds: { ...this.snapshot.lastSeen.channelMessageIds }
+            }
+        };
+    }
+
+    async start() {
+        this.snapshot = {
+            ...this.snapshot,
+            state: {
+                ...this.snapshot.state,
+                status: 'running',
+                enabled: this.snapshot.settings.enabled
+            }
+        };
+        return this.getState();
+    }
+
+    stop() {
+        this.snapshot = {
+            ...this.snapshot,
+            state: {
+                ...this.snapshot.state,
+                status: 'stopped'
+            }
+        };
+        return this.getState();
     }
 }
 
@@ -342,4 +403,29 @@ test('DesktopRuntime skips invalid JSONL lines while loading logs', async () => 
 
     assert.equal(result.entries.length, 2);
     assert.deepEqual(result.warnings, ['Skipped invalid log line 2.']);
+});
+
+test('DesktopRuntime saves inbox monitor settings and starts/stops the monitor', async () => {
+    const tempDir = createTempDir();
+    writeDesktopFiles(tempDir);
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        inboxMonitorFactory: () => new FakeInboxMonitor()
+    });
+
+    const saved = runtime.saveInboxMonitorSettings({
+        settings: {
+            enabled: true,
+            pollIntervalSeconds: 45,
+            notifyDirectMessages: true,
+            notifyMessageRequests: false
+        }
+    });
+    const started = await runtime.startInboxMonitor({ token: 'token' });
+    const stopped = runtime.stopInboxMonitor();
+
+    assert.equal(saved.settings.enabled, true);
+    assert.equal(saved.settings.pollIntervalSeconds, 45);
+    assert.equal(started.status, 'running');
+    assert.equal(stopped.status, 'stopped');
 });

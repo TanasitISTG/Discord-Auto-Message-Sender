@@ -180,6 +180,80 @@ export interface DryRunResult {
     };
 }
 
+export type InboxNotificationKind = 'direct_message' | 'message_request';
+export type InboxMonitorStatus = 'stopped' | 'starting' | 'running' | 'blocked' | 'degraded' | 'failed';
+export type NotificationChannel = 'windows_desktop' | 'telegram';
+export type TelegramDeliveryStatus = 'disabled' | 'unconfigured' | 'ready' | 'testing' | 'failed';
+export type TelegramPreviewMode = 'full';
+
+export interface InboxNotificationItem {
+    id: string;
+    kind: InboxNotificationKind;
+    channelId: string;
+    channelName: string;
+    authorId: string;
+    authorName: string;
+    previewText: string;
+    messageId: string;
+    receivedAt: string;
+}
+
+export interface InboxMonitorSettings {
+    enabled: boolean;
+    pollIntervalSeconds: number;
+    notifyDirectMessages: boolean;
+    notifyMessageRequests: boolean;
+}
+
+export interface InboxMonitorState {
+    status: InboxMonitorStatus;
+    enabled: boolean;
+    pollIntervalSeconds: number;
+    lastCheckedAt?: string;
+    lastSuccessfulPollAt?: string;
+    lastNotificationAt?: string;
+    lastError?: string;
+    backoffUntil?: string;
+}
+
+export interface InboxMonitorLastSeen {
+    initializedAt?: string;
+    selfUserId?: string;
+    channelMessageIds: Record<string, string>;
+}
+
+export interface InboxMonitorSnapshot {
+    settings: InboxMonitorSettings;
+    state: InboxMonitorState;
+    lastSeen: InboxMonitorLastSeen;
+}
+
+export interface TelegramSettings {
+    enabled: boolean;
+    botTokenStored: boolean;
+    chatId: string;
+    previewMode: TelegramPreviewMode;
+}
+
+export interface TelegramState {
+    status: TelegramDeliveryStatus;
+    lastCheckedAt?: string;
+    lastDeliveredAt?: string;
+    lastTestedAt?: string;
+    lastError?: string;
+    lastResolvedChatTitle?: string;
+}
+
+export interface NotificationDeliverySettings {
+    windowsDesktopEnabled: boolean;
+    telegram: TelegramSettings;
+}
+
+export interface NotificationDeliverySnapshot {
+    settings: NotificationDeliverySettings;
+    telegramState: TelegramState;
+}
+
 export type AppEvent =
     | { type: 'session_started'; state: SessionState }
     | { type: 'session_paused'; state: SessionState }
@@ -190,7 +264,12 @@ export type AppEvent =
     | { type: 'log_event_emitted'; entry: LogEntry }
     | { type: 'summary_ready'; summary: SessionSummary; state: SessionState }
     | { type: 'preflight_result_emitted'; result: PreflightResult }
-    | { type: 'dry_run_ready'; result: DryRunResult };
+    | { type: 'dry_run_ready'; result: DryRunResult }
+    | { type: 'inbox_monitor_state_changed'; monitor: InboxMonitorState }
+    | { type: 'inbox_notification_ready'; notification: InboxNotificationItem; monitor: InboxMonitorState }
+    | { type: 'notification_delivery_state_changed'; delivery: NotificationDeliverySnapshot }
+    | { type: 'telegram_test_result'; ok: boolean; message: string; state: TelegramState }
+    | { type: 'telegram_chat_detected'; chatId: string; title?: string };
 
 export interface LegacyChannel {
     name: string;
@@ -241,5 +320,7 @@ export interface SenderStateRecord {
         state: SessionState;
         recentMessageHistory: Record<string, string[]>;
     };
+    inboxMonitor?: InboxMonitorSnapshot;
+    notificationDelivery?: NotificationDeliverySnapshot;
     warning?: string;
 }

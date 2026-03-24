@@ -88,10 +88,101 @@ const desktopMock = vi.hoisted(() => {
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
         loadSetupState: vi.fn(async () => structuredClone(state.setup)),
+        loadInboxMonitorSettings: vi.fn(async () => ({
+            enabled: false,
+            pollIntervalSeconds: 30,
+            notifyDirectMessages: true,
+            notifyMessageRequests: true
+        })),
+        getInboxMonitorState: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
+        loadNotificationDeliverySettings: vi.fn(async () => ({
+            windowsDesktopEnabled: true,
+            telegram: {
+                enabled: false,
+                botTokenStored: false,
+                chatId: '',
+                previewMode: 'full'
+            }
+        })),
+        getNotificationDeliveryState: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: false,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
         saveEnvironment: vi.fn(async () => ({
             ...state.setup
+        })),
+        saveInboxMonitorSettings: vi.fn(async ({ settings }) => ({
+            settings,
+            state: {
+                status: settings.enabled ? 'running' : 'stopped',
+                enabled: settings.enabled,
+                pollIntervalSeconds: settings.pollIntervalSeconds
+            },
+            lastSeen: {
+                channelMessageIds: {}
+            }
+        })),
+        saveNotificationDeliverySettings: vi.fn(async ({ settings }) => ({
+            settings,
+            telegramState: {
+                status: settings.telegram.enabled && settings.telegram.botTokenStored && settings.telegram.chatId ? 'ready' : 'unconfigured'
+            }
+        })),
+        saveTelegramBotToken: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: true,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
+        clearTelegramBotToken: vi.fn(async () => ({
+            settings: {
+                windowsDesktopEnabled: true,
+                telegram: {
+                    enabled: false,
+                    botTokenStored: false,
+                    chatId: '',
+                    previewMode: 'full'
+                }
+            },
+            telegramState: {
+                status: 'disabled'
+            }
+        })),
+        detectTelegramChat: vi.fn(async () => ({
+            chatId: '123456789',
+            title: 'tana'
+        })),
+        sendTestTelegramNotification: vi.fn(async () => ({
+            ok: true,
+            message: 'Telegram test notification sent.',
+            state: {
+                status: 'ready',
+                lastTestedAt: '2026-03-21T10:00:00.000Z'
+            }
         })),
         clearSecureToken: vi.fn(async () => {
             state.setup = {
@@ -143,6 +234,11 @@ const desktopMock = vi.hoisted(() => {
             };
             return structuredClone(state.session);
         }),
+        startInboxMonitor: vi.fn(async () => ({
+            status: 'running',
+            enabled: true,
+            pollIntervalSeconds: 30
+        })),
         resumeSession: vi.fn(async () => {
             state.session = {
                 ...state.session,
@@ -150,6 +246,11 @@ const desktopMock = vi.hoisted(() => {
             };
             return structuredClone(state.session);
         }),
+        stopInboxMonitor: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
         stopSession: vi.fn(async () => {
             state.session = {
                 ...state.session,

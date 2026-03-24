@@ -24,6 +24,7 @@ const result = Bun.spawnSync([
     'build',
     './src/desktop/server.ts',
     '--compile',
+    ...(process.platform === 'win32' ? ['--windows-hide-console'] : []),
     `--target=${target}`,
     `--outfile=${outputFile}`
 ], {

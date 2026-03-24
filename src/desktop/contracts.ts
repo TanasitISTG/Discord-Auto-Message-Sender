@@ -2,7 +2,12 @@ import {
     AppConfig,
     AppEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     RuntimeOptions,
     SenderStateRecord,
@@ -12,7 +17,12 @@ import {
 export type {
     AppConfig,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     RuntimeOptions,
     SenderStateRecord,
@@ -101,6 +111,33 @@ export interface SaveEnvironmentRequest {
     discordToken: string;
 }
 
+export interface SaveInboxMonitorSettingsRequest {
+    settings: InboxMonitorSettings;
+}
+
+export interface StartInboxMonitorRequest {
+    token?: string;
+}
+
+export interface SaveNotificationDeliverySettingsRequest {
+    settings: NotificationDeliverySettings;
+}
+
+export interface SaveTelegramBotTokenRequest {
+    botToken: string;
+}
+
+export interface TelegramChatDetectionResult {
+    chatId: string;
+    title?: string;
+}
+
+export interface TelegramTestResult {
+    ok: boolean;
+    message: string;
+    state: NotificationDeliverySnapshot['telegramState'];
+}
+
 export interface DesktopCommandMap {
     load_config: {
         request: EmptyRequest;
@@ -157,6 +194,54 @@ export interface DesktopCommandMap {
     clear_secure_token: {
         request: EmptyRequest;
         response: DesktopSetupState;
+    };
+    load_inbox_monitor_settings: {
+        request: EmptyRequest;
+        response: InboxMonitorSettings;
+    };
+    save_inbox_monitor_settings: {
+        request: SaveInboxMonitorSettingsRequest;
+        response: InboxMonitorSnapshot;
+    };
+    get_inbox_monitor_state: {
+        request: EmptyRequest;
+        response: InboxMonitorState;
+    };
+    start_inbox_monitor: {
+        request: StartInboxMonitorRequest;
+        response: InboxMonitorState;
+    };
+    stop_inbox_monitor: {
+        request: EmptyRequest;
+        response: InboxMonitorState;
+    };
+    load_notification_delivery_settings: {
+        request: EmptyRequest;
+        response: NotificationDeliverySettings;
+    };
+    save_notification_delivery_settings: {
+        request: SaveNotificationDeliverySettingsRequest;
+        response: NotificationDeliverySnapshot;
+    };
+    get_notification_delivery_state: {
+        request: EmptyRequest;
+        response: NotificationDeliverySnapshot;
+    };
+    save_telegram_bot_token: {
+        request: SaveTelegramBotTokenRequest;
+        response: NotificationDeliverySnapshot;
+    };
+    clear_telegram_bot_token: {
+        request: EmptyRequest;
+        response: NotificationDeliverySnapshot;
+    };
+    detect_telegram_chat: {
+        request: EmptyRequest;
+        response: TelegramChatDetectionResult;
+    };
+    send_test_telegram_notification: {
+        request: EmptyRequest;
+        response: TelegramTestResult;
     };
     discard_resume_session: {
         request: EmptyRequest;

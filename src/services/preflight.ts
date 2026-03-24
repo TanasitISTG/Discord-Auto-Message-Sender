@@ -2,10 +2,11 @@ import { AppConfig, ChannelPreflightResult, EnvironmentConfig, PreflightResult }
 import { parseAppConfig } from '../config/schema';
 
 const API_BASE = 'https://discord.com/api/v10';
+type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export interface PreflightOptions {
     token?: string;
-    fetchImpl?: typeof fetch;
+    fetchImpl?: FetchImpl;
     checkAccess?: boolean;
 }
 
@@ -25,7 +26,7 @@ function summarizeChannelError(status: number): string {
 async function verifyChannelAccess(
     config: AppConfig,
     env: Pick<EnvironmentConfig, 'DISCORD_TOKEN'>,
-    fetchImpl: typeof fetch
+    fetchImpl: FetchImpl
 ): Promise<ChannelPreflightResult[]> {
     return Promise.all(config.channels.map(async (channel) => {
         try {

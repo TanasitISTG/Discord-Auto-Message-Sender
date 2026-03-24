@@ -8,8 +8,13 @@ import type {
     DesktopCommandName,
     DesktopEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogLoadResult,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     ResetRuntimeStateResult,
     ReleaseDiagnostics,
@@ -28,8 +33,13 @@ export type {
     DesktopSetupState,
     DesktopEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogLoadResult,
     LogEntry,
+    NotificationDeliverySettings,
+    NotificationDeliverySnapshot,
     PreflightResult,
     ResetRuntimeStateResult,
     ReleaseDiagnostics,
@@ -108,6 +118,54 @@ export async function saveEnvironment(request: SaveEnvironmentRequest): Promise<
 
 export async function clearSecureToken(): Promise<DesktopSetupState> {
     return desktopInvoke('clear_secure_token', {});
+}
+
+export async function loadInboxMonitorSettings(): Promise<InboxMonitorSettings> {
+    return desktopInvoke('load_inbox_monitor_settings', {});
+}
+
+export async function saveInboxMonitorSettings(settings: InboxMonitorSettings): Promise<InboxMonitorSnapshot> {
+    return desktopInvoke('save_inbox_monitor_settings', { settings });
+}
+
+export async function getInboxMonitorState(): Promise<InboxMonitorState> {
+    return desktopInvoke('get_inbox_monitor_state', {});
+}
+
+export async function startInboxMonitor(): Promise<InboxMonitorState> {
+    return desktopInvoke('start_inbox_monitor', {});
+}
+
+export async function stopInboxMonitor(): Promise<InboxMonitorState> {
+    return desktopInvoke('stop_inbox_monitor', {});
+}
+
+export async function loadNotificationDeliverySettings(): Promise<NotificationDeliverySettings> {
+    return desktopInvoke('load_notification_delivery_settings', {});
+}
+
+export async function saveNotificationDeliverySettings(settings: NotificationDeliverySettings): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('save_notification_delivery_settings', { settings });
+}
+
+export async function getNotificationDeliveryState(): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('get_notification_delivery_state', {});
+}
+
+export async function saveTelegramBotToken(botToken: string): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('save_telegram_bot_token', { botToken });
+}
+
+export async function clearTelegramBotToken(): Promise<NotificationDeliverySnapshot> {
+    return desktopInvoke('clear_telegram_bot_token', {});
+}
+
+export async function detectTelegramChat(): Promise<{ chatId: string; title?: string }> {
+    return desktopInvoke('detect_telegram_chat', {});
+}
+
+export async function sendTestTelegramNotification(): Promise<{ ok: boolean; message: string; state: NotificationDeliverySnapshot['telegramState'] }> {
+    return desktopInvoke('send_test_telegram_notification', {});
 }
 
 export async function discardResumeSession(): Promise<SenderStateRecord> {

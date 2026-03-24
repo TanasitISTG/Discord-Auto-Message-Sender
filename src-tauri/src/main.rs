@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::{
     collections::HashMap,
     env, fs,
@@ -12,9 +14,12 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use chrono::Utc;
+use reqwest::blocking::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "windows")]
 use windows::{
     core::PCWSTR,
@@ -28,6 +33,7 @@ const RUNTIME_LOG_DIR: &str = "logs";
 const SUPPORT_BUNDLE_DIR: &str = "support";
 const SIDECAR_RESOURCE_DIR: &str = "sidecar";
 const SECURE_TOKEN_FILE: &str = "discord-token.secure";
+const TELEGRAM_BOT_TOKEN_FILE: &str = "telegram-bot-token.secure";
 const APPDATA_OVERRIDE_ENV: &str = "DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR";
 const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
     "desktop-sidecar.exe"
@@ -259,6 +265,8 @@ struct SenderStateRecord {
     recent_message_history: Option<HashMap<String, Vec<String>>>,
     channel_health: Option<HashMap<String, ChannelHealthRecord>>,
     resume_session: Option<ResumeSessionRecord>,
+    inbox_monitor: Option<InboxMonitorSnapshot>,
+    notification_delivery: Option<NotificationDeliverySnapshot>,
     warning: Option<String>,
 }
 
@@ -333,6 +341,117 @@ struct OpenLogFileRequest {
 #[serde(rename_all = "camelCase")]
 struct SaveEnvironmentRequest {
     discord_token: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorSettings {
+    enabled: bool,
+    poll_interval_seconds: u32,
+    notify_direct_messages: bool,
+    notify_message_requests: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorState {
+    status: String,
+    enabled: bool,
+    poll_interval_seconds: u32,
+    last_checked_at: Option<String>,
+    last_successful_poll_at: Option<String>,
+    last_notification_at: Option<String>,
+    last_error: Option<String>,
+    backoff_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorLastSeen {
+    initialized_at: Option<String>,
+    self_user_id: Option<String>,
+    channel_message_ids: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorSnapshot {
+    settings: InboxMonitorSettings,
+    state: InboxMonitorState,
+    last_seen: InboxMonitorLastSeen,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TelegramSettings {
+    enabled: bool,
+    bot_token_stored: bool,
+    chat_id: String,
+    preview_mode: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TelegramState {
+    status: String,
+    last_checked_at: Option<String>,
+    last_delivered_at: Option<String>,
+    last_tested_at: Option<String>,
+    last_error: Option<String>,
+    last_resolved_chat_title: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotificationDeliverySettings {
+    windows_desktop_enabled: bool,
+    telegram: TelegramSettings,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NotificationDeliverySnapshot {
+    settings: NotificationDeliverySettings,
+    telegram_state: TelegramState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveInboxMonitorSettingsRequest {
+    settings: InboxMonitorSettings,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartInboxMonitorRequest {
+    token: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveNotificationDeliverySettingsRequest {
+    settings: NotificationDeliverySettings,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveTelegramBotTokenRequest {
+    bot_token: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TelegramChatDetectionResult {
+    chat_id: String,
+    title: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TelegramTestResult {
+    ok: bool,
+    message: String,
+    state: TelegramState,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -495,12 +614,78 @@ fn secure_token_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(SECURE_TOKEN_FILE)
 }
 
+fn telegram_bot_token_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(TELEGRAM_BOT_TOKEN_FILE)
+}
+
 fn config_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join("config.json")
 }
 
 fn sender_state_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(".sender-state.json")
+}
+
+fn default_notification_delivery_settings() -> NotificationDeliverySettings {
+    NotificationDeliverySettings {
+        windows_desktop_enabled: true,
+        telegram: TelegramSettings {
+            enabled: false,
+            bot_token_stored: false,
+            chat_id: String::new(),
+            preview_mode: "full".to_string(),
+        },
+    }
+}
+
+fn default_notification_delivery_snapshot() -> NotificationDeliverySnapshot {
+    NotificationDeliverySnapshot {
+        settings: default_notification_delivery_settings(),
+        telegram_state: TelegramState {
+            status: "disabled".to_string(),
+            last_checked_at: None,
+            last_delivered_at: None,
+            last_tested_at: None,
+            last_error: None,
+            last_resolved_chat_title: None,
+        },
+    }
+}
+
+fn load_sender_state_record(paths: &RuntimePaths) -> Result<SenderStateRecord, String> {
+    let state_path = sender_state_path(paths);
+    if !state_path.exists() {
+        return Ok(SenderStateRecord {
+            schema_version: 1,
+            last_session: None,
+            summaries: Vec::new(),
+            recent_failures: Vec::new(),
+            recent_message_history: Some(HashMap::new()),
+            channel_health: Some(HashMap::new()),
+            resume_session: None,
+            inbox_monitor: None,
+            notification_delivery: Some(default_notification_delivery_snapshot()),
+            warning: None,
+        });
+    }
+
+    let contents = fs::read_to_string(&state_path)
+        .map_err(|error| format!("Failed to read '{}': {error}", state_path.display()))?;
+    let mut state: SenderStateRecord = serde_json::from_str(&contents)
+        .map_err(|error| format!("Failed to parse '{}': {error}", state_path.display()))?;
+    if state.notification_delivery.is_none() {
+        state.notification_delivery = Some(default_notification_delivery_snapshot());
+    }
+    Ok(state)
+}
+
+fn save_sender_state_record(paths: &RuntimePaths, state: &SenderStateRecord) -> Result<(), String> {
+    fs::write(
+        sender_state_path(paths),
+        serde_json::to_string_pretty(state)
+            .map_err(|error| format!("Failed to serialize sender state: {error}"))?,
+    )
+    .map_err(|error| format!("Failed to write sender state file: {error}"))
 }
 
 fn validate_session_id(session_id: &str) -> Result<&str, String> {
@@ -545,6 +730,10 @@ fn resolve_session_log_path(paths: &RuntimePaths, session_id: &str) -> Result<Pa
 
 fn support_bundle_dir(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(SUPPORT_BUNDLE_DIR)
+}
+
+fn current_timestamp() -> String {
+    Utc::now().to_rfc3339()
 }
 
 fn runtime_data_dir_override() -> Option<PathBuf> {
@@ -741,6 +930,119 @@ fn clear_secure_token_files(paths: &RuntimePaths) -> Result<(), String> {
     }
 
     scrub_discord_token_from_env_file(&environment_path(paths))
+}
+
+fn read_telegram_bot_token(paths: &RuntimePaths) -> Result<Option<String>, String> {
+    let secure_path = telegram_bot_token_path(paths);
+    if !secure_path.exists() {
+        return Ok(None);
+    }
+
+    let encrypted = fs::read(&secure_path)
+        .map_err(|error| format!("Failed to read '{}': {error}", secure_path.display()))?;
+    let token = unprotect_token(&encrypted)?;
+    Ok(normalize_token(token))
+}
+
+fn write_telegram_bot_token(paths: &RuntimePaths, token: &str) -> Result<(), String> {
+    let encrypted = protect_token(token)?;
+    fs::write(telegram_bot_token_path(paths), encrypted)
+        .map_err(|error| format!("Failed to write the secure Telegram bot token store: {error}"))
+}
+
+fn clear_telegram_bot_token_files(paths: &RuntimePaths) -> Result<(), String> {
+    let secure_path = telegram_bot_token_path(paths);
+    if secure_path.exists() {
+        fs::remove_file(&secure_path)
+            .map_err(|error| format!("Failed to remove '{}': {error}", secure_path.display()))?;
+    }
+
+    Ok(())
+}
+
+fn normalize_notification_delivery_settings(
+    settings: &NotificationDeliverySettings,
+    bot_token_stored: bool,
+) -> NotificationDeliverySettings {
+    NotificationDeliverySettings {
+        windows_desktop_enabled: settings.windows_desktop_enabled,
+        telegram: TelegramSettings {
+            enabled: settings.telegram.enabled,
+            bot_token_stored,
+            chat_id: settings.telegram.chat_id.trim().to_string(),
+            preview_mode: "full".to_string(),
+        },
+    }
+}
+
+fn resolve_telegram_state(settings: &NotificationDeliverySettings, previous: Option<&TelegramState>) -> TelegramState {
+    let default_status = if !settings.telegram.enabled {
+        "disabled".to_string()
+    } else if !settings.telegram.bot_token_stored || settings.telegram.chat_id.trim().is_empty() {
+        "unconfigured".to_string()
+    } else if let Some(previous) = previous {
+        if previous.status == "failed" || previous.status == "testing" {
+            previous.status.clone()
+        } else {
+            "ready".to_string()
+        }
+    } else {
+        "ready".to_string()
+    };
+
+    let previous = previous.cloned().unwrap_or(TelegramState {
+        status: default_status.clone(),
+        last_checked_at: None,
+        last_delivered_at: None,
+        last_tested_at: None,
+        last_error: None,
+        last_resolved_chat_title: None,
+    });
+
+    TelegramState {
+        status: default_status.clone(),
+        last_checked_at: previous.last_checked_at,
+        last_delivered_at: previous.last_delivered_at,
+        last_tested_at: previous.last_tested_at,
+        last_error: if default_status == "failed" { previous.last_error } else { None },
+        last_resolved_chat_title: previous.last_resolved_chat_title,
+    }
+}
+
+fn load_notification_delivery_snapshot(paths: &RuntimePaths) -> Result<NotificationDeliverySnapshot, String> {
+    let state = load_sender_state_record(paths)?;
+    let mut snapshot = state
+        .notification_delivery
+        .unwrap_or_else(default_notification_delivery_snapshot);
+    snapshot.settings = normalize_notification_delivery_settings(
+        &snapshot.settings,
+        read_telegram_bot_token(paths)?.is_some(),
+    );
+    snapshot.telegram_state = resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
+    Ok(snapshot)
+}
+
+fn persist_notification_delivery_snapshot(
+    app: &AppHandle,
+    mut snapshot: NotificationDeliverySnapshot,
+) -> Result<NotificationDeliverySnapshot, String> {
+    let paths = runtime_paths(app)?;
+    let bot_token_stored = read_telegram_bot_token(&paths)?.is_some();
+    snapshot.settings = normalize_notification_delivery_settings(&snapshot.settings, bot_token_stored);
+    snapshot.telegram_state = resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
+
+    let mut state = load_sender_state_record(&paths)?;
+    state.notification_delivery = Some(snapshot.clone());
+    save_sender_state_record(&paths, &state)?;
+    app.emit(
+        "app-event",
+        json!({
+            "type": "notification_delivery_state_changed",
+            "delivery": snapshot.clone()
+        }),
+    )
+    .map_err(|error| format!("Failed to emit notification delivery state: {error}"))?;
+    Ok(snapshot)
 }
 
 fn resolve_effective_token(app: &AppHandle) -> Result<Option<String>, String> {
@@ -1257,6 +1559,15 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                             }
                         };
                     }
+                    if event.event.get("type").and_then(Value::as_str) == Some("sidecar_ready") {
+                        let app_handle = app.clone();
+                        std::thread::spawn(move || {
+                            let _ = restore_inbox_monitor_if_enabled(&app_handle);
+                        });
+                    }
+                    if event.event.get("type").and_then(Value::as_str) == Some("inbox_notification_ready") {
+                        let _ = handle_inbox_notification_event(&app, &event.event);
+                    }
                     let _ = app.emit("app-event", event.event);
                     continue;
                 }
@@ -1452,6 +1763,207 @@ fn ensure_sidecar_running(app: &AppHandle) -> Result<(), String> {
     start_sidecar_process(app)
 }
 
+fn restore_inbox_monitor_if_enabled(app: &AppHandle) -> Result<Option<InboxMonitorState>, String> {
+    let settings: InboxMonitorSettings = send_sidecar_request(app, "load_inbox_monitor_settings", json!({}))?;
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    let token = resolve_effective_token(app)?;
+    let state: InboxMonitorState = send_sidecar_request(
+        app,
+        "start_inbox_monitor",
+        StartInboxMonitorRequest { token },
+    )?;
+    Ok(Some(state))
+}
+
+fn truncate_notification_body(value: &str, max_chars: usize) -> String {
+    let mut truncated = value.chars().take(max_chars).collect::<String>();
+    if value.chars().count() > max_chars {
+        truncated.push_str("...");
+    }
+    truncated
+}
+
+fn notification_parts_from_event(event: &Value) -> Result<(String, String, String), String> {
+    let notification = event
+        .get("notification")
+        .ok_or_else(|| "Inbox notification event payload was missing the notification object.".to_string())?;
+    let kind = notification
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("direct_message");
+    let author_name = notification
+        .get("authorName")
+        .and_then(Value::as_str)
+        .unwrap_or("Unknown sender");
+    let preview_text = notification
+        .get("previewText")
+        .and_then(Value::as_str)
+        .unwrap_or("(No text content)");
+    Ok((kind.to_string(), author_name.to_string(), preview_text.to_string()))
+}
+
+fn show_inbox_notification(app: &AppHandle, event: &Value) -> Result<(), String> {
+    let (kind, author_name, preview_text) = notification_parts_from_event(event)?;
+    let title = if kind == "message_request" {
+        format!("New message request from {author_name}")
+    } else {
+        format!("New message from {author_name}")
+    };
+
+    app.notification()
+        .builder()
+        .title(title)
+        .body(truncate_notification_body(&preview_text, 180))
+        .show()
+        .map_err(|error| format!("Failed to show inbox notification: {error}"))
+}
+
+fn telegram_message_body_from_event(event: &Value) -> Result<String, String> {
+    let (kind, author_name, preview_text) = notification_parts_from_event(event)?;
+    let title = if kind == "message_request" {
+        format!("New Discord message request from {author_name}")
+    } else {
+        format!("New Discord DM from {author_name}")
+    };
+    Ok(format!("{title}\n\n{}", truncate_notification_body(&preview_text, 180)))
+}
+
+fn telegram_api_url(token: &str, method: &str) -> String {
+    format!("https://api.telegram.org/bot{token}/{method}")
+}
+
+fn telegram_http_client() -> Result<Client, String> {
+    Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Failed to build Telegram HTTP client: {error}"))
+}
+
+fn detect_telegram_chat_with_token(token: &str) -> Result<TelegramChatDetectionResult, String> {
+    let payload: Value = telegram_http_client()?
+        .get(telegram_api_url(token, "getUpdates"))
+        .send()
+        .map_err(|error| format!("Failed to call Telegram getUpdates: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Telegram getUpdates failed: {error}"))?
+        .json()
+        .map_err(|error| format!("Failed to decode Telegram getUpdates response: {error}"))?;
+
+    let updates = payload
+        .get("result")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Telegram getUpdates returned an unexpected payload.".to_string())?;
+
+    let candidate = updates
+        .iter()
+        .rev()
+        .filter_map(|update| update.get("message"))
+        .filter_map(|message| {
+            let chat = message.get("chat")?;
+            if chat.get("type").and_then(Value::as_str) != Some("private") {
+                return None;
+            }
+
+            let chat_id = match chat.get("id") {
+                Some(Value::String(value)) => value.clone(),
+                Some(Value::Number(value)) => value.to_string(),
+                _ => return None,
+            };
+            let title = chat
+                .get("title")
+                .and_then(Value::as_str)
+                .or_else(|| chat.get("username").and_then(Value::as_str))
+                .or_else(|| chat.get("first_name").and_then(Value::as_str))
+                .map(str::to_string);
+            Some(TelegramChatDetectionResult { chat_id, title })
+        })
+        .next();
+
+    candidate.ok_or_else(|| "No private Telegram chat was found. Open your bot in Telegram, send /start, then try Detect Chat ID again.".to_string())
+}
+
+fn send_telegram_message(token: &str, chat_id: &str, text: &str) -> Result<(), String> {
+    let response: Value = telegram_http_client()?
+        .post(telegram_api_url(token, "sendMessage"))
+        .json(&json!({
+            "chat_id": chat_id,
+            "text": text,
+            "disable_notification": false
+        }))
+        .send()
+        .map_err(|error| format!("Failed to call Telegram sendMessage: {error}"))?
+        .json()
+        .map_err(|error| format!("Failed to decode Telegram sendMessage response: {error}"))?;
+
+    if response.get("ok").and_then(Value::as_bool) == Some(true) {
+        return Ok(());
+    }
+
+    let description = response
+        .get("description")
+        .and_then(Value::as_str)
+        .unwrap_or("Telegram sendMessage failed.");
+    Err(description.to_string())
+}
+
+fn handle_inbox_notification_event(app: &AppHandle, event: &Value) -> Result<(), String> {
+    let mut snapshot = load_notification_delivery_snapshot(&runtime_paths(app)?)?;
+
+    if snapshot.settings.windows_desktop_enabled {
+        let _ = show_inbox_notification(app, event);
+    }
+
+    if !snapshot.settings.telegram.enabled {
+        return Ok(());
+    }
+
+    let token = match read_telegram_bot_token(&runtime_paths(app)?)? {
+        Some(token) => token,
+        None => {
+            snapshot.telegram_state.status = "unconfigured".to_string();
+            snapshot.telegram_state.last_error = Some("Telegram bot token is missing.".to_string());
+            let _ = persist_notification_delivery_snapshot(app, snapshot);
+            return Ok(());
+        }
+    };
+
+    if snapshot.settings.telegram.chat_id.trim().is_empty() {
+        snapshot.telegram_state.status = "unconfigured".to_string();
+        snapshot.telegram_state.last_error = Some("Telegram chat ID is missing.".to_string());
+        let _ = persist_notification_delivery_snapshot(app, snapshot);
+        return Ok(());
+    }
+
+    let message = match telegram_message_body_from_event(event) {
+        Ok(message) => message,
+        Err(error) => {
+            snapshot.telegram_state.status = "failed".to_string();
+            snapshot.telegram_state.last_error = Some(error.clone());
+            let _ = persist_notification_delivery_snapshot(app, snapshot);
+            return Err(error);
+        }
+    };
+
+    match send_telegram_message(&token, &snapshot.settings.telegram.chat_id, &message) {
+        Ok(()) => {
+            snapshot.telegram_state.status = "ready".to_string();
+            snapshot.telegram_state.last_delivered_at = Some(current_timestamp());
+            snapshot.telegram_state.last_error = None;
+            let _ = persist_notification_delivery_snapshot(app, snapshot);
+        }
+        Err(error) => {
+            snapshot.telegram_state.status = "failed".to_string();
+            snapshot.telegram_state.last_error = Some(error);
+            let _ = persist_notification_delivery_snapshot(app, snapshot);
+        }
+    }
+
+    Ok(())
+}
+
 fn ensure_no_active_session(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppRuntime>();
     let sidecar = state
@@ -1600,12 +2112,187 @@ fn load_setup_state(app: AppHandle) -> Result<DesktopSetupState, String> {
 
 #[tauri::command]
 fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
-    save_secure_environment(&app, request)
+    let setup = save_secure_environment(&app, request)?;
+    let _ = restore_inbox_monitor_if_enabled(&app);
+    Ok(setup)
 }
 
 #[tauri::command]
 fn clear_secure_token(app: AppHandle) -> Result<DesktopSetupState, String> {
-    clear_secure_environment(&app)
+    let setup = clear_secure_environment(&app)?;
+    let _ = stop_inbox_monitor(app.clone());
+    Ok(setup)
+}
+
+#[tauri::command]
+fn load_inbox_monitor_settings(app: AppHandle) -> Result<InboxMonitorSettings, String> {
+    send_sidecar_request(&app, "load_inbox_monitor_settings", json!({}))
+}
+
+#[tauri::command]
+fn save_inbox_monitor_settings(
+    app: AppHandle,
+    request: SaveInboxMonitorSettingsRequest,
+) -> Result<InboxMonitorSnapshot, String> {
+    let snapshot: InboxMonitorSnapshot = send_sidecar_request(&app, "save_inbox_monitor_settings", request)?;
+
+    if snapshot.settings.enabled {
+        let _ = restore_inbox_monitor_if_enabled(&app);
+    } else {
+        let _ = stop_inbox_monitor(app.clone());
+    }
+
+    Ok(snapshot)
+}
+
+#[tauri::command]
+fn get_inbox_monitor_state(app: AppHandle) -> Result<InboxMonitorState, String> {
+    send_sidecar_request(&app, "get_inbox_monitor_state", json!({}))
+}
+
+#[tauri::command]
+fn start_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, String> {
+    let token = resolve_effective_token(&app)?;
+    send_sidecar_request(&app, "start_inbox_monitor", StartInboxMonitorRequest { token })
+}
+
+#[tauri::command]
+fn stop_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, String> {
+    send_sidecar_request(&app, "stop_inbox_monitor", json!({}))
+}
+
+#[tauri::command]
+fn load_notification_delivery_settings(app: AppHandle) -> Result<NotificationDeliverySettings, String> {
+    Ok(load_notification_delivery_snapshot(&runtime_paths(&app)?)?.settings)
+}
+
+#[tauri::command]
+fn save_notification_delivery_settings(
+    app: AppHandle,
+    request: SaveNotificationDeliverySettingsRequest,
+) -> Result<NotificationDeliverySnapshot, String> {
+    let previous = load_notification_delivery_snapshot(&runtime_paths(&app)?)?;
+    persist_notification_delivery_snapshot(
+        &app,
+        NotificationDeliverySnapshot {
+            settings: request.settings,
+            telegram_state: previous.telegram_state,
+        },
+    )
+}
+
+#[tauri::command]
+fn get_notification_delivery_state(app: AppHandle) -> Result<NotificationDeliverySnapshot, String> {
+    load_notification_delivery_snapshot(&runtime_paths(&app)?)
+}
+
+#[tauri::command]
+fn save_telegram_bot_token(
+    app: AppHandle,
+    request: SaveTelegramBotTokenRequest,
+) -> Result<NotificationDeliverySnapshot, String> {
+    let token = normalize_token(request.bot_token)
+        .ok_or_else(|| "Telegram bot token cannot be empty.".to_string())?;
+    let paths = runtime_paths(&app)?;
+    write_telegram_bot_token(&paths, &token)?;
+    let mut snapshot = load_notification_delivery_snapshot(&paths)?;
+    snapshot.settings.telegram.bot_token_stored = true;
+    persist_notification_delivery_snapshot(&app, snapshot)
+}
+
+#[tauri::command]
+fn clear_telegram_bot_token(app: AppHandle) -> Result<NotificationDeliverySnapshot, String> {
+    let paths = runtime_paths(&app)?;
+    clear_telegram_bot_token_files(&paths)?;
+    let mut snapshot = load_notification_delivery_snapshot(&paths)?;
+    snapshot.settings.telegram.bot_token_stored = false;
+    snapshot.settings.telegram.enabled = false;
+    persist_notification_delivery_snapshot(&app, snapshot)
+}
+
+#[tauri::command]
+async fn detect_telegram_chat(app: AppHandle) -> Result<TelegramChatDetectionResult, String> {
+    let paths = runtime_paths(&app)?;
+    let token = read_telegram_bot_token(&paths)?
+        .ok_or_else(|| "Save a Telegram bot token before detecting a chat ID.".to_string())?;
+    let token_for_lookup = token.clone();
+    let detected = tauri::async_runtime::spawn_blocking(move || detect_telegram_chat_with_token(&token_for_lookup))
+        .await
+        .map_err(|error| format!("Telegram chat detection task failed: {error}"))??;
+    let mut snapshot = load_notification_delivery_snapshot(&paths)?;
+    snapshot.telegram_state.last_checked_at = Some(current_timestamp());
+    snapshot.telegram_state.last_resolved_chat_title = detected.title.clone();
+    persist_notification_delivery_snapshot(&app, snapshot)?;
+    app.emit(
+        "app-event",
+        json!({
+            "type": "telegram_chat_detected",
+            "chatId": detected.chat_id.clone(),
+            "title": detected.title.clone()
+        }),
+    )
+    .map_err(|error| format!("Failed to emit Telegram chat detection event: {error}"))?;
+    Ok(detected)
+}
+
+#[tauri::command]
+async fn send_test_telegram_notification(app: AppHandle) -> Result<TelegramTestResult, String> {
+    let paths = runtime_paths(&app)?;
+    let token = read_telegram_bot_token(&paths)?
+        .ok_or_else(|| "Save a Telegram bot token before sending a test notification.".to_string())?;
+    let mut snapshot = load_notification_delivery_snapshot(&paths)?;
+    let chat_id = snapshot.settings.telegram.chat_id.clone();
+    if chat_id.trim().is_empty() {
+        return Err("Save or detect a Telegram chat ID before sending a test notification.".to_string());
+    }
+
+    snapshot.telegram_state.status = "testing".to_string();
+    snapshot.telegram_state.last_checked_at = Some(current_timestamp());
+    persist_notification_delivery_snapshot(&app, snapshot.clone())?;
+
+    let message = "Telegram delivery test from Discord Auto Message Sender.\n\nIf you received this, live inbox notifications can also be sent here while the desktop app is running.";
+    let token_for_send = token.clone();
+    let chat_id_for_send = chat_id.clone();
+    let send_result = tauri::async_runtime::spawn_blocking(move || send_telegram_message(&token_for_send, &chat_id_for_send, message))
+        .await
+        .map_err(|error| format!("Telegram test task failed: {error}"))?;
+    let result = match send_result {
+        Ok(()) => {
+            snapshot.telegram_state.status = "ready".to_string();
+            snapshot.telegram_state.last_tested_at = Some(current_timestamp());
+            snapshot.telegram_state.last_error = None;
+            let snapshot = persist_notification_delivery_snapshot(&app, snapshot)?;
+            TelegramTestResult {
+                ok: true,
+                message: "Telegram test notification sent.".to_string(),
+                state: snapshot.telegram_state,
+            }
+        }
+        Err(error) => {
+            snapshot.telegram_state.status = "failed".to_string();
+            snapshot.telegram_state.last_tested_at = Some(current_timestamp());
+            snapshot.telegram_state.last_error = Some(error.clone());
+            let snapshot = persist_notification_delivery_snapshot(&app, snapshot)?;
+            TelegramTestResult {
+                ok: false,
+                message: error,
+                state: snapshot.telegram_state,
+            }
+        }
+    };
+
+    app.emit(
+        "app-event",
+        json!({
+            "type": "telegram_test_result",
+            "ok": result.ok,
+            "message": result.message.clone(),
+            "state": result.state.clone()
+        }),
+    )
+    .map_err(|error| format!("Failed to emit Telegram test event: {error}"))?;
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1711,6 +2398,7 @@ fn handle_cli_command(app: &AppHandle, command: CliCommand) -> Result<(), String
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppRuntime::new())
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;
@@ -1756,6 +2444,18 @@ fn main() {
             load_setup_state,
             save_environment,
             clear_secure_token,
+            load_inbox_monitor_settings,
+            save_inbox_monitor_settings,
+            get_inbox_monitor_state,
+            start_inbox_monitor,
+            stop_inbox_monitor,
+            load_notification_delivery_settings,
+            save_notification_delivery_settings,
+            get_notification_delivery_state,
+            save_telegram_bot_token,
+            clear_telegram_bot_token,
+            detect_telegram_chat,
+            send_test_telegram_notification,
             discard_resume_session,
             load_release_diagnostics,
             open_logs_directory,

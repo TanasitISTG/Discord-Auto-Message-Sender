@@ -5,6 +5,7 @@ import os from 'os';
 import path from 'path';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { SessionService } from '../../src/services/session';
+import { getDefaultNotificationDeliverySnapshot, loadSenderState, saveSenderState, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 import { createStructuredLogger } from '../../src/utils/logger';
 
 function createTempDir(): string {
@@ -123,4 +124,52 @@ test('SessionService preserves session continuity while creating a new resumed s
     assert.equal(finalState.resumedFromCheckpoint, true);
     assert.equal(finalState.currentSegmentKind, 'resumed');
     assert.equal(finalState.currentSegmentId, marker?.segmentId);
+});
+
+test('SessionService preserves externally updated notification delivery state while flushing session state', async () => {
+    const tempDir = createTempDir();
+    const service = new SessionService({
+        baseDir: tempDir,
+        config: createConfig(),
+        token: 'test-token',
+        runtime: {
+            numMessages: 1,
+            baseWaitSeconds: 0,
+            marginSeconds: 0
+        },
+        fetchImpl: async () => createResponse(200, {}),
+        sleep: async () => {}
+    });
+
+    const externallySavedDelivery = {
+        settings: {
+            windowsDesktopEnabled: true,
+            telegram: {
+                enabled: true,
+                botTokenStored: true,
+                chatId: '576653372',
+                previewMode: 'full' as const
+            }
+        },
+        telegramState: {
+            status: 'ready' as const,
+            lastDeliveredAt: '2026-03-24T05:18:52.000Z'
+        }
+    };
+
+    const existingState = loadSenderState(tempDir);
+    saveSenderState(tempDir, {
+        ...existingState,
+        schemaVersion: STATE_SCHEMA_VERSION,
+        notificationDelivery: externallySavedDelivery
+    });
+
+    await service.start();
+
+    const persistedState = loadSenderState(tempDir);
+    assert.equal(persistedState.notificationDelivery?.settings.telegram.enabled, true);
+    assert.equal(persistedState.notificationDelivery?.settings.telegram.botTokenStored, true);
+    assert.equal(persistedState.notificationDelivery?.settings.telegram.chatId, '576653372');
+    assert.equal(persistedState.notificationDelivery?.telegramState.status, 'ready');
+    assert.equal(persistedState.notificationDelivery?.telegramState.lastDeliveredAt, '2026-03-24T05:18:52.000Z');
 });

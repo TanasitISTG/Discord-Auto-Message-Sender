@@ -3,10 +3,11 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { readAppConfigResult, writeAppConfig } from '../config/store';
 import { parseEnvironment } from '../config/schema';
+import { createInboxMonitorService, InboxMonitorController } from '../services/inbox-monitor';
 import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
 import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
-import { clearResumeSession, loadSenderState } from '../services/state-store';
+import { clearResumeSession, getDefaultInboxMonitorSnapshot, loadSenderState, saveSenderState } from '../services/state-store';
 import {
     ConfigLoadResult,
     DesktopCommandMap,
@@ -24,6 +25,11 @@ interface DesktopRuntimeOptions {
     baseDir: string;
     emitEvent?: (event: DesktopEvent) => void;
     sessionFactory?: SessionFactory;
+    inboxMonitorFactory?: (options: {
+        initialSnapshot: NonNullable<StateLoadResult['inboxMonitor']>;
+        emitEvent?: (event: DesktopEvent) => void;
+        onSnapshotChange: (snapshot: NonNullable<StateLoadResult['inboxMonitor']>) => void;
+    }) => InboxMonitorController;
 }
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
@@ -38,6 +44,7 @@ export class DesktopRuntime {
     private readonly baseDir: string;
     private readonly emitEvent?: (event: DesktopEvent) => void;
     private readonly sessionFactory: SessionFactory;
+    private readonly inboxMonitor: InboxMonitorController;
     private session: SessionController | null = null;
     private sessionPromise: Promise<unknown> | null = null;
     private sessionState: SessionSnapshot | null = null;
@@ -46,6 +53,18 @@ export class DesktopRuntime {
         this.baseDir = path.resolve(options.baseDir);
         this.emitEvent = options.emitEvent;
         this.sessionFactory = options.sessionFactory ?? ((sessionOptions) => new SessionService(sessionOptions));
+        const persistedState = loadSenderState(this.baseDir);
+        const monitorSnapshot = persistedState.inboxMonitor ?? getDefaultInboxMonitorSnapshot();
+        this.inboxMonitor = (options.inboxMonitorFactory ?? ((monitorOptions) => createInboxMonitorService(monitorOptions)))({
+            initialSnapshot: monitorSnapshot,
+            emitEvent: this.emitEvent,
+            onSnapshotChange: (snapshot) => {
+                const state = loadSenderState(this.baseDir);
+                state.inboxMonitor = snapshot;
+                clearMonitorWarning(state);
+                saveSenderState(this.baseDir, state);
+            }
+        });
     }
 
     async execute<K extends DesktopCommandName>(
@@ -77,6 +96,16 @@ export class DesktopRuntime {
                 return this.loadState() as DesktopCommandMap[K]['response'];
             case 'discard_resume_session':
                 return this.discardResumeSession() as DesktopCommandMap[K]['response'];
+            case 'load_inbox_monitor_settings':
+                return this.loadInboxMonitorSettings() as DesktopCommandMap[K]['response'];
+            case 'save_inbox_monitor_settings':
+                return this.saveInboxMonitorSettings(payload as DesktopCommandMap['save_inbox_monitor_settings']['request']) as DesktopCommandMap[K]['response'];
+            case 'get_inbox_monitor_state':
+                return this.getInboxMonitorState() as DesktopCommandMap[K]['response'];
+            case 'start_inbox_monitor':
+                return await this.startInboxMonitor(payload as DesktopCommandMap['start_inbox_monitor']['request']) as DesktopCommandMap[K]['response'];
+            case 'stop_inbox_monitor':
+                return this.stopInboxMonitor() as DesktopCommandMap[K]['response'];
             default:
                 throw new Error(`Unsupported desktop command '${command}'.`);
         }
@@ -169,7 +198,13 @@ export class DesktopRuntime {
             sessionId,
             resumeSession,
             emitEvent: (event) => {
-                if ('state' in event) {
+                if (event.type === 'session_started'
+                    || event.type === 'session_paused'
+                    || event.type === 'session_resumed'
+                    || event.type === 'session_stopping'
+                    || event.type === 'channel_state_changed'
+                    || event.type === 'session_state_updated'
+                    || event.type === 'summary_ready') {
                     this.sessionState = event.state;
                 }
                 this.publish(event);
@@ -264,6 +299,30 @@ export class DesktopRuntime {
         return clearResumeSession(this.baseDir);
     }
 
+    loadInboxMonitorSettings(): DesktopCommandMap['load_inbox_monitor_settings']['response'] {
+        return this.inboxMonitor.loadSettings();
+    }
+
+    saveInboxMonitorSettings(
+        payload: DesktopCommandMap['save_inbox_monitor_settings']['request']
+    ): DesktopCommandMap['save_inbox_monitor_settings']['response'] {
+        return this.inboxMonitor.saveSettings(payload.settings);
+    }
+
+    getInboxMonitorState(): DesktopCommandMap['get_inbox_monitor_state']['response'] {
+        return this.inboxMonitor.getState();
+    }
+
+    async startInboxMonitor(
+        payload: DesktopCommandMap['start_inbox_monitor']['request']
+    ): Promise<DesktopCommandMap['start_inbox_monitor']['response']> {
+        return await this.inboxMonitor.start(payload);
+    }
+
+    stopInboxMonitor(): DesktopCommandMap['stop_inbox_monitor']['response'] {
+        return this.inboxMonitor.stop('Inbox monitor stopped from desktop shell.');
+    }
+
     private resolveConfigPaths() {
         return {
             configFile: path.join(this.baseDir, 'config.json'),
@@ -323,6 +382,13 @@ export class DesktopRuntime {
         }
 
         this.emitEvent?.(event);
+    }
+
+}
+
+function clearMonitorWarning(state: StateLoadResult) {
+    if (state.warning?.includes('sender state')) {
+        state.warning = undefined;
     }
 }
 

@@ -12,7 +12,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const MIN_SUPPRESSION_MS = 30000;
 const MAX_SUPPRESSION_MS = 15 * 60 * 1000;
 
-type FetchImpl = typeof fetch;
+type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type SleepFn = (ms: number) => Promise<void>;
 type RandomFn = () => number;
 type NowFn = () => Date;
