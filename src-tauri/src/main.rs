@@ -15,6 +15,7 @@ use std::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 #[cfg(target_os = "windows")]
 use windows::{
     core::PCWSTR,
@@ -333,6 +334,56 @@ struct OpenLogFileRequest {
 #[serde(rename_all = "camelCase")]
 struct SaveEnvironmentRequest {
     discord_token: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorSettings {
+    enabled: bool,
+    poll_interval_seconds: u32,
+    notify_direct_messages: bool,
+    notify_message_requests: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorState {
+    status: String,
+    enabled: bool,
+    poll_interval_seconds: u32,
+    last_checked_at: Option<String>,
+    last_successful_poll_at: Option<String>,
+    last_notification_at: Option<String>,
+    last_error: Option<String>,
+    backoff_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorLastSeen {
+    initialized_at: Option<String>,
+    self_user_id: Option<String>,
+    channel_message_ids: HashMap<String, String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxMonitorSnapshot {
+    settings: InboxMonitorSettings,
+    state: InboxMonitorState,
+    last_seen: InboxMonitorLastSeen,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveInboxMonitorSettingsRequest {
+    settings: InboxMonitorSettings,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartInboxMonitorRequest {
+    token: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1257,6 +1308,24 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                             }
                         };
                     }
+                    if event.event.get("type").and_then(Value::as_str) == Some("sidecar_ready") {
+                        let app_handle = app.clone();
+                        std::thread::spawn(move || {
+                            let _ = restore_inbox_monitor_if_enabled(&app_handle);
+                        });
+                    }
+                    if event.event.get("type").and_then(Value::as_str) == Some("inbox_notification_ready") {
+                        if let Err(error) = show_inbox_notification(&app, &event.event) {
+                            let _ = app.emit(
+                                "app-event",
+                                json!({
+                                    "type": "sidecar_error",
+                                    "status": "failed",
+                                    "message": error
+                                }),
+                            );
+                        }
+                    }
                     let _ = app.emit("app-event", event.event);
                     continue;
                 }
@@ -1452,6 +1521,59 @@ fn ensure_sidecar_running(app: &AppHandle) -> Result<(), String> {
     start_sidecar_process(app)
 }
 
+fn restore_inbox_monitor_if_enabled(app: &AppHandle) -> Result<Option<InboxMonitorState>, String> {
+    let settings: InboxMonitorSettings = send_sidecar_request(app, "load_inbox_monitor_settings", json!({}))?;
+    if !settings.enabled {
+        return Ok(None);
+    }
+
+    let token = resolve_effective_token(app)?;
+    let state: InboxMonitorState = send_sidecar_request(
+        app,
+        "start_inbox_monitor",
+        StartInboxMonitorRequest { token },
+    )?;
+    Ok(Some(state))
+}
+
+fn truncate_notification_body(value: &str, max_chars: usize) -> String {
+    let mut truncated = value.chars().take(max_chars).collect::<String>();
+    if value.chars().count() > max_chars {
+        truncated.push_str("...");
+    }
+    truncated
+}
+
+fn show_inbox_notification(app: &AppHandle, event: &Value) -> Result<(), String> {
+    let notification = event
+        .get("notification")
+        .ok_or_else(|| "Inbox notification event payload was missing the notification object.".to_string())?;
+    let kind = notification
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("direct_message");
+    let author_name = notification
+        .get("authorName")
+        .and_then(Value::as_str)
+        .unwrap_or("Unknown sender");
+    let preview_text = notification
+        .get("previewText")
+        .and_then(Value::as_str)
+        .unwrap_or("(No text content)");
+    let title = if kind == "message_request" {
+        format!("New message request from {author_name}")
+    } else {
+        format!("New message from {author_name}")
+    };
+
+    app.notification()
+        .builder()
+        .title(title)
+        .body(truncate_notification_body(preview_text, 180))
+        .show()
+        .map_err(|error| format!("Failed to show inbox notification: {error}"))
+}
+
 fn ensure_no_active_session(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppRuntime>();
     let sidecar = state
@@ -1600,12 +1722,53 @@ fn load_setup_state(app: AppHandle) -> Result<DesktopSetupState, String> {
 
 #[tauri::command]
 fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
-    save_secure_environment(&app, request)
+    let setup = save_secure_environment(&app, request)?;
+    let _ = restore_inbox_monitor_if_enabled(&app);
+    Ok(setup)
 }
 
 #[tauri::command]
 fn clear_secure_token(app: AppHandle) -> Result<DesktopSetupState, String> {
-    clear_secure_environment(&app)
+    let setup = clear_secure_environment(&app)?;
+    let _ = stop_inbox_monitor(app.clone());
+    Ok(setup)
+}
+
+#[tauri::command]
+fn load_inbox_monitor_settings(app: AppHandle) -> Result<InboxMonitorSettings, String> {
+    send_sidecar_request(&app, "load_inbox_monitor_settings", json!({}))
+}
+
+#[tauri::command]
+fn save_inbox_monitor_settings(
+    app: AppHandle,
+    request: SaveInboxMonitorSettingsRequest,
+) -> Result<InboxMonitorSnapshot, String> {
+    let snapshot: InboxMonitorSnapshot = send_sidecar_request(&app, "save_inbox_monitor_settings", request)?;
+
+    if snapshot.settings.enabled {
+        let _ = restore_inbox_monitor_if_enabled(&app);
+    } else {
+        let _ = stop_inbox_monitor(app.clone());
+    }
+
+    Ok(snapshot)
+}
+
+#[tauri::command]
+fn get_inbox_monitor_state(app: AppHandle) -> Result<InboxMonitorState, String> {
+    send_sidecar_request(&app, "get_inbox_monitor_state", json!({}))
+}
+
+#[tauri::command]
+fn start_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, String> {
+    let token = resolve_effective_token(&app)?;
+    send_sidecar_request(&app, "start_inbox_monitor", StartInboxMonitorRequest { token })
+}
+
+#[tauri::command]
+fn stop_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, String> {
+    send_sidecar_request(&app, "stop_inbox_monitor", json!({}))
 }
 
 #[tauri::command]
@@ -1711,6 +1874,7 @@ fn handle_cli_command(app: &AppHandle, command: CliCommand) -> Result<(), String
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppRuntime::new())
         .setup(|app| {
             migrate_legacy_runtime_data(&app.handle())?;
@@ -1756,6 +1920,11 @@ fn main() {
             load_setup_state,
             save_environment,
             clear_secure_token,
+            load_inbox_monitor_settings,
+            save_inbox_monitor_settings,
+            get_inbox_monitor_state,
+            start_inbox_monitor,
+            stop_inbox_monitor,
             discard_resume_session,
             load_release_diagnostics,
             open_logs_directory,

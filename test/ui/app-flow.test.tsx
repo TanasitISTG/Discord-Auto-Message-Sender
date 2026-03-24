@@ -88,10 +88,32 @@ const desktopMock = vi.hoisted(() => {
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
         loadSetupState: vi.fn(async () => structuredClone(state.setup)),
+        loadInboxMonitorSettings: vi.fn(async () => ({
+            enabled: false,
+            pollIntervalSeconds: 30,
+            notifyDirectMessages: true,
+            notifyMessageRequests: true
+        })),
+        getInboxMonitorState: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
         saveEnvironment: vi.fn(async () => ({
             ...state.setup
+        })),
+        saveInboxMonitorSettings: vi.fn(async ({ settings }) => ({
+            settings,
+            state: {
+                status: settings.enabled ? 'running' : 'stopped',
+                enabled: settings.enabled,
+                pollIntervalSeconds: settings.pollIntervalSeconds
+            },
+            lastSeen: {
+                channelMessageIds: {}
+            }
         })),
         clearSecureToken: vi.fn(async () => {
             state.setup = {
@@ -143,6 +165,11 @@ const desktopMock = vi.hoisted(() => {
             };
             return structuredClone(state.session);
         }),
+        startInboxMonitor: vi.fn(async () => ({
+            status: 'running',
+            enabled: true,
+            pollIntervalSeconds: 30
+        })),
         resumeSession: vi.fn(async () => {
             state.session = {
                 ...state.session,
@@ -150,6 +177,11 @@ const desktopMock = vi.hoisted(() => {
             };
             return structuredClone(state.session);
         }),
+        stopInboxMonitor: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
         stopSession: vi.fn(async () => {
             state.session = {
                 ...state.session,

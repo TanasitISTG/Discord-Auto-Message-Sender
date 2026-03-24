@@ -42,11 +42,10 @@ export default function App() {
                         return (
                             <button
                                 key={item.id}
-                                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${
-                                    isActive
+                                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${isActive
                                         ? 'bg-primary/10 text-cyan-50 shadow-inner-glow'
                                         : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                                }`}
+                                    }`}
                                 onClick={() => setScreen(item.id)}
                             >
                                 {isActive && (
@@ -90,7 +89,7 @@ export default function App() {
                                 ) : (
                                     <span className="h-2 w-2 rounded-full bg-amber-500"></span>
                                 )}
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-foreground/90">{controller.sidecarStatus}</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-widest text-foreground/90">{controller.sidecarStatus}</span>
                             </div>
                         </div>
                     </div>
@@ -103,7 +102,7 @@ export default function App() {
                         <h2 className="text-sm font-semibold tracking-wide text-foreground">
                             {navigation.find((n) => n.id === screen)?.label ?? 'Dashboard'}
                         </h2>
-                        
+
                         <div className="hidden h-4 w-px bg-border/60 sm:block" />
 
                         <div className="hidden items-center gap-2 sm:flex">
@@ -174,19 +173,19 @@ export default function App() {
                         <div className="mb-6 flex flex-col gap-2">
                             {controller.appReadiness.blockingIssues.map((issue) => (
                                 <div key={issue} className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                                    <span className="font-semibold uppercase tracking-[0.1em] text-amber-400">Readiness</span>
+                                    <span className="font-semibold uppercase tracking-widest text-amber-400">Readiness</span>
                                     <span>{describeBlockingIssue(issue)}</span>
                                 </div>
                             ))}
                             {controller.sidecarMessage ? (
                                 <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                                    <span className="font-semibold uppercase tracking-[0.1em] text-red-400">Runtime</span>
+                                    <span className="font-semibold uppercase tracking-widest text-red-400">Runtime</span>
                                     <span>{controller.sidecarMessage}</span>
                                 </div>
                             ) : null}
                             {controller.draft.validationErrors.length > 0 ? (
                                 <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                                    <span className="font-semibold uppercase tracking-[0.1em] text-amber-400">Config</span>
+                                    <span className="font-semibold uppercase tracking-widest text-amber-400">Config</span>
                                     <span>{controller.draft.validationErrors.length} validation issue{controller.draft.validationErrors.length === 1 ? '' : 's'}</span>
                                 </div>
                             ) : null}
@@ -324,6 +323,8 @@ export default function App() {
                             diagnostics={controller.releaseDiagnostics}
                             setup={controller.setup}
                             supportBundle={controller.supportBundle}
+                            inboxMonitorSettings={controller.inboxMonitorSettings}
+                            inboxMonitorState={controller.inboxMonitorState}
                             hasActiveSession={controller.hasActiveSession}
                             notice={controller.notice}
                             onCopyDiagnostics={async () => {
@@ -340,6 +341,9 @@ export default function App() {
                             }}
                             onResetRuntimeState={async () => {
                                 await controller.resetRuntimeState();
+                            }}
+                            onSaveInboxMonitorSettings={async (settings) => {
+                                await controller.saveInboxMonitorSettingsDraft(settings);
                             }}
                         />
                     ) : null}

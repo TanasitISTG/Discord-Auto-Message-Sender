@@ -78,16 +78,48 @@ const desktopMock = vi.hoisted(() => {
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
         loadSetupState: vi.fn(async () => structuredClone(state.setup)),
+        loadInboxMonitorSettings: vi.fn(async () => ({
+            enabled: false,
+            pollIntervalSeconds: 30,
+            notifyDirectMessages: true,
+            notifyMessageRequests: true
+        })),
+        getInboxMonitorState: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(),
         saveEnvironment: vi.fn(),
+        saveInboxMonitorSettings: vi.fn(async ({ settings }) => ({
+            settings,
+            state: {
+                status: settings.enabled ? 'running' : 'stopped',
+                enabled: settings.enabled,
+                pollIntervalSeconds: settings.pollIntervalSeconds
+            },
+            lastSeen: {
+                channelMessageIds: {}
+            }
+        })),
         clearSecureToken: vi.fn(),
         runPreflight: vi.fn(),
         runDryRun: vi.fn(),
         startSession: vi.fn(),
         pauseSession: vi.fn(),
         resumeSession: vi.fn(),
+        startInboxMonitor: vi.fn(async () => ({
+            status: 'running',
+            enabled: true,
+            pollIntervalSeconds: 30
+        })),
         stopSession: vi.fn(),
+        stopInboxMonitor: vi.fn(async () => ({
+            status: 'stopped',
+            enabled: false,
+            pollIntervalSeconds: 30
+        })),
         loadLogs: vi.fn(async () => ({
             ok: true,
             path: 'logs/session-1.jsonl',

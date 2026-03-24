@@ -4,6 +4,8 @@ import {
     clearSecureToken as clearSecureTokenCommand,
     ConfigLoadResult,
     DesktopEvent,
+    InboxMonitorSettings,
+    InboxMonitorState,
     DesktopSetupState,
     DryRunResult,
     exportSupportBundle as exportSupportBundleCommand,
@@ -15,7 +17,9 @@ import {
     SupportBundleResult,
     SessionSnapshot,
     getSessionState,
+    getInboxMonitorState,
     loadConfig,
+    loadInboxMonitorSettings,
     loadLogs,
     loadReleaseDiagnostics,
     loadSetupState,
@@ -30,8 +34,11 @@ import {
     runDryRun,
     runPreflight,
     saveEnvironment,
+    saveInboxMonitorSettings,
     saveConfig,
+    startInboxMonitor,
     startSession,
+    stopInboxMonitor,
     stopSession,
     subscribeToAppEvents
 } from '@/lib/desktop';
@@ -98,6 +105,19 @@ const emptyConfig: AppConfig = {
     }
 };
 
+const defaultInboxMonitorSettings: InboxMonitorSettings = {
+    enabled: false,
+    pollIntervalSeconds: 30,
+    notifyDirectMessages: true,
+    notifyMessageRequests: true
+};
+
+const defaultInboxMonitorState: InboxMonitorState = {
+    status: 'stopped',
+    enabled: false,
+    pollIntervalSeconds: 30
+};
+
 function mergeLogsById(entries: LogEntry[], limit: number = 500): LogEntry[] {
     const seen = new Set<string>();
     const merged: LogEntry[] = [];
@@ -141,6 +161,8 @@ export function useDesktopController() {
     const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [setup, setSetup] = useState<DesktopSetupState | null>(null);
+    const [inboxMonitorSettings, setInboxMonitorSettings] = useState<InboxMonitorSettings>(defaultInboxMonitorSettings);
+    const [inboxMonitorState, setInboxMonitorState] = useState<InboxMonitorState>(defaultInboxMonitorState);
     const [releaseDiagnostics, setReleaseDiagnostics] = useState<ReleaseDiagnostics | null>(null);
     const [supportBundle, setSupportBundle] = useState<SupportBundleResult | null>(null);
     const [configStatus, setConfigStatus] = useState<ConfigReadinessStatus>('loading');
@@ -261,11 +283,13 @@ export function useDesktopController() {
 
     async function refreshAll() {
         try {
-            const [configResult, activeSession, persistedState, setupState, diagnostics] = await Promise.all([
+            const [configResult, activeSession, persistedState, setupState, monitorSettings, monitorState, diagnostics] = await Promise.all([
                 loadConfig(),
                 getSessionState(),
                 loadState(),
                 loadSetupState(),
+                loadInboxMonitorSettings().catch(() => defaultInboxMonitorSettings),
+                getInboxMonitorState().catch(() => defaultInboxMonitorState),
                 loadReleaseDiagnostics().catch(() => null)
             ]);
 
@@ -273,6 +297,8 @@ export function useDesktopController() {
             setSession(activeSession);
             setSenderState(persistedState);
             setSetup(setupState);
+            setInboxMonitorSettings(monitorSettings);
+            setInboxMonitorState(monitorState);
             if (diagnostics) {
                 setReleaseDiagnostics(diagnostics);
                 setSidecarStatus(diagnostics.sidecarStatus);
@@ -347,6 +373,13 @@ export function useDesktopController() {
                 setDryRun(event.result);
                 setPreferredScreen('preview');
                 return;
+            case 'inbox_monitor_state_changed':
+                setInboxMonitorState(event.monitor);
+                return;
+            case 'inbox_notification_ready':
+                setInboxMonitorState(event.monitor);
+                setNotice(`New ${event.notification.kind === 'message_request' ? 'message request' : 'direct message'} from ${event.notification.authorName}.`);
+                return;
             case 'close_blocked':
                 setSession(event.state);
                 setNotice(event.message);
@@ -388,6 +421,8 @@ export function useDesktopController() {
         dryRun,
         logs,
         setup,
+        inboxMonitorSettings,
+        inboxMonitorState,
         releaseDiagnostics,
         supportBundle,
         configStatus,
@@ -636,6 +671,12 @@ export function useDesktopController() {
                     setSidecarStatus(diagnostics.sidecarStatus);
                 }
                 setEnvironmentDraft('');
+                if (inboxMonitorSettings.enabled) {
+                    const nextMonitorState = await startInboxMonitor().catch(() => null);
+                    if (nextMonitorState) {
+                        setInboxMonitorState(nextMonitorState);
+                    }
+                }
                 setNotice('Discord token saved securely for this Windows user profile.');
                 setSurfaceNotice('config', 'success', 'Discord token saved securely for this Windows user.');
                 showSuccessToast('Discord token saved securely.');
@@ -663,6 +704,10 @@ export function useDesktopController() {
                     const nextSetup = await clearSecureTokenCommand();
                     setSetup(nextSetup);
                     setEnvironmentDraft('');
+                    const nextMonitorState = await stopInboxMonitor().catch(() => null);
+                    if (nextMonitorState) {
+                        setInboxMonitorState(nextMonitorState);
+                    }
                     const diagnostics = await loadReleaseDiagnostics().catch(() => null);
                     if (diagnostics) {
                         setReleaseDiagnostics(diagnostics);
@@ -674,6 +719,30 @@ export function useDesktopController() {
                 }
             });
             return null;
+        },
+        async saveInboxMonitorSettingsDraft(nextSettings: InboxMonitorSettings) {
+            try {
+                const snapshot = await saveInboxMonitorSettings(nextSettings);
+                setInboxMonitorSettings(snapshot.settings);
+                setInboxMonitorState(snapshot.state);
+                if (snapshot.settings.enabled) {
+                    const nextState = await startInboxMonitor();
+                    setInboxMonitorState(nextState);
+                    setNotice('Inbox notifications enabled.');
+                    showSuccessToast('Inbox notifications enabled.');
+                } else {
+                    const nextState = await stopInboxMonitor();
+                    setInboxMonitorState(nextState);
+                    setNotice('Inbox notifications disabled.');
+                    showInfoToast('Inbox notifications disabled.');
+                }
+                return snapshot;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setNotice(message);
+                showErrorToast('Inbox notification settings could not be saved.');
+                return null;
+            }
         },
         async copyReleaseDiagnostics() {
             if (!releaseDiagnostics) {

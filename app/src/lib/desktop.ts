@@ -8,6 +8,9 @@ import type {
     DesktopCommandName,
     DesktopEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogLoadResult,
     LogEntry,
     PreflightResult,
@@ -28,6 +31,9 @@ export type {
     DesktopSetupState,
     DesktopEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogLoadResult,
     LogEntry,
     PreflightResult,
@@ -108,6 +114,26 @@ export async function saveEnvironment(request: SaveEnvironmentRequest): Promise<
 
 export async function clearSecureToken(): Promise<DesktopSetupState> {
     return desktopInvoke('clear_secure_token', {});
+}
+
+export async function loadInboxMonitorSettings(): Promise<InboxMonitorSettings> {
+    return desktopInvoke('load_inbox_monitor_settings', {});
+}
+
+export async function saveInboxMonitorSettings(settings: InboxMonitorSettings): Promise<InboxMonitorSnapshot> {
+    return desktopInvoke('save_inbox_monitor_settings', { settings });
+}
+
+export async function getInboxMonitorState(): Promise<InboxMonitorState> {
+    return desktopInvoke('get_inbox_monitor_state', {});
+}
+
+export async function startInboxMonitor(): Promise<InboxMonitorState> {
+    return desktopInvoke('start_inbox_monitor', {});
+}
+
+export async function stopInboxMonitor(): Promise<InboxMonitorState> {
+    return desktopInvoke('stop_inbox_monitor', {});
 }
 
 export async function discardResumeSession(): Promise<SenderStateRecord> {

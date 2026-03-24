@@ -3,7 +3,16 @@ import { DesktopRuntime } from '../runtime';
 import { handleLoadConfig, handleSaveConfig } from './config';
 import { handleRunDryRun, handleRunPreflight } from './preflight';
 import { handleGetSessionState, handlePauseSession, handleResumeSession, handleStartSession, handleStopSession } from './session';
-import { handleDiscardResumeSession, handleLoadLogs, handleLoadState } from './state';
+import {
+    handleDiscardResumeSession,
+    handleGetInboxMonitorState,
+    handleLoadInboxMonitorSettings,
+    handleLoadLogs,
+    handleLoadState,
+    handleSaveInboxMonitorSettings,
+    handleStartInboxMonitor,
+    handleStopInboxMonitor
+} from './state';
 
 type Handler<K extends DesktopCommandName> = (
     runtime: DesktopRuntime,
@@ -36,7 +45,12 @@ export function createDesktopHandlers() {
         get_session_state: handleGetSessionState,
         load_logs: handleLoadLogs,
         load_state: handleLoadState,
-        discard_resume_session: handleDiscardResumeSession
+        discard_resume_session: handleDiscardResumeSession,
+        load_inbox_monitor_settings: handleLoadInboxMonitorSettings,
+        save_inbox_monitor_settings: handleSaveInboxMonitorSettings,
+        get_inbox_monitor_state: handleGetInboxMonitorState,
+        start_inbox_monitor: handleStartInboxMonitor,
+        stop_inbox_monitor: handleStopInboxMonitor
     };
 
     return handlers;

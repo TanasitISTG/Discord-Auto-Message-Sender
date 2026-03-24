@@ -180,6 +180,51 @@ export interface DryRunResult {
     };
 }
 
+export type InboxNotificationKind = 'direct_message' | 'message_request';
+export type InboxMonitorStatus = 'stopped' | 'starting' | 'running' | 'blocked' | 'degraded' | 'failed';
+
+export interface InboxNotificationItem {
+    id: string;
+    kind: InboxNotificationKind;
+    channelId: string;
+    channelName: string;
+    authorId: string;
+    authorName: string;
+    previewText: string;
+    messageId: string;
+    receivedAt: string;
+}
+
+export interface InboxMonitorSettings {
+    enabled: boolean;
+    pollIntervalSeconds: number;
+    notifyDirectMessages: boolean;
+    notifyMessageRequests: boolean;
+}
+
+export interface InboxMonitorState {
+    status: InboxMonitorStatus;
+    enabled: boolean;
+    pollIntervalSeconds: number;
+    lastCheckedAt?: string;
+    lastSuccessfulPollAt?: string;
+    lastNotificationAt?: string;
+    lastError?: string;
+    backoffUntil?: string;
+}
+
+export interface InboxMonitorLastSeen {
+    initializedAt?: string;
+    selfUserId?: string;
+    channelMessageIds: Record<string, string>;
+}
+
+export interface InboxMonitorSnapshot {
+    settings: InboxMonitorSettings;
+    state: InboxMonitorState;
+    lastSeen: InboxMonitorLastSeen;
+}
+
 export type AppEvent =
     | { type: 'session_started'; state: SessionState }
     | { type: 'session_paused'; state: SessionState }
@@ -190,7 +235,9 @@ export type AppEvent =
     | { type: 'log_event_emitted'; entry: LogEntry }
     | { type: 'summary_ready'; summary: SessionSummary; state: SessionState }
     | { type: 'preflight_result_emitted'; result: PreflightResult }
-    | { type: 'dry_run_ready'; result: DryRunResult };
+    | { type: 'dry_run_ready'; result: DryRunResult }
+    | { type: 'inbox_monitor_state_changed'; monitor: InboxMonitorState }
+    | { type: 'inbox_notification_ready'; notification: InboxNotificationItem; monitor: InboxMonitorState };
 
 export interface LegacyChannel {
     name: string;
@@ -241,5 +288,6 @@ export interface SenderStateRecord {
         state: SessionState;
         recentMessageHistory: Record<string, string[]>;
     };
+    inboxMonitor?: InboxMonitorSnapshot;
     warning?: string;
 }

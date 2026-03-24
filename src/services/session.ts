@@ -23,6 +23,7 @@ const STATE_FLUSH_DEBOUNCE_MS = 250;
 const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 type SleepFn = (ms: number) => Promise<void>;
+type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type ResumeSessionRecord = NonNullable<SenderStateRecord['resumeSession']>;
 type SessionUpdateReason = Extract<AppEvent, { type: 'session_state_updated' }>['reason'];
 
@@ -40,7 +41,7 @@ export interface SessionServiceOptions {
     runtime: RuntimeOptions;
     emitEvent?: (event: AppEvent) => void;
     sleep?: SleepFn;
-    fetchImpl?: typeof fetch;
+    fetchImpl?: FetchImpl;
     sessionId?: string;
     logger?: StructuredLogger;
     resumeSession?: ResumeSessionRecord;
@@ -219,7 +220,7 @@ export class SessionService {
     private readonly runtime: RuntimeOptions;
     private readonly emitEvent?: (event: AppEvent) => void;
     private readonly sleepImpl: SleepFn;
-    private readonly fetchImpl?: typeof fetch;
+    private readonly fetchImpl?: FetchImpl;
     private readonly sessionId: string;
     private readonly resumeSession?: ResumeSessionRecord;
     private readonly coordinator;

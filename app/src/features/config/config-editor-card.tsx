@@ -3,6 +3,7 @@ import { Save, Shuffle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RuntimeOptions } from '@/lib/desktop';
 import { Field } from '@/shared/components';
 import type { ConfigDraftController } from './use-config-draft';
@@ -61,15 +62,19 @@ export function ConfigEditorCard({
                         </Field>
 
                         <Field label="Message group">
-                            <select
-                                className="flex h-10 w-full rounded-xl border bg-background/60 px-3 py-2 text-sm text-foreground outline-hidden transition focus:border-primary"
+                            <Select
                                 value={selectedChannel.messageGroup}
-                                onChange={(event: ChangeEvent<HTMLSelectElement>) => draft.updateChannel(selectedChannel.id, 'messageGroup', event.target.value)}
+                                onValueChange={(value) => draft.updateChannel(selectedChannel.id, 'messageGroup', value)}
                             >
-                                {Object.keys(draft.state.config.messageGroups).map((groupName) => (
-                                    <option key={groupName} value={groupName}>{groupName}</option>
-                                ))}
-                            </select>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a message group" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.keys(draft.state.config.messageGroups).map((groupName) => (
+                                        <SelectItem key={groupName} value={groupName}>{groupName}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </Field>
 
                         <div className="grid gap-4 md:grid-cols-2">

@@ -2,6 +2,9 @@ import {
     AppConfig,
     AppEvent,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogEntry,
     PreflightResult,
     RuntimeOptions,
@@ -12,6 +15,9 @@ import {
 export type {
     AppConfig,
     DryRunResult,
+    InboxMonitorSettings,
+    InboxMonitorSnapshot,
+    InboxMonitorState,
     LogEntry,
     PreflightResult,
     RuntimeOptions,
@@ -101,6 +107,14 @@ export interface SaveEnvironmentRequest {
     discordToken: string;
 }
 
+export interface SaveInboxMonitorSettingsRequest {
+    settings: InboxMonitorSettings;
+}
+
+export interface StartInboxMonitorRequest {
+    token?: string;
+}
+
 export interface DesktopCommandMap {
     load_config: {
         request: EmptyRequest;
@@ -157,6 +171,26 @@ export interface DesktopCommandMap {
     clear_secure_token: {
         request: EmptyRequest;
         response: DesktopSetupState;
+    };
+    load_inbox_monitor_settings: {
+        request: EmptyRequest;
+        response: InboxMonitorSettings;
+    };
+    save_inbox_monitor_settings: {
+        request: SaveInboxMonitorSettingsRequest;
+        response: InboxMonitorSnapshot;
+    };
+    get_inbox_monitor_state: {
+        request: EmptyRequest;
+        response: InboxMonitorState;
+    };
+    start_inbox_monitor: {
+        request: StartInboxMonitorRequest;
+        response: InboxMonitorState;
+    };
+    stop_inbox_monitor: {
+        request: EmptyRequest;
+        response: InboxMonitorState;
     };
     discard_resume_session: {
         request: EmptyRequest;
