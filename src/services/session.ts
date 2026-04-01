@@ -14,14 +14,13 @@ import {
 } from '../types';
 import { createSenderCoordinator, runChannel } from '../core/sender';
 import { createBufferedFileWriter, createStructuredLogger, StructuredLogger } from '../utils/logger';
+import { validateSessionId } from '../utils/session-id';
 import { loadSenderState, saveSenderState } from './state-store';
 
 const SESSION_LOG_DIR = 'logs';
 const RESUME_POLL_INTERVAL_MS = 150;
 const RECENT_MESSAGE_HISTORY_LIMIT = 20;
 const STATE_FLUSH_DEBOUNCE_MS = 250;
-const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-
 type SleepFn = (ms: number) => Promise<void>;
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type ResumeSessionRecord = NonNullable<SenderStateRecord['resumeSession']>;
@@ -116,14 +115,6 @@ function createSessionSegment(kind: SessionSegmentKind, resumedFromCheckpointAt?
         startedAt: new Date().toISOString(),
         resumedFromCheckpointAt
     };
-}
-
-function validateSessionId(sessionId: string): string {
-    if (!SESSION_ID_PATTERN.test(sessionId)) {
-        throw new Error('Invalid session id.');
-    }
-
-    return sessionId;
 }
 
 function createInitialState(
@@ -421,6 +412,13 @@ export class SessionService {
                             }
                         }
 
+                        if (phase === 'stopped') {
+                            progress.status = progress.suppressedUntil ? 'suppressed' : 'stopped';
+                            this.state.activeChannels = this.state.activeChannels.filter((id) => id !== channel.id);
+                            this.state.completedChannels = this.state.completedChannels.filter((id) => id !== channel.id);
+                            this.state.failedChannels = this.state.failedChannels.filter((id) => id !== channel.id);
+                        }
+
                         this.bumpState();
                         this.persistState();
                         this.emitEvent?.({
@@ -436,7 +434,8 @@ export class SessionService {
                     onMessageSent: (channel, details) => {
                         const progress = this.ensureChannelProgress(channel.id);
                         progress.sentMessages += 1;
-                        progress.sentToday += 1;
+                        progress.sentToday = details.sentToday;
+                        progress.sentTodayDayKey = details.sentTodayDayKey;
                         progress.consecutiveRateLimits = 0;
                         progress.lastMessage = details.rendered;
                         progress.lastSentAt = new Date().toISOString();
@@ -535,7 +534,7 @@ export class SessionService {
                 }
             })));
 
-            const status: SessionStatus = this.stopping || this.coordinator.isAborted()
+            const status: SessionStatus = !this.stopping && this.coordinator.isAborted()
                 ? 'failed'
                 : 'completed';
             this.state.status = status;
@@ -669,7 +668,21 @@ export class SessionService {
         this.senderStateRecord.channelHealth = structuredClone(this.state.channelHealth ?? {});
 
         if (finalize) {
-            this.senderStateRecord.resumeSession = undefined;
+            this.senderStateRecord.resumeSession = this.stopping
+                ? {
+                    sessionId: this.sessionId,
+                    updatedAt: this.state.updatedAt,
+                    runtime: this.runtime,
+                    configSignature: createSessionConfigSignature(this.config),
+                    state: {
+                        ...this.getState(),
+                        status: 'paused',
+                        summary: undefined,
+                        stopReason: undefined
+                    },
+                    recentMessageHistory: structuredClone(this.recentMessageHistory)
+                }
+                : undefined;
 
             if (this.state.summary) {
                 this.senderStateRecord.summaries = [this.state.summary, ...this.senderStateRecord.summaries].slice(0, 10);

@@ -173,3 +173,44 @@ test('SessionService preserves externally updated notification delivery state wh
     assert.equal(persistedState.notificationDelivery?.telegramState.status, 'ready');
     assert.equal(persistedState.notificationDelivery?.telegramState.lastDeliveredAt, '2026-03-24T05:18:52.000Z');
 });
+
+test('SessionService keeps a resumable checkpoint after a user-requested stop', async () => {
+    const tempDir = createTempDir();
+    let releaseFetch: (() => void) | null = null;
+    const service = new SessionService({
+        baseDir: tempDir,
+        config: createConfig(),
+        token: 'test-token',
+        runtime: {
+            numMessages: 1,
+            baseWaitSeconds: 0,
+            marginSeconds: 0
+        },
+        fetchImpl: async (_url, init) => {
+            return await new Promise<Response>((resolve, reject) => {
+                releaseFetch = () => resolve(createResponse(200, {}));
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+            });
+        },
+        sleep: async () => {}
+    });
+
+    const startPromise = service.start();
+    while (!releaseFetch) {
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    service.stop('Stop requested from test.');
+    const completeFetch: () => void = releaseFetch ?? (() => {
+        throw new Error('Expected the in-flight fetch to be ready.');
+    });
+    completeFetch();
+
+    const finalState = await startPromise;
+    const persistedState = loadSenderState(tempDir);
+
+    assert.equal(finalState.status, 'completed');
+    assert.equal(finalState.failedChannels.length, 0);
+    assert.equal(persistedState.resumeSession?.sessionId, finalState.id);
+    assert.equal(persistedState.resumeSession?.state.status, 'paused');
+});

@@ -1,13 +1,13 @@
 import readline from 'readline';
 import { createDesktopHandlers } from './handlers';
 import {
-    DesktopCommandName,
     DesktopEvent,
     DesktopEventMessage,
     DesktopRpcErrorResponse,
     DesktopRpcRequest,
     DesktopRpcResponse,
-    DesktopRpcSuccessResponse
+    DesktopRpcSuccessResponse,
+    SidecarCommandName
 } from './contracts';
 import { DesktopRuntime } from './runtime';
 
@@ -41,7 +41,9 @@ async function main() {
         crlfDelay: Infinity
     });
 
-    reader.on('line', async (line) => {
+    let requestQueue = Promise.resolve();
+
+    const handleLine = async (line: string) => {
         const trimmed = line.trim();
         if (!trimmed) {
             return;
@@ -66,25 +68,7 @@ async function main() {
                 throw new Error(`Unsupported desktop command '${request.command}'.`);
             }
 
-            const handler = handlers[request.command as Exclude<
-                DesktopCommandName,
-                | 'open_log_file'
-                | 'open_data_directory'
-                | 'load_setup_state'
-                | 'save_environment'
-                | 'clear_secure_token'
-                | 'load_notification_delivery_settings'
-                | 'save_notification_delivery_settings'
-                | 'get_notification_delivery_state'
-                | 'save_telegram_bot_token'
-                | 'clear_telegram_bot_token'
-                | 'detect_telegram_chat'
-                | 'send_test_telegram_notification'
-                | 'load_release_diagnostics'
-                | 'open_logs_directory'
-                | 'export_support_bundle'
-                | 'reset_runtime_state'
-            >];
+            const handler = handlers[request.command as SidecarCommandName];
             if (typeof handler !== 'function') {
                 throw new Error(`Unsupported desktop command '${request.command}'.`);
             }
@@ -107,6 +91,18 @@ async function main() {
                 error: error instanceof Error ? error.message : String(error)
             });
         }
+    };
+
+    reader.on('line', (line) => {
+        requestQueue = requestQueue
+            .then(() => handleLine(line))
+            .catch((error) => {
+                emitEvent({
+                    type: 'sidecar_error',
+                    status: 'failed',
+                    message: error instanceof Error ? error.message : String(error)
+                });
+            });
     });
 }
 

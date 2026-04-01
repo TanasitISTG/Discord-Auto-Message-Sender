@@ -68,7 +68,7 @@ export interface ChannelHealthRecord {
     suppressedUntil?: string;
 }
 
-export type ChannelProgressStatus = 'pending' | 'running' | 'suppressed' | 'completed' | 'failed';
+export type ChannelProgressStatus = 'pending' | 'running' | 'suppressed' | 'stopped' | 'completed' | 'failed';
 
 export interface ChannelProgressRecord {
     channelId: string;
@@ -76,6 +76,7 @@ export interface ChannelProgressRecord {
     status: ChannelProgressStatus;
     sentMessages: number;
     sentToday: number;
+    sentTodayDayKey?: string;
     consecutiveRateLimits: number;
     lastMessage?: string;
     lastSentAt?: string;
@@ -259,7 +260,7 @@ export type AppEvent =
     | { type: 'session_paused'; state: SessionState }
     | { type: 'session_resumed'; state: SessionState }
     | { type: 'session_stopping'; state: SessionState }
-    | { type: 'channel_state_changed'; state: SessionState; channelId: string; phase: 'started' | 'completed' | 'failed' }
+    | { type: 'channel_state_changed'; state: SessionState; channelId: string; phase: 'started' | 'stopped' | 'completed' | 'failed' }
     | { type: 'session_state_updated'; state: SessionState; reason: 'message_sent' | 'pacing_changed' | 'health_changed' | 'checkpoint_restored' }
     | { type: 'log_event_emitted'; entry: LogEntry }
     | { type: 'summary_ready'; summary: SessionSummary; state: SessionState }

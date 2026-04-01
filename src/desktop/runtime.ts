@@ -1,22 +1,20 @@
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
 import { readAppConfigResult, writeAppConfig } from '../config/store';
-import { parseEnvironment } from '../config/schema';
 import { createInboxMonitorService, InboxMonitorController } from '../services/inbox-monitor';
 import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
 import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
-import { clearResumeSession, getDefaultInboxMonitorSnapshot, loadSenderState, saveSenderState } from '../services/state-store';
+import { clearResumeSession, getDefaultInboxMonitorSnapshot, loadSenderState, updateSenderState } from '../services/state-store';
 import {
     ConfigLoadResult,
     DesktopCommandMap,
-    DesktopCommandName,
     DesktopEvent,
     LogLoadResult,
     SessionSnapshot,
     StateLoadResult
 } from './contracts';
+import { resolveSessionLogPath, validateSessionId } from '../utils/session-id';
 
 type SessionController = Pick<SessionService, 'start' | 'pause' | 'resume' | 'stop' | 'getState'>;
 type SessionFactory = (options: SessionServiceOptions) => SessionController;
@@ -32,13 +30,30 @@ interface DesktopRuntimeOptions {
     }) => InboxMonitorController;
 }
 
-const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-
 const DEFAULT_RUNTIME = {
     numMessages: 0,
     baseWaitSeconds: 5,
     marginSeconds: 2
 };
+
+function isSessionStateEvent(event: DesktopEvent): event is Extract<DesktopEvent, {
+    type:
+        | 'session_started'
+        | 'session_paused'
+        | 'session_resumed'
+        | 'session_stopping'
+        | 'channel_state_changed'
+        | 'session_state_updated'
+        | 'summary_ready'
+}> {
+    return event.type === 'session_started'
+        || event.type === 'session_paused'
+        || event.type === 'session_resumed'
+        || event.type === 'session_stopping'
+        || event.type === 'channel_state_changed'
+        || event.type === 'session_state_updated'
+        || event.type === 'summary_ready';
+}
 
 export class DesktopRuntime {
     private readonly baseDir: string;
@@ -59,56 +74,12 @@ export class DesktopRuntime {
             initialSnapshot: monitorSnapshot,
             emitEvent: this.emitEvent,
             onSnapshotChange: (snapshot) => {
-                const state = loadSenderState(this.baseDir);
-                state.inboxMonitor = snapshot;
-                clearMonitorWarning(state);
-                saveSenderState(this.baseDir, state);
+                updateSenderState(this.baseDir, (state) => {
+                    state.inboxMonitor = snapshot;
+                    clearMonitorWarning(state);
+                });
             }
         });
-    }
-
-    async execute<K extends DesktopCommandName>(
-        command: K,
-        payload: DesktopCommandMap[K]['request']
-    ): Promise<DesktopCommandMap[K]['response']> {
-        switch (command) {
-            case 'load_config':
-                return await this.loadConfig() as DesktopCommandMap[K]['response'];
-            case 'save_config':
-                return await this.saveConfig(payload as DesktopCommandMap['save_config']['request']) as DesktopCommandMap[K]['response'];
-            case 'run_preflight':
-                return await this.runPreflight(payload as DesktopCommandMap['run_preflight']['request']) as DesktopCommandMap[K]['response'];
-            case 'run_dry_run':
-                return await this.runDryRun(payload as DesktopCommandMap['run_dry_run']['request']) as DesktopCommandMap[K]['response'];
-            case 'start_session':
-                return await this.startSession(payload as DesktopCommandMap['start_session']['request']) as DesktopCommandMap[K]['response'];
-            case 'pause_session':
-                return this.pauseSession() as DesktopCommandMap[K]['response'];
-            case 'resume_session':
-                return this.resumeSession() as DesktopCommandMap[K]['response'];
-            case 'stop_session':
-                return this.stopSession() as DesktopCommandMap[K]['response'];
-            case 'get_session_state':
-                return this.getSessionState() as DesktopCommandMap[K]['response'];
-            case 'load_logs':
-                return await this.loadLogs(payload as DesktopCommandMap['load_logs']['request']) as DesktopCommandMap[K]['response'];
-            case 'load_state':
-                return this.loadState() as DesktopCommandMap[K]['response'];
-            case 'discard_resume_session':
-                return this.discardResumeSession() as DesktopCommandMap[K]['response'];
-            case 'load_inbox_monitor_settings':
-                return this.loadInboxMonitorSettings() as DesktopCommandMap[K]['response'];
-            case 'save_inbox_monitor_settings':
-                return this.saveInboxMonitorSettings(payload as DesktopCommandMap['save_inbox_monitor_settings']['request']) as DesktopCommandMap[K]['response'];
-            case 'get_inbox_monitor_state':
-                return this.getInboxMonitorState() as DesktopCommandMap[K]['response'];
-            case 'start_inbox_monitor':
-                return await this.startInboxMonitor(payload as DesktopCommandMap['start_inbox_monitor']['request']) as DesktopCommandMap[K]['response'];
-            case 'stop_inbox_monitor':
-                return this.stopInboxMonitor() as DesktopCommandMap[K]['response'];
-            default:
-                throw new Error(`Unsupported desktop command '${command}'.`);
-        }
     }
 
     async loadConfig(): Promise<ConfigLoadResult> {
@@ -198,13 +169,7 @@ export class DesktopRuntime {
             sessionId,
             resumeSession,
             emitEvent: (event) => {
-                if (event.type === 'session_started'
-                    || event.type === 'session_paused'
-                    || event.type === 'session_resumed'
-                    || event.type === 'session_stopping'
-                    || event.type === 'channel_state_changed'
-                    || event.type === 'session_state_updated'
-                    || event.type === 'summary_ready') {
+                if (isSessionStateEvent(event)) {
                     this.sessionState = event.state;
                 }
                 this.publish(event);
@@ -330,60 +295,28 @@ export class DesktopRuntime {
         };
     }
 
-    private getEnvironmentPath() {
-        return path.join(this.baseDir, '.env');
-    }
-
-    private readFileEnvironment(): Record<string, string> {
-        const envPath = this.getEnvironmentPath();
-        return fs.existsSync(envPath)
-            ? dotenv.parse(fs.readFileSync(envPath, 'utf8'))
-            : {};
-    }
-
-    private readEnvironmentSource(): NodeJS.ProcessEnv {
-        const fileEnvironment = this.readFileEnvironment();
-        return {
-            ...process.env,
-            ...fileEnvironment
-        };
-    }
-
     private readToken(explicitToken?: string): string | undefined {
-        if (typeof explicitToken === 'string' && explicitToken.trim().length > 0) {
-            return explicitToken.trim();
-        }
-
-        try {
-            return parseEnvironment(this.readEnvironmentSource()).DISCORD_TOKEN;
-        } catch {
-            return undefined;
-        }
+        return typeof explicitToken === 'string' && explicitToken.trim().length > 0
+            ? explicitToken.trim()
+            : undefined;
     }
 
     private readRequiredToken(explicitToken?: string): string {
         const token = this.readToken(explicitToken);
         if (!token) {
-            throw new Error('DISCORD_TOKEN is missing.');
+            throw new Error('DISCORD_TOKEN is missing. Save it securely from Desktop Setup.');
         }
 
         return token;
     }
 
     private publish(event: DesktopEvent) {
-        if (event.type === 'session_started'
-            || event.type === 'session_paused'
-            || event.type === 'session_resumed'
-            || event.type === 'session_stopping'
-            || event.type === 'summary_ready'
-            || event.type === 'channel_state_changed'
-            || event.type === 'session_state_updated') {
+        if (isSessionStateEvent(event)) {
             this.sessionState = event.state;
         }
 
         this.emitEvent?.(event);
     }
-
 }
 
 function clearMonitorWarning(state: StateLoadResult) {
@@ -392,23 +325,4 @@ function clearMonitorWarning(state: StateLoadResult) {
     }
 }
 
-export function validateSessionId(sessionId: string): string {
-    if (!SESSION_ID_PATTERN.test(sessionId)) {
-        throw new Error('Invalid session id.');
-    }
-
-    return sessionId;
-}
-
-export function resolveSessionLogPath(baseDir: string, sessionId: string): string {
-    const validSessionId = validateSessionId(sessionId);
-    const logsDir = path.resolve(baseDir, 'logs');
-    const logPath = path.resolve(logsDir, `${validSessionId}.jsonl`);
-
-    const relativePath = path.relative(logsDir, logPath);
-    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-        throw new Error('Invalid session id.');
-    }
-
-    return logPath;
-}
+export { resolveSessionLogPath, validateSessionId } from '../utils/session-id';

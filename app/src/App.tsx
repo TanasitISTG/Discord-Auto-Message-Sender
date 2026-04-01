@@ -111,9 +111,7 @@ export default function App() {
                                 tone={
                                     controller.appReadiness.token.status === 'missing' || controller.appReadiness.token.status === 'corrupted'
                                         ? 'danger'
-                                        : controller.appReadiness.token.status === 'environment'
-                                            ? 'warning'
-                                            : 'success'
+                                        : 'success'
                                 }
                             >
                                 token {controller.appReadiness.token.label}

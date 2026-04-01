@@ -1,7 +1,7 @@
 import type { AppConfig, DesktopSetupState, PreflightResult, SidecarStatus } from '../lib/desktop';
 
 export type ConfigReadinessStatus = 'loading' | 'ready' | 'missing' | 'invalid';
-export type TokenReadinessStatus = 'loading' | 'secure' | 'environment' | 'missing' | 'corrupted';
+export type TokenReadinessStatus = 'loading' | 'secure' | 'missing' | 'corrupted';
 export type BlockingIssue =
     | 'token_missing'
     | 'token_unreadable'
@@ -67,10 +67,6 @@ function isCorruptedTokenState(setup: DesktopSetupState | null): boolean {
         return false;
     }
 
-    if (setup.tokenStorage === 'environment') {
-        return false;
-    }
-
     return /decrypt|secure|token|readable|corrupt/i.test(setup.warning);
 }
 
@@ -98,15 +94,6 @@ export function deriveTokenReadiness(setup: DesktopSetupState | null): TokenRead
             status: 'secure',
             label: 'secure',
             detail: 'Stored securely for this Windows user.',
-            blocking: false
-        };
-    }
-
-    if (setup.tokenPresent && setup.tokenStorage === 'environment') {
-        return {
-            status: 'environment',
-            label: 'fallback',
-            detail: 'Using an environment fallback instead of secure token storage.',
             blocking: false
         };
     }
@@ -149,10 +136,6 @@ export function deriveAppReadiness({
     const warnings: string[] = [];
     const blockingIssues: BlockingIssue[] = [];
     const token = deriveTokenReadiness(setup);
-
-    if (token.status === 'environment') {
-        warnings.push(token.detail);
-    }
 
     if (setup?.warning && token.status !== 'corrupted') {
         warnings.push(setup.warning);
@@ -220,11 +203,9 @@ export function deriveSetupChecklist({
             label: 'Save Discord token securely',
             detail: token.status === 'secure'
                 ? 'Secure token storage is configured.'
-                : token.status === 'environment'
-                    ? 'Using environment fallback instead of secure storage.'
-                    : token.status === 'corrupted'
-                        ? 'Stored token could not be read.'
-                        : 'Token storage still needs setup.',
+                : token.status === 'corrupted'
+                    ? 'Stored token could not be read.'
+                    : 'Token storage still needs setup.',
             done: token.status === 'secure',
             action: 'config',
             actionLabel: 'Open Config'

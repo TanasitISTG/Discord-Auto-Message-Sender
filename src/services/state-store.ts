@@ -3,15 +3,19 @@ import path from 'path';
 import {
     AdaptivePacingState,
     ChannelHealthRecord,
+    ChannelHealthStatus,
     ChannelProgressRecord,
+    ChannelProgressStatus,
     InboxMonitorLastSeen,
     InboxMonitorSettings,
     InboxMonitorSnapshot,
     InboxMonitorState,
+    InboxMonitorStatus,
     NotificationDeliverySettings,
     NotificationDeliverySnapshot,
     RuntimeOptions,
     SenderStateRecord,
+    SessionStatus,
     SessionState
 } from '../types';
 
@@ -126,12 +130,23 @@ export function saveSenderState(baseDir: string, state: SenderStateRecord) {
     fs.writeFileSync(filePath, JSON.stringify(nextState, null, 2), 'utf8');
 }
 
-export function clearResumeSession(baseDir: string): SenderStateRecord {
+export function updateSenderState(baseDir: string, updater: (state: SenderStateRecord) => void): SenderStateRecord {
     const state = loadSenderState(baseDir);
-    state.resumeSession = undefined;
+    updater(state);
     saveSenderState(baseDir, state);
     return loadSenderState(baseDir);
 }
+
+export function clearResumeSession(baseDir: string): SenderStateRecord {
+    return updateSenderState(baseDir, (state) => {
+        state.resumeSession = undefined;
+    });
+}
+
+const CHANNEL_HEALTH_STATUSES = new Set<ChannelHealthStatus>(['healthy', 'degraded', 'suppressed', 'recovering', 'failed']);
+const CHANNEL_PROGRESS_STATUSES = new Set<ChannelProgressStatus>(['pending', 'running', 'suppressed', 'stopped', 'completed', 'failed']);
+const SESSION_STATUSES = new Set<SessionStatus>(['idle', 'running', 'paused', 'stopping', 'completed', 'failed']);
+const INBOX_MONITOR_STATUSES = new Set<InboxMonitorStatus>(['stopped', 'starting', 'running', 'blocked', 'degraded', 'failed']);
 
 function normalizeSenderState(raw: RawSenderState): {
     state: SenderStateRecord;
@@ -270,13 +285,8 @@ function normalizeInboxMonitorState(value: unknown, settings: InboxMonitorSettin
     }
 
     const state = value as Partial<InboxMonitorState>;
-    const status = state.status === 'stopped'
-        || state.status === 'starting'
-        || state.status === 'running'
-        || state.status === 'blocked'
-        || state.status === 'degraded'
-        || state.status === 'failed'
-        ? state.status
+    const status = typeof state.status === 'string' && INBOX_MONITOR_STATUSES.has(state.status as InboxMonitorStatus)
+        ? state.status as InboxMonitorStatus
         : defaults.status;
 
     return {
@@ -395,14 +405,15 @@ function normalizeChannelHealth(value: unknown): ChannelHealthRecord | undefined
         || typeof record.status !== 'string'
         || typeof record.consecutiveRateLimits !== 'number'
         || typeof record.consecutiveFailures !== 'number'
-        || typeof record.suppressionCount !== 'number') {
+        || typeof record.suppressionCount !== 'number'
+        || !CHANNEL_HEALTH_STATUSES.has(record.status as ChannelHealthStatus)) {
         return undefined;
     }
 
     return {
         channelId: record.channelId,
         channelName: record.channelName,
-        status: record.status,
+        status: record.status as ChannelHealthStatus,
         consecutiveRateLimits: record.consecutiveRateLimits,
         consecutiveFailures: record.consecutiveFailures,
         suppressionCount: record.suppressionCount,
@@ -436,16 +447,18 @@ function normalizeChannelProgress(value: unknown): ChannelProgressRecord | undef
         || typeof record.status !== 'string'
         || typeof record.sentMessages !== 'number'
         || typeof record.sentToday !== 'number'
-        || typeof record.consecutiveRateLimits !== 'number') {
+        || typeof record.consecutiveRateLimits !== 'number'
+        || !CHANNEL_PROGRESS_STATUSES.has(record.status as ChannelProgressStatus)) {
         return undefined;
     }
 
     return {
         channelId: record.channelId,
         channelName: record.channelName,
-        status: record.status,
+        status: record.status as ChannelProgressStatus,
         sentMessages: record.sentMessages,
         sentToday: record.sentToday,
+        sentTodayDayKey: typeof record.sentTodayDayKey === 'string' ? record.sentTodayDayKey : undefined,
         consecutiveRateLimits: record.consecutiveRateLimits,
         lastMessage: typeof record.lastMessage === 'string' ? record.lastMessage : undefined,
         lastSentAt: typeof record.lastSentAt === 'string' ? record.lastSentAt : undefined,
@@ -478,13 +491,14 @@ function normalizeSessionState(value: unknown): SessionState | undefined {
         || !Array.isArray(state.activeChannels)
         || !Array.isArray(state.completedChannels)
         || !Array.isArray(state.failedChannels)
-        || typeof state.sentMessages !== 'number') {
+        || typeof state.sentMessages !== 'number'
+        || !SESSION_STATUSES.has(state.status as SessionStatus)) {
         return undefined;
     }
 
     return {
         id: state.id,
-        status: state.status,
+        status: state.status as SessionStatus,
         startedAt: typeof state.startedAt === 'string' ? state.startedAt : undefined,
         updatedAt: state.updatedAt,
         currentSegmentId: typeof state.currentSegmentId === 'string' ? state.currentSegmentId : undefined,

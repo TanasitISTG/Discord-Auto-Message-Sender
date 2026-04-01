@@ -42,7 +42,7 @@ export type LogLoadResult = {
     warnings?: string[];
 };
 export type StateLoadResult = SenderStateRecord;
-export type TokenStorageMode = 'secure' | 'environment' | 'missing';
+export type TokenStorageMode = 'secure' | 'missing';
 export type SidecarStatus = 'connecting' | 'ready' | 'restarting' | 'failed';
 export interface DesktopSetupState {
     tokenPresent: boolean;
@@ -274,6 +274,26 @@ export interface DesktopCommandMap {
 }
 
 export type DesktopCommandName = keyof DesktopCommandMap;
+
+export type SidecarCommandName = Exclude<
+    DesktopCommandName,
+    | 'open_log_file'
+    | 'open_data_directory'
+    | 'load_setup_state'
+    | 'save_environment'
+    | 'clear_secure_token'
+    | 'load_notification_delivery_settings'
+    | 'save_notification_delivery_settings'
+    | 'get_notification_delivery_state'
+    | 'save_telegram_bot_token'
+    | 'clear_telegram_bot_token'
+    | 'detect_telegram_chat'
+    | 'send_test_telegram_notification'
+    | 'load_release_diagnostics'
+    | 'open_logs_directory'
+    | 'export_support_bundle'
+    | 'reset_runtime_state'
+>;
 
 export type DesktopEvent =
     | AppEvent

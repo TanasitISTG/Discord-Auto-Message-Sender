@@ -24,7 +24,6 @@ function writeDesktopFiles(baseDir: string) {
     }];
 
     fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(config, null, 2), 'utf8');
-    fs.writeFileSync(path.join(baseDir, '.env'), 'DISCORD_TOKEN=test-token', 'utf8');
     return config;
 }
 
@@ -168,7 +167,8 @@ test('DesktopRuntime uses a single in-process session controller for lifecycle c
     const started = await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
-        marginSeconds: 0
+        marginSeconds: 0,
+        token: 'test-token'
     });
     assert.equal(started.status, 'running');
     assert.equal(runtime.getSessionState()?.status, 'running');
@@ -182,7 +182,6 @@ test('DesktopRuntime uses a single in-process session controller for lifecycle c
     const stopping = runtime.stopSession();
     assert.equal(stopping?.status, 'stopping');
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(events.includes('session_started'));
     assert.ok(events.includes('session_paused'));
     assert.ok(events.includes('session_resumed'));
@@ -240,7 +239,8 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
     await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
-        marginSeconds: 0
+        marginSeconds: 0,
+        token: 'test-token'
     });
 
     assert.equal(receivedResumeSessionId, 'session-resume');
@@ -286,10 +286,9 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
     assert.equal(state.resumeSession, undefined);
 });
 
-test('DesktopRuntime accepts an injected token from the desktop shell instead of requiring a local .env file', async () => {
+test('DesktopRuntime accepts an injected token from the desktop shell', async () => {
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
-    fs.rmSync(path.join(tempDir, '.env'));
 
     let receivedToken: string | undefined;
     const runtime = new DesktopRuntime({
@@ -353,7 +352,8 @@ test('DesktopRuntime does not restore a checkpoint when the requested runtime no
     await runtime.startSession({
         numMessages: 2,
         baseWaitSeconds: 1,
-        marginSeconds: 0
+        marginSeconds: 0,
+        token: 'test-token'
     });
 
     assert.equal(receivedResumeSessionId, undefined);

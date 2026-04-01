@@ -96,7 +96,18 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
                 activeChannels: ['123'],
                 completedChannels: [],
                 failedChannels: [],
-                sentMessages: 1
+                sentMessages: 1,
+                channelProgress: {
+                    '123': {
+                        channelId: '123',
+                        channelName: 'general',
+                        status: 'running',
+                        sentMessages: 1,
+                        sentToday: 1,
+                        sentTodayDayKey: '2026-03-21',
+                        consecutiveRateLimits: 0
+                    }
+                }
             },
             recentMessageHistory: {
                 '123': ['hello']
@@ -109,6 +120,7 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
     assert.equal(state.channelHealth?.['123']?.status, 'suppressed');
     assert.equal(state.resumeSession?.sessionId, 'session-1');
     assert.equal(state.resumeSession?.runtime.baseWaitSeconds, 10);
+    assert.equal(state.resumeSession?.state.channelProgress?.['123']?.sentTodayDayKey, '2026-03-21');
     assert.deepEqual(state.resumeSession?.recentMessageHistory, {
         '123': ['hello']
     });

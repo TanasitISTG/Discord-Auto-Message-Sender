@@ -28,6 +28,7 @@ export interface SenderCoordinator {
     abort(reason: string): void;
     isAborted(): boolean;
     getAbortReason(): string | null;
+    getAbortSignal(): AbortSignal;
     scheduleRequest<T>(sleep: SleepFn, task: () => Promise<T>): Promise<T>;
     recordRateLimit(waitSeconds: number): AdaptivePacingState;
     recordSuccess(): AdaptivePacingState;
@@ -62,8 +63,13 @@ export interface SenderLifecycle {
     waitUntilResumed(sleep: SleepFn): Promise<boolean>;
     isStopping(): boolean;
     getStopReason(): string | null;
-    onChannelEvent?(target: AppChannel, phase: 'started' | 'completed' | 'failed'): void;
-    onMessageSent?(target: AppChannel, details: { template: string; rendered: string }): void;
+    onChannelEvent?(target: AppChannel, phase: 'started' | 'stopped' | 'completed' | 'failed'): void;
+    onMessageSent?(target: AppChannel, details: {
+        template: string;
+        rendered: string;
+        sentToday: number;
+        sentTodayDayKey: string;
+    }): void;
     getRecentMessages?(target: AppChannel): string[];
     onRateLimit?(target: AppChannel, waitSeconds: number, consecutiveRateLimits: number): void;
     onChannelSuppressed?(target: AppChannel, details: { waitMs: number; suppressedUntil: string; reason: string }): void;
@@ -141,6 +147,17 @@ function getZonedDateParts(date: Date, timeZone: string): ZonedDateParts {
         hour: Number(values.hour),
         minute: Number(values.minute)
     };
+}
+
+function getChannelDayKey(target: AppChannel, date: Date): string {
+    const timeZone = target.schedule?.timezone ?? 'UTC';
+
+    try {
+        const parts = getZonedDateParts(date, timeZone);
+        return `${parts.year.toString().padStart(4, '0')}-${parts.month.toString().padStart(2, '0')}-${parts.day.toString().padStart(2, '0')}`;
+    } catch {
+        return date.toISOString().slice(0, 10);
+    }
 }
 
 function zonedTimeToUtcMillis(parts: ZonedDateParts, timeZone: string): number {
@@ -268,6 +285,7 @@ export function createSenderCoordinator(
     initialState?: Partial<AdaptivePacingState>
 ): SenderCoordinator {
     let abortedReason: string | null = null;
+    const abortController = new AbortController();
     let nextRequestAt = 0;
     let requestQueue = Promise.resolve();
     const pacingState: AdaptivePacingState = {
@@ -284,6 +302,7 @@ export function createSenderCoordinator(
         abort(reason: string) {
             if (!abortedReason) {
                 abortedReason = reason;
+                abortController.abort(reason);
             }
         },
         isAborted() {
@@ -291,6 +310,9 @@ export function createSenderCoordinator(
         },
         getAbortReason() {
             return abortedReason;
+        },
+        getAbortSignal() {
+            return abortController.signal;
         },
         recordRateLimit(waitSeconds: number) {
             const penaltyBoost = Math.max(250, Math.ceil(waitSeconds * 250));
@@ -457,9 +479,14 @@ async function fetchWithTimeout(
     fetchImpl: FetchImpl,
     url: string,
     init: RequestInit,
-    timeoutMs: number
+    timeoutMs: number,
+    abortSignal?: AbortSignal
 ): Promise<Response> {
     const controller = new AbortController();
+    const abortListener = () => {
+        controller.abort(abortSignal?.reason);
+    };
+    abortSignal?.addEventListener('abort', abortListener, { once: true });
     const fetchPromise = fetchImpl(url, {
         ...init,
         signal: controller.signal
@@ -478,6 +505,7 @@ async function fetchWithTimeout(
             })
         ]);
     } finally {
+        abortSignal?.removeEventListener('abort', abortListener);
         if (timeoutId) {
             clearTimeout(timeoutId);
         }
@@ -498,6 +526,7 @@ export async function sendDiscordMessage(
     const requestTimeoutMs = dependencies.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     const lifecycle = dependencies.lifecycle;
     const logger = dependencies.logger ?? defaultLogger;
+    const abortSignal = coordinator?.getAbortSignal();
 
     if (coordinator?.isAborted() || lifecycle?.isStopping()) {
         return { type: 'fatal', reason: 'aborted' };
@@ -522,7 +551,7 @@ export async function sendDiscordMessage(
                         Referer: target.referrer
                     },
                     body: JSON.stringify({ content, tts: false })
-                }, requestTimeoutMs))
+                }, requestTimeoutMs, abortSignal))
                 : await fetchWithTimeout(fetchImpl, `${API_BASE}/channels/${target.id}/messages`, {
                     method: 'POST',
                     headers: {
@@ -532,7 +561,7 @@ export async function sendDiscordMessage(
                         Referer: target.referrer
                     },
                     body: JSON.stringify({ content, tts: false })
-                }, requestTimeoutMs);
+                }, requestTimeoutMs, abortSignal);
 
             if (response.ok) {
                 coordinator?.recordSuccess();
@@ -582,6 +611,10 @@ export async function sendDiscordMessage(
                 return { type: 'fatal', reason: 'aborted' };
             }
 
+            if (coordinator?.isAborted() || lifecycle?.isStopping()) {
+                return { type: 'fatal', reason: 'aborted' };
+            }
+
             const message = error instanceof Error ? error.message : String(error);
             const isFatal = attempt === MAX_SEND_ATTEMPTS;
 
@@ -627,8 +660,17 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         resumeProgress
     } = options;
 
+    const exitForAbort = () => {
+        const phase = lifecycle?.isStopping() ? 'stopped' : 'failed';
+        lifecycle?.onChannelEvent?.(target, phase);
+    };
+
     if (coordinator?.isAborted() || lifecycle?.isStopping()) {
         emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
+        if (!lifecycle?.isStopping()) {
+            lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+            exitForAbort();
+        }
         return;
     }
 
@@ -655,6 +697,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
     const sentCache = new Set<string>();
     let consecutiveRateLimitWaits = resumeProgress?.consecutiveRateLimits ?? 0;
     let sentToday = resumeProgress?.sentToday ?? 0;
+    let sentTodayDayKey = resumeProgress?.sentTodayDayKey;
+    if (!sentTodayDayKey && resumeProgress?.lastSentAt) {
+        sentTodayDayKey = getChannelDayKey(target, new Date(resumeProgress.lastSentAt));
+    }
     const maxSendsPerDay = target.schedule?.maxSendsPerDay ?? null;
     const intervalSeconds = target.schedule?.intervalSeconds ?? baseWaitSeconds;
     const marginForChannel = target.schedule?.randomMarginSeconds ?? marginSeconds;
@@ -674,7 +720,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 const completedSavedWait = await sleepWithAbort(remainingSuppressionMs, sleep, coordinator, lifecycle);
                 if (!completedSavedWait) {
                     emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-                    lifecycle?.onChannelEvent?.(target, 'failed');
+                    if (!lifecycle?.isStopping()) {
+                        lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+                    }
+                    exitForAbort();
                     return;
                 }
             }
@@ -682,9 +731,22 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
     }
 
     while (numMessages === 0 || sentCount < numMessages) {
+        const currentDayKey = getChannelDayKey(target, now());
+        if (sentTodayDayKey !== currentDayKey) {
+            sentToday = 0;
+            sentTodayDayKey = currentDayKey;
+            if (resumeProgress) {
+                resumeProgress.sentToday = 0;
+                resumeProgress.sentTodayDayKey = currentDayKey;
+            }
+        }
+
         if (coordinator?.isAborted() || lifecycle?.isStopping()) {
             emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-            lifecycle?.onChannelEvent?.(target, 'failed');
+            if (!lifecycle?.isStopping()) {
+                lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+            }
+            exitForAbort();
             return;
         }
 
@@ -707,7 +769,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             const completedQuietWait = await sleepWithAbort(quietHoursDelayMs, sleep, coordinator, lifecycle);
             if (!completedQuietWait) {
                 emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-                lifecycle?.onChannelEvent?.(target, 'failed');
+                if (!lifecycle?.isStopping()) {
+                    lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+                }
+                exitForAbort();
                 return;
             }
             continue;
@@ -733,9 +798,19 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
             });
 
             if (result.type === 'success') {
+                const dayKeyAtSend = getChannelDayKey(target, now());
+                if (sentTodayDayKey !== dayKeyAtSend) {
+                    sentToday = 0;
+                    sentTodayDayKey = dayKeyAtSend;
+                }
                 consecutiveRateLimitWaits = 0;
                 sentCount += 1;
                 sentToday += 1;
+                sentTodayDayKey = dayKeyAtSend;
+                if (resumeProgress) {
+                    resumeProgress.sentToday = sentToday;
+                    resumeProgress.sentTodayDayKey = sentTodayDayKey;
+                }
                 const counter = numMessages === 0 ? 'Infinite' : `${sentCount}/${numMessages}`;
                 emitLog(logger, target.name, 'Message sent', 'cyan', {
                     channelId: target.id,
@@ -749,7 +824,9 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 }
                 lifecycle?.onMessageSent?.(target, {
                     template: rawMessage,
-                    rendered: message
+                    rendered: message,
+                    sentToday,
+                    sentTodayDayKey
                 });
                 break;
             }
@@ -774,7 +851,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                     const completedSuppressionWait = await sleepWithAbort(suppressionMs, sleep, coordinator, lifecycle);
                     if (!completedSuppressionWait) {
                         emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-                        lifecycle?.onChannelEvent?.(target, 'failed');
+                        if (!lifecycle?.isStopping()) {
+                            lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+                        }
+                        exitForAbort();
                         return;
                     }
                     consecutiveRateLimitWaits = 0;
@@ -790,7 +870,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
                 const completedWait = await sleepWithAbort((result.waitSeconds + 0.5) * 1000, sleep, coordinator, lifecycle);
                 if (!completedWait) {
                     emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-                    lifecycle?.onChannelEvent?.(target, 'failed');
+                    if (!lifecycle?.isStopping()) {
+                        lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+                    }
+                    exitForAbort();
                     return;
                 }
                 continue;
@@ -798,7 +881,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
 
             if (result.reason === 'aborted') {
                 emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-                lifecycle?.onChannelEvent?.(target, 'failed');
+                if (!lifecycle?.isStopping()) {
+                    lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+                }
+                exitForAbort();
                 return;
             }
 
@@ -831,7 +917,10 @@ export async function runChannel(options: RunChannelOptions): Promise<void> {
         const completedWait = await sleepWithAbort(waitMs, sleep, coordinator, lifecycle);
         if (!completedWait) {
             emitLog(logger, target.name, coordinator?.getAbortReason() ?? lifecycle?.getStopReason() ?? 'Stopping worker because sending was aborted globally.', 'yellow');
-            lifecycle?.onChannelEvent?.(target, 'failed');
+            if (!lifecycle?.isStopping()) {
+                lifecycle?.onChannelFailure?.(target, coordinator?.getAbortReason() ?? 'aborted');
+            }
+            exitForAbort();
             return;
         }
     }

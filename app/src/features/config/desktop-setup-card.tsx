@@ -41,7 +41,6 @@ export function DesktopSetupCard({
         : 'Paste your personal Discord token';
     const tokenSourceLabel = {
         secure: 'Secure store',
-        environment: 'Environment fallback',
         corrupted: 'Unreadable',
         loading: 'Loading',
         missing: 'Missing'
@@ -62,13 +61,11 @@ export function DesktopSetupCard({
                     value={
                         tokenStatus.status === 'secure'
                             ? 'Stored securely'
-                            : tokenStatus.status === 'environment'
-                                ? 'Environment fallback'
-                                : tokenStatus.status === 'corrupted'
-                                    ? 'Stored token unreadable'
-                                    : tokenStatus.status === 'loading'
-                                        ? 'Loading'
-                                        : 'No token stored'
+                            : tokenStatus.status === 'corrupted'
+                                ? 'Stored token unreadable'
+                                : tokenStatus.status === 'loading'
+                                    ? 'Loading'
+                                    : 'No token stored'
                     }
                 />
                 <StateRow label="Token source" value={tokenSourceLabel} />
@@ -140,7 +137,7 @@ export function DesktopSetupCard({
                                 <>
                                     <DetailBlock label="App data" value={setup.dataDir} />
                                     <DetailBlock label="Secure token store" value={setup.secureStorePath} />
-                                    <DetailBlock label=".env path" value={setup.envPath} />
+                                    <DetailBlock label="Legacy .env path" value={setup.envPath} />
                                     <DetailBlock label="Config path" value={setup.configPath} />
                                     <DetailBlock label="State path" value={setup.statePath} />
                                     <DetailBlock label="Logs dir" value={setup.logsDir} />

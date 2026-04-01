@@ -93,7 +93,7 @@ Notes:
 - Packaged Windows builds store `DISCORD_TOKEN` in a DPAPI-protected local secure store.
 - The frontend never receives the plaintext token back after save.
 - Support exports exclude the secure token store, `.env`, and plaintext token values.
-- Development builds can still use `DISCORD_TOKEN` from the shell environment or `.env`.
+- Desktop session and preflight flows now require the secure token store instead of `.env` or shell-environment fallbacks.
 
 ## Local Runtime Files
 
@@ -106,7 +106,7 @@ Key files:
 | Path | Purpose |
 | --- | --- |
 | `discord-token.secure` | DPAPI-protected token store for the packaged Windows app |
-| `.env` | development and migration fallback only |
+| `.env` | legacy migration path that is scrubbed when secure storage takes over |
 | `config.json` | canonical saved configuration |
 | `.sender-state.json` | summaries, health data, and resumable checkpoint state |
 | `logs/*.jsonl` | structured session logs |

@@ -17,6 +17,7 @@ const API_BASE = 'https://discord.com/api/v10';
 const MIN_POLL_INTERVAL_SECONDS = 15;
 const MAX_POLL_INTERVAL_SECONDS = 300;
 const MAX_MESSAGES_PER_CHANNEL = 10;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 
 type SleepFn = (ms: number) => Promise<void>;
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -158,6 +159,8 @@ export class InboxMonitorService implements InboxMonitorController {
     private running = false;
     private loopPromise: Promise<void> | null = null;
     private currentToken: string | undefined;
+    private runGeneration = 0;
+    private activeRunController: AbortController | null = null;
 
     constructor(options: InboxMonitorOptions = {}) {
         this.emitEvent = options.emitEvent;
@@ -189,6 +192,9 @@ export class InboxMonitorService implements InboxMonitorController {
 
     saveSettings(settings: InboxMonitorSettings): InboxMonitorSnapshot {
         const normalized = normalizeSettings(settings);
+        if (!normalized.enabled) {
+            this.stopCurrentLoop();
+        }
         this.snapshot = {
             ...this.snapshot,
             settings: normalized,
@@ -221,11 +227,8 @@ export class InboxMonitorService implements InboxMonitorController {
     }
 
     async start(options: StartInboxMonitorOptions = {}): Promise<InboxMonitorState> {
-        if (typeof options.token === 'string' && options.token.trim().length > 0) {
-            this.currentToken = options.token.trim();
-        }
-
         if (!this.snapshot.settings.enabled) {
+            this.stopCurrentLoop();
             this.setState({
                 status: 'stopped',
                 enabled: false,
@@ -236,7 +239,12 @@ export class InboxMonitorService implements InboxMonitorController {
             return this.getState();
         }
 
-        if (!this.currentToken) {
+        const nextToken = typeof options.token === 'string' && options.token.trim().length > 0
+            ? options.token.trim()
+            : this.currentToken;
+
+        if (!nextToken) {
+            this.stopCurrentLoop();
             this.setState({
                 status: 'blocked',
                 enabled: true,
@@ -247,11 +255,18 @@ export class InboxMonitorService implements InboxMonitorController {
             return this.getState();
         }
 
-        if (this.running) {
+        if (this.running && nextToken === this.currentToken) {
             return this.getState();
         }
 
+        if (this.running || this.loopPromise) {
+            this.stopCurrentLoop();
+            await this.awaitLoopShutdown();
+        }
+
+        this.currentToken = nextToken;
         this.running = true;
+        const runId = ++this.runGeneration;
         this.setState({
             status: 'starting',
             enabled: true,
@@ -259,12 +274,26 @@ export class InboxMonitorService implements InboxMonitorController {
             lastError: undefined,
             backoffUntil: undefined
         });
-        this.loopPromise = this.runLoop();
+        const runController = new AbortController();
+        this.activeRunController = runController;
+        const loopPromise = this.runLoop(runId, nextToken, runController.signal)
+            .finally(() => {
+                if (this.loopPromise === loopPromise) {
+                    this.loopPromise = null;
+                }
+                if (this.activeRunController === runController) {
+                    this.activeRunController = null;
+                }
+                if (this.runGeneration === runId) {
+                    this.running = false;
+                }
+            });
+        this.loopPromise = loopPromise;
         return this.getState();
     }
 
     stop(reason?: string): InboxMonitorState {
-        this.running = false;
+        this.stopCurrentLoop();
         this.setState({
             status: 'stopped',
             enabled: this.snapshot.settings.enabled,
@@ -275,24 +304,11 @@ export class InboxMonitorService implements InboxMonitorController {
         return this.getState();
     }
 
-    private async runLoop() {
-        while (this.running) {
-            const token = this.currentToken;
-            if (!token) {
-                this.setState({
-                    status: 'blocked',
-                    enabled: this.snapshot.settings.enabled,
-                    pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
-                    lastError: 'Discord token is missing. Save a token before starting inbox notifications.',
-                    backoffUntil: undefined
-                });
-                this.running = false;
-                break;
-            }
-
+    private async runLoop(runId: number, token: string, abortSignal: AbortSignal) {
+        while (this.isCurrentRun(runId)) {
             try {
-                const result = await this.poll(token);
-                if (!this.running || token !== this.currentToken) {
+                const result = await this.poll(token, abortSignal);
+                if (!this.isCurrentRun(runId)) {
                     break;
                 }
 
@@ -320,10 +336,13 @@ export class InboxMonitorService implements InboxMonitorController {
                     });
                 }
             } catch (error) {
+                if (!this.isCurrentRun(runId)) {
+                    break;
+                }
+
                 const message = error instanceof Error ? error.message : String(error);
                 const lowered = message.toLowerCase();
                 if (lowered.includes('401')) {
-                    this.running = false;
                     this.setState({
                         status: 'failed',
                         enabled: this.snapshot.settings.enabled,
@@ -351,7 +370,7 @@ export class InboxMonitorService implements InboxMonitorController {
                 });
 
                 await this.sleepImpl(backoffMs);
-                if (!this.running) {
+                if (!this.isCurrentRun(runId)) {
                     break;
                 }
                 continue;
@@ -363,14 +382,38 @@ export class InboxMonitorService implements InboxMonitorController {
         }
     }
 
-    private async poll(token: string): Promise<MonitorPollResult> {
+    private stopCurrentLoop() {
+        this.running = false;
+        this.runGeneration += 1;
+        this.activeRunController?.abort('Inbox monitor stopped.');
+    }
+
+    private isCurrentRun(runId: number): boolean {
+        return this.running
+            && this.snapshot.settings.enabled
+            && this.runGeneration === runId;
+    }
+
+    private async awaitLoopShutdown() {
+        if (!this.loopPromise) {
+            return;
+        }
+
+        try {
+            await this.loopPromise;
+        } catch {
+            // The loop already emitted its state transition; callers only need shutdown ordering here.
+        }
+    }
+
+    private async poll(token: string, abortSignal: AbortSignal): Promise<MonitorPollResult> {
         const headers = {
             Authorization: token,
             'Content-Type': 'application/json'
         };
         const checkedAt = this.now().toISOString();
-        const selfUserId = this.snapshot.lastSeen.selfUserId ?? await this.fetchSelfUserId(headers);
-        const channels = await this.fetchChannels(headers);
+        const selfUserId = this.snapshot.lastSeen.selfUserId ?? await this.fetchSelfUserId(headers, abortSignal);
+        const channels = await this.fetchChannels(headers, abortSignal);
         const notifications: InboxNotificationItem[] = [];
         const nextLastSeen: InboxMonitorLastSeen = {
             initializedAt: this.snapshot.lastSeen.initializedAt ?? checkedAt,
@@ -385,7 +428,7 @@ export class InboxMonitorService implements InboxMonitorController {
                 continue;
             }
 
-            const messages = await this.fetchChannelMessages(headers, channel.id);
+            const messages = await this.fetchChannelMessages(headers, channel.id, abortSignal);
             if (messages.length === 0) {
                 continue;
             }
@@ -435,8 +478,38 @@ export class InboxMonitorService implements InboxMonitorController {
         };
     }
 
-    private async fetchSelfUserId(headers: HeadersInit): Promise<string> {
-        const response = await this.fetchImpl(`${API_BASE}/users/@me`, { headers });
+    private async fetchWithTimeout(url: string, headers: HeadersInit, abortSignal: AbortSignal): Promise<Response> {
+        const controller = new AbortController();
+        const abortListener = () => {
+            controller.abort(abortSignal.reason);
+        };
+        abortSignal.addEventListener('abort', abortListener, { once: true });
+
+        let timeoutId: NodeJS.Timeout | undefined;
+
+        try {
+            return await Promise.race([
+                this.fetchImpl(url, {
+                    headers,
+                    signal: controller.signal
+                }),
+                new Promise<Response>((_, reject) => {
+                    timeoutId = setTimeout(() => {
+                        controller.abort();
+                        reject(new Error(`Inbox monitor request timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms.`));
+                    }, DEFAULT_REQUEST_TIMEOUT_MS);
+                })
+            ]);
+        } finally {
+            abortSignal.removeEventListener('abort', abortListener);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        }
+    }
+
+    private async fetchSelfUserId(headers: HeadersInit, abortSignal: AbortSignal): Promise<string> {
+        const response = await this.fetchWithTimeout(`${API_BASE}/users/@me`, headers, abortSignal);
         if (!response.ok) {
             throw new Error(`Inbox monitor failed to fetch @me (${response.status}).`);
         }
@@ -445,8 +518,8 @@ export class InboxMonitorService implements InboxMonitorController {
         return payload.id;
     }
 
-    private async fetchChannels(headers: HeadersInit): Promise<InboxChannel[]> {
-        const response = await this.fetchImpl(`${API_BASE}/users/@me/channels`, { headers });
+    private async fetchChannels(headers: HeadersInit, abortSignal: AbortSignal): Promise<InboxChannel[]> {
+        const response = await this.fetchWithTimeout(`${API_BASE}/users/@me/channels`, headers, abortSignal);
         if (response.status === 401) {
             throw new Error('Inbox monitor received HTTP 401 while loading DM channels.');
         }
@@ -461,8 +534,8 @@ export class InboxMonitorService implements InboxMonitorController {
         return channels.filter((channel) => channel && typeof channel.id === 'string');
     }
 
-    private async fetchChannelMessages(headers: HeadersInit, channelId: string): Promise<InboxMessage[]> {
-        const response = await this.fetchImpl(`${API_BASE}/channels/${channelId}/messages?limit=${MAX_MESSAGES_PER_CHANNEL}`, { headers });
+    private async fetchChannelMessages(headers: HeadersInit, channelId: string, abortSignal: AbortSignal): Promise<InboxMessage[]> {
+        const response = await this.fetchWithTimeout(`${API_BASE}/channels/${channelId}/messages?limit=${MAX_MESSAGES_PER_CHANNEL}`, headers, abortSignal);
         if (response.status === 401) {
             throw new Error(`Inbox monitor received HTTP 401 while loading channel ${channelId}.`);
         }

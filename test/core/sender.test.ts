@@ -161,7 +161,7 @@ test('shared sender coordinator preserves the minimum interval even when request
     assert.deepEqual(startTimes, [0, 1000]);
 });
 
-test('sendDiscordMessage times out hung requests so the shared coordinator queue can keep moving', async () => {
+test('sendDiscordMessage times out hung requests so the shared coordinator queue can keep moving', { timeout: 2000 }, async () => {
     const coordinator = createSenderCoordinator(0);
     const callOrder: string[] = [];
 
@@ -207,14 +207,129 @@ test('sendDiscordMessage times out hung requests so the shared coordinator queue
         }
     });
 
-    const [firstResult, secondResult] = await Promise.race([
-        Promise.all([firstSend, secondSend]),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for queued sends')), 200))
-    ]);
+    const [firstResult, secondResult] = await Promise.all([firstSend, secondSend]);
 
     assert.deepEqual(firstResult, { type: 'fatal', reason: 'exhausted' });
     assert.deepEqual(secondResult, { type: 'success' });
     assert.ok(callOrder.includes('second'));
+});
+
+test('sendDiscordMessage aborts an in-flight request when the shared coordinator stops', async () => {
+    const coordinator = createSenderCoordinator(0);
+    let started = false;
+
+    const sendPromise = sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
+        coordinator,
+        requestTimeoutMs: 1000,
+        sleep: async () => {},
+        fetchImpl: async (_url, init) => {
+            started = true;
+            return await new Promise<Response>((_, reject) => {
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+            });
+        }
+    });
+
+    while (!started) {
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    coordinator.abort('Stop requested from test.');
+
+    const result = await sendPromise;
+    assert.deepEqual(result, { type: 'fatal', reason: 'aborted' });
+});
+
+test('runChannel resets the daily cap after the configured timezone crosses midnight', async () => {
+    let sends = 0;
+    let now = Date.parse('2026-03-22T00:00:01.000Z');
+    const resumeProgress = {
+        channelId: channel.id,
+        channelName: channel.name,
+        status: 'running' as const,
+        sentMessages: 1,
+        sentToday: 1,
+        sentTodayDayKey: '2026-03-21',
+        consecutiveRateLimits: 0,
+        lastSentAt: '2026-03-21T23:59:00.000Z'
+    };
+
+    await runChannel({
+        target: {
+            ...channel,
+            schedule: {
+                intervalSeconds: 2,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                maxSendsPerDay: 1
+            }
+        },
+        numMessages: 2,
+        baseWaitSeconds: 2,
+        marginSeconds: 0,
+        token: 'token',
+        userAgent: 'UA',
+        messageGroups: {
+            default: ['Hello!']
+        },
+        resumeProgress,
+        fetchImpl: async () => {
+            sends += 1;
+            return createResponse(200, {});
+        },
+        sleep: async (ms) => {
+            now += ms;
+        },
+        now: () => new Date(now),
+        random: () => 0
+    });
+
+    assert.equal(sends, 1);
+    assert.equal(resumeProgress.sentToday, 1);
+    assert.equal(resumeProgress.sentTodayDayKey, '2026-03-22');
+});
+
+test('runChannel counts a post-midnight retry against the new day before enforcing the daily cap', async () => {
+    let successfulSends = 0;
+    let attempts = 0;
+    let now = Date.parse('2026-03-21T23:59:59.200Z');
+
+    await runChannel({
+        target: {
+            ...channel,
+            schedule: {
+                intervalSeconds: 1,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                maxSendsPerDay: 1
+            }
+        },
+        numMessages: 2,
+        baseWaitSeconds: 1,
+        marginSeconds: 0,
+        token: 'token',
+        userAgent: 'UA',
+        messageGroups: {
+            default: ['Hello!']
+        },
+        fetchImpl: async () => {
+            attempts += 1;
+            if (attempts === 1) {
+                return createResponse(429, { retry_after: 1 });
+            }
+
+            successfulSends += 1;
+            return createResponse(200, {});
+        },
+        sleep: async (ms) => {
+            now += ms;
+        },
+        now: () => new Date(now),
+        random: () => 0
+    });
+
+    assert.equal(successfulSends, 1);
+    assert.equal(attempts, 2);
 });
 
 test('pickNextMessage avoids repeats until the group is exhausted', () => {

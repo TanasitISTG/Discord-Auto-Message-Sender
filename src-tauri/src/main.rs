@@ -128,6 +128,7 @@ struct ChannelProgressRecord {
     status: String,
     sent_messages: u32,
     sent_today: u32,
+    sent_today_day_key: Option<String>,
     consecutive_rate_limits: u32,
     last_message: Option<String>,
     last_sent_at: Option<String>,
@@ -819,18 +820,12 @@ fn scrub_discord_token_from_env_contents(contents: &str) -> Option<String> {
     Some(format!("{}\n", next_lines.join("\n")))
 }
 
-fn token_storage_mode(secure_present: bool, environment_present: bool) -> &'static str {
+fn token_storage_mode(secure_present: bool) -> &'static str {
     if secure_present {
         "secure"
-    } else if environment_present {
-        "environment"
     } else {
         "missing"
     }
-}
-
-fn process_environment_token() -> Option<String> {
-    env::var("DISCORD_TOKEN").ok().and_then(normalize_token)
 }
 
 #[cfg(target_os = "windows")]
@@ -1047,22 +1042,10 @@ fn persist_notification_delivery_snapshot(
 
 fn resolve_effective_token(app: &AppHandle) -> Result<Option<String>, String> {
     let paths = runtime_paths(app)?;
-    if let Some(token) = read_secure_token(&paths)? {
-        return Ok(Some(token));
-    }
-
-    if let Some(token) = read_plaintext_token_from_env_file(&environment_path(&paths))? {
-        return Ok(Some(token));
-    }
-
-    Ok(process_environment_token())
+    read_secure_token(&paths)
 }
 
 fn read_desktop_setup_state(paths: &RuntimePaths) -> Result<DesktopSetupState, String> {
-    read_desktop_setup_state_with_process_token(paths, process_environment_token())
-}
-
-fn read_desktop_setup_state_with_process_token(paths: &RuntimePaths, process_token: Option<String>) -> Result<DesktopSetupState, String> {
     let secure_store_path = secure_token_path(&paths);
     let env_path = environment_path(&paths);
 
@@ -1070,11 +1053,8 @@ fn read_desktop_setup_state_with_process_token(paths: &RuntimePaths, process_tok
         Ok(token) => (token, None),
         Err(error) => (None, Some(error)),
     };
-    let environment_token = read_plaintext_token_from_env_file(&env_path)?
-        .or(process_token);
-
-    let token_present = secure_token.is_some() || environment_token.is_some();
-    let token_storage = token_storage_mode(secure_token.is_some(), environment_token.is_some());
+    let token_present = secure_token.is_some();
+    let token_storage = token_storage_mode(secure_token.is_some());
 
     Ok(DesktopSetupState {
         token_present,
@@ -1145,8 +1125,14 @@ fn load_release_diagnostics_state(app: &AppHandle) -> Result<ReleaseDiagnostics,
 
 fn open_path_in_file_manager(path: &Path) -> Result<String, String> {
     if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", "start", "", path.to_string_lossy().as_ref()])
+        let mut command = Command::new("explorer.exe");
+        if path.is_file() {
+            command.arg(format!("/select,{}", path.display()));
+        } else {
+            command.arg(path);
+        }
+
+        command
             .spawn()
             .map_err(|error| format!("Failed to open '{}': {error}", path.display()))?;
     } else if cfg!(target_os = "macos") {
@@ -2561,7 +2547,7 @@ mod tests {
         migrate_plaintext_token_to_secure_store_at_paths(&paths, &[legacy_root]).expect("migrate token");
 
         assert!(secure_token_path(&paths).exists());
-        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup state");
+        let setup = read_desktop_setup_state(&paths).expect("load setup state");
         assert_eq!(setup.token_storage, "secure");
         assert_eq!(setup.token_present, true);
         assert!(!environment_path(&paths).exists());
@@ -2582,7 +2568,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(15));
         }
 
-        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup");
+        let setup = read_desktop_setup_state(&paths).expect("load setup");
         let diagnostics = build_release_diagnostics(&paths, "1.0.0", "secure", SidecarStatus::Ready);
         let bundle = export_support_bundle_at_paths(&paths, &diagnostics, &setup).expect("export support bundle");
 
@@ -2630,7 +2616,7 @@ mod tests {
         let paths = temp_runtime_paths("discord-token-warning");
         fs::write(secure_token_path(&paths), [0_u8, 1, 2, 3]).expect("write corrupted secure token");
 
-        let setup = read_desktop_setup_state_with_process_token(&paths, None).expect("load setup state");
+        let setup = read_desktop_setup_state(&paths).expect("load setup state");
 
         assert_eq!(setup.token_present, false);
         assert_eq!(setup.token_storage, "missing");

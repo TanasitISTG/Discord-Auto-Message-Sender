@@ -28,7 +28,18 @@ function bunExecutable() {
     return process.platform === 'win32' ? 'bun.exe' : 'bun';
 }
 
-test('desktop sidecar serves typed config, dry-run, and state commands over one long-lived process', async () => {
+function createDeferred<T = void>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((nextResolve, nextReject) => {
+        resolve = nextResolve;
+        reject = nextReject;
+    });
+
+    return { promise, resolve, reject };
+}
+
+test('desktop sidecar serves typed config, dry-run, and state commands over one long-lived process', { timeout: 20000 }, async () => {
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
 
@@ -43,12 +54,34 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
     });
 
     const pending = new Map<string, (value: unknown) => void>();
+    const ready = createDeferred<void>();
     reader.on('line', (line) => {
-        const message = JSON.parse(line) as { type: string; id?: string; ok?: boolean; result?: unknown };
+        const message = JSON.parse(line) as { type: string; id?: string; ok?: boolean; result?: unknown; event?: { type?: string } };
+        if (message.type === 'event' && message.event?.type === 'sidecar_ready') {
+            ready.resolve();
+            return;
+        }
         if (message.type === 'response' && message.id) {
             pending.get(message.id)?.(message);
             pending.delete(message.id);
         }
+    });
+
+    child.once('error', (error) => {
+        ready.reject(error);
+        for (const resolve of pending.values()) {
+            resolve({ ok: false, error: String(error) });
+        }
+        pending.clear();
+    });
+
+    child.once('exit', (code, signal) => {
+        const error = new Error(`Sidecar exited before responding (code=${code}, signal=${signal}).`);
+        ready.reject(error);
+        for (const resolve of pending.values()) {
+            resolve({ ok: false, error: error.message });
+        }
+        pending.clear();
     });
 
     async function request(command: string, payload: unknown) {
@@ -57,10 +90,17 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
             pending.set(id, (value) => resolve(value as { ok: boolean; result?: unknown; error?: string }));
         });
         child.stdin.write(`${JSON.stringify({ id, command, payload })}\n`);
-        return await response;
+        return await Promise.race([
+            response,
+            new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error(`Timed out waiting for '${command}' response.`)), 5000);
+            })
+        ]);
     }
 
     try {
+        await ready.promise;
+
         const configResponse = await request('load_config', {});
         assert.equal(configResponse.ok, true);
         const configResult = configResponse.result as { kind: string; config?: { channels: Array<{ id: string }> } };
@@ -122,6 +162,7 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
         assert.equal(invalidCommandResponse.ok, false);
         assert.match(invalidCommandResponse.error ?? '', /Unsupported desktop command/);
     } finally {
+        reader.close();
         child.kill();
     }
 });
