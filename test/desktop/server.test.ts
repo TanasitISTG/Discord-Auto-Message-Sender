@@ -6,6 +6,7 @@ import path from 'path';
 import readline from 'readline';
 import { spawn, spawnSync } from 'child_process';
 import { createDefaultAppConfig } from '../../src/config/schema';
+import { createSessionConfigSignature } from '../../src/services/session';
 import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 
 function createTempDir(): string {
@@ -165,7 +166,7 @@ test(
                                 baseWaitSeconds: 5,
                                 marginSeconds: 2,
                             },
-                            configSignature: JSON.stringify(
+                            configSignature: createSessionConfigSignature(
                                 JSON.parse(fs.readFileSync(path.join(tempDir, 'config.json'), 'utf8')),
                             ),
                             state: {

@@ -92,7 +92,7 @@ export async function runPreflight(config: AppConfig, options: PreflightOptions 
                   channelId: channel.id,
                   channelName: channel.name,
                   ok: tokenPresent,
-                  skipped: tokenPresent,
+                  skipped: true,
                   reason: tokenPresent ? 'Access check skipped.' : 'Missing token.',
               }));
 

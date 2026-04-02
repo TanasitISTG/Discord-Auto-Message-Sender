@@ -32,6 +32,7 @@ test('runPreflight still fails when token is missing', async () => {
     assert.equal(result.ok, false);
     assert.equal(result.tokenPresent, false);
     assert.equal(result.channels[0].ok, false);
-    assert.equal(result.channels[0].skipped, false);
+    assert.equal(result.channels[0].skipped, true);
     assert.equal(result.channels[0].reason, 'Missing token.');
+    assert.deepEqual(result.issues, ['DISCORD_TOKEN is missing.']);
 });

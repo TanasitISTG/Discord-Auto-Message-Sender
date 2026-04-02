@@ -30,7 +30,7 @@ fn main() {
         {
             bundle.insert(
                 "resources".to_string(),
-                serde_json::Value::Array(Vec::new()),
+                serde_json::Value::Object(serde_json::Map::new()),
             );
         }
 

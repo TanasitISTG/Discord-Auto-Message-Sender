@@ -11,6 +11,7 @@ import {
     writeDesktopFiles,
 } from './runtime-test-helpers';
 import type { SessionState } from '../../src/types';
+import { createSessionConfigSignature } from '../../src/services/session';
 
 test('DesktopRuntime uses a single in-process session controller for lifecycle commands', async () => {
     const tempDir = createTempDir();
@@ -172,7 +173,7 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
                         baseWaitSeconds: 1,
                         marginSeconds: 0,
                     },
-                    configSignature: JSON.stringify(config),
+                    configSignature: createSessionConfigSignature(config),
                     state: {
                         id: 'session-resume',
                         status: 'running',
@@ -235,7 +236,7 @@ test('DesktopRuntime can discard a saved resume checkpoint when no session is ac
                         baseWaitSeconds: 1,
                         marginSeconds: 0,
                     },
-                    configSignature: JSON.stringify(config),
+                    configSignature: createSessionConfigSignature(config),
                     state: {
                         id: 'session-resume',
                         status: 'running',
@@ -306,7 +307,7 @@ test('DesktopRuntime does not restore a checkpoint when the requested runtime no
                         baseWaitSeconds: 1,
                         marginSeconds: 0,
                     },
-                    configSignature: JSON.stringify(config),
+                    configSignature: createSessionConfigSignature(config),
                     state: {
                         id: 'session-resume',
                         status: 'running',
@@ -344,4 +345,75 @@ test('DesktopRuntime does not restore a checkpoint when the requested runtime no
     });
 
     assert.equal(receivedResumeSessionId, undefined);
+});
+
+test('DesktopRuntime resumes when the stored config is semantically identical but ordered differently', async () => {
+    const tempDir = createTempDir();
+    const config = writeDesktopFiles(tempDir);
+    const reorderedConfig = {
+        messageGroups: {
+            ...config.messageGroups,
+        },
+        channels: config.channels.map((channel) => ({
+            id: channel.id,
+            name: channel.name,
+            messageGroup: channel.messageGroup,
+            referrer: channel.referrer,
+        })),
+        userAgent: config.userAgent,
+    };
+
+    fs.writeFileSync(
+        path.join(tempDir, '.sender-state.json'),
+        JSON.stringify(
+            {
+                schemaVersion: STATE_SCHEMA_VERSION,
+                summaries: [],
+                recentFailures: [],
+                resumeSession: {
+                    sessionId: 'session-resume',
+                    updatedAt: '2026-03-21T10:00:00.000Z',
+                    runtime: {
+                        numMessages: 1,
+                        baseWaitSeconds: 1,
+                        marginSeconds: 0,
+                    },
+                    configSignature: createSessionConfigSignature(reorderedConfig),
+                    state: {
+                        id: 'session-resume',
+                        status: 'running',
+                        updatedAt: '2026-03-21T10:00:00.000Z',
+                        activeChannels: ['123456789012345678'],
+                        completedChannels: [],
+                        failedChannels: [],
+                        sentMessages: 1,
+                    },
+                    recentMessageHistory: {
+                        '123456789012345678': ['hello'],
+                    },
+                },
+            },
+            null,
+            2,
+        ),
+        'utf8',
+    );
+
+    let receivedResumeSessionId: string | undefined;
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        sessionFactory: (options) => {
+            receivedResumeSessionId = options.resumeSession?.sessionId;
+            return new FakeSession(options);
+        },
+    });
+
+    await runtime.startSession({
+        numMessages: 1,
+        baseWaitSeconds: 1,
+        marginSeconds: 0,
+        token: 'test-token',
+    });
+
+    assert.equal(receivedResumeSessionId, 'session-resume');
 });

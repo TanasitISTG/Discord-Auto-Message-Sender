@@ -13,7 +13,7 @@
         "desktop:dev": "tauri dev",
         "desktop:build": "tauri build",
         "format:web": "prettier . --write",
-        "format:web:check": "prettier . --check .",
+        "format:web:check": "prettier --check .",
         "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all",
         "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml --all --check",
         "format": "bun run format:web && bun run format:rust",

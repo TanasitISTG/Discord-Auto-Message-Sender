@@ -7,8 +7,25 @@ import {
     type SessionSegment,
 } from './session-state-machine';
 
+function canonicalizeConfigValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) => (item === undefined ? null : canonicalizeConfigValue(item)));
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .filter(([, entryValue]) => entryValue !== undefined)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, entryValue]) => [key, canonicalizeConfigValue(entryValue)]),
+        );
+    }
+
+    return value;
+}
+
 export function createSessionConfigSignature(config: AppConfig): string {
-    return JSON.stringify(config);
+    return JSON.stringify(canonicalizeConfigValue(config));
 }
 
 export function canResumeSession(

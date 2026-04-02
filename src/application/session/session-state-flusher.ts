@@ -28,24 +28,27 @@ export class SessionStateFlusher {
     }
 
     async flushNow() {
-        if (this.stateFlushInFlight) {
-            await this.stateFlushInFlight;
-            return;
-        }
+        while (true) {
+            if (this.stateFlushInFlight) {
+                await this.stateFlushInFlight;
+                return;
+            }
 
-        if (!this.stateFlushPending) {
-            return;
-        }
+            if (!this.stateFlushPending) {
+                return;
+            }
 
-        this.stateFlushPending = false;
-        this.stateFlushInFlight = Promise.resolve(this.flush());
+            this.stateFlushPending = false;
+            this.stateFlushInFlight = Promise.resolve(this.flush());
 
-        try {
-            await this.stateFlushInFlight;
-        } finally {
-            this.stateFlushInFlight = null;
-            if (this.stateFlushPending) {
-                await this.flushNow();
+            try {
+                await this.stateFlushInFlight;
+            } finally {
+                this.stateFlushInFlight = null;
+            }
+
+            if (!this.stateFlushPending) {
+                return;
             }
         }
     }
