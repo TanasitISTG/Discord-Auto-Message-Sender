@@ -19,7 +19,7 @@ export function MetricCard({ label, value, detail }: { label: string; value: str
 export function ActionTile({ title, detail, onClick }: { title: string; detail: string; onClick: () => void | Promise<void> }) {
     return (
         <button className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/60 p-5 text-left transition-all hover:border-primary/30 hover:bg-accent/50 hover:shadow-glow-sm active:scale-[0.98]" onClick={() => void onClick()}>
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
             <div className="relative z-10">
                 <div className="mb-1.5 text-sm font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">{title}</div>
                 <div className="text-xs leading-relaxed text-muted-foreground">{detail}</div>
@@ -41,7 +41,7 @@ export function StateRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-3 py-2.5 transition-colors hover:bg-card/80">
             <span className="min-w-0 text-xs font-medium text-muted-foreground">{label}</span>
-            <span className="min-w-0 break-words text-right text-sm font-semibold text-foreground">{value}</span>
+            <span className="min-w-0 wrap-break-word text-right text-sm font-semibold text-foreground">{value}</span>
         </div>
     );
 }

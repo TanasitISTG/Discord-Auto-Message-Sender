@@ -15,8 +15,8 @@ import {
     updateChannelSchedule as updateConfigChannelSchedule,
     updateMessageInGroup,
     updateUserAgent
-} from '../../../../src/domain/config-editor';
-import { validateAppConfig } from '../../../../src/domain/config-validation';
+} from './config-draft-domain';
+import { validateAppConfig } from './config-draft-domain';
 import { ConfigDraftState, configDraftReducer, createInitialConfigDraftState } from './config-draft-reducer';
 
 function withFallbackGroup(config: AppConfig): string {

@@ -1,0 +1,94 @@
+{
+    "types": [
+        {
+            "kind": "string-enum",
+            "name": "ChannelStatePhase",
+            "values": ["started", "stopped", "completed", "failed"],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "SessionUpdateReason",
+            "values": ["message_sent", "pacing_changed", "health_changed", "checkpoint_restored"],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "tagged-union",
+            "name": "DesktopEvent",
+            "tag": "type",
+            "targets": ["ts"],
+            "variants": [
+                { "tagValue": "session_started", "fields": [{ "name": "state", "type": "SessionSnapshot" }] },
+                { "tagValue": "session_paused", "fields": [{ "name": "state", "type": "SessionSnapshot" }] },
+                { "tagValue": "session_resumed", "fields": [{ "name": "state", "type": "SessionSnapshot" }] },
+                { "tagValue": "session_stopping", "fields": [{ "name": "state", "type": "SessionSnapshot" }] },
+                {
+                    "tagValue": "channel_state_changed",
+                    "fields": [
+                        { "name": "state", "type": "SessionSnapshot" },
+                        { "name": "channelId", "type": "string" },
+                        { "name": "phase", "type": "ChannelStatePhase" }
+                    ]
+                },
+                {
+                    "tagValue": "session_state_updated",
+                    "fields": [
+                        { "name": "state", "type": "SessionSnapshot" },
+                        { "name": "reason", "type": "SessionUpdateReason" }
+                    ]
+                },
+                { "tagValue": "log_event_emitted", "fields": [{ "name": "entry", "type": "LogEntry" }] },
+                {
+                    "tagValue": "summary_ready",
+                    "fields": [
+                        { "name": "summary", "type": "SessionSummary" },
+                        { "name": "state", "type": "SessionSnapshot" }
+                    ]
+                },
+                { "tagValue": "preflight_result_emitted", "fields": [{ "name": "result", "type": "PreflightResult" }] },
+                { "tagValue": "dry_run_ready", "fields": [{ "name": "result", "type": "DryRunResult" }] },
+                { "tagValue": "inbox_monitor_state_changed", "fields": [{ "name": "monitor", "type": "InboxMonitorState" }] },
+                {
+                    "tagValue": "inbox_notification_ready",
+                    "fields": [
+                        { "name": "notification", "type": "InboxNotificationItem" },
+                        { "name": "monitor", "type": "InboxMonitorState" }
+                    ]
+                },
+                { "tagValue": "notification_delivery_state_changed", "fields": [{ "name": "delivery", "type": "NotificationDeliverySnapshot" }] },
+                {
+                    "tagValue": "telegram_test_result",
+                    "fields": [
+                        { "name": "ok", "type": "boolean" },
+                        { "name": "message", "type": "string" },
+                        { "name": "state", "type": "TelegramState" }
+                    ]
+                },
+                {
+                    "tagValue": "telegram_chat_detected",
+                    "fields": [
+                        { "name": "chatId", "type": "string" },
+                        { "name": "title", "type": "string", "optional": true }
+                    ]
+                },
+                {
+                    "tagValue": "close_blocked",
+                    "fields": [
+                        { "name": "message", "type": "string" },
+                        { "name": "state", "type": "SessionSnapshot | null" }
+                    ]
+                },
+                {
+                    "tagValue": "sidecar_error",
+                    "fields": [
+                        { "name": "message", "type": "string" },
+                        { "name": "status", "type": "string", "tsType": "'restarting' | 'failed'" }
+                    ]
+                },
+                {
+                    "tagValue": "sidecar_ready"
+                }
+            ]
+        }
+    ]
+}

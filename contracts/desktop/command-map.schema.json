@@ -1,0 +1,152 @@
+{
+    "types": [
+        {
+            "kind": "interface",
+            "name": "EmptyRequest",
+            "fields": [],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "interface",
+            "name": "RunPreflightRequest",
+            "fields": [
+                { "name": "token", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveConfigRequest",
+            "fields": [
+                { "name": "config", "type": "AppConfig" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "RunDryRunRequest",
+            "fields": [
+                { "name": "runtime", "type": "RuntimeOptions" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "StartSessionRequest",
+            "fields": [
+                { "name": "numMessages", "type": "integer" },
+                { "name": "baseWaitSeconds", "type": "number" },
+                { "name": "marginSeconds", "type": "number" },
+                { "name": "token", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SessionControlRequest",
+            "fields": [
+                { "name": "action", "type": "string", "tsType": "'pause' | 'resume' | 'stop'", "rustType": "String" },
+                { "name": "reason", "type": "string", "optional": true }
+            ],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "interface",
+            "name": "LoadLogsRequest",
+            "fields": [
+                { "name": "sessionId", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "OpenLogFileRequest",
+            "fields": [
+                { "name": "sessionId", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveEnvironmentRequest",
+            "fields": [
+                { "name": "discordToken", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveInboxMonitorSettingsRequest",
+            "fields": [
+                { "name": "settings", "type": "InboxMonitorSettings" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "StartInboxMonitorRequest",
+            "fields": [
+                { "name": "token", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveNotificationDeliverySettingsRequest",
+            "fields": [
+                { "name": "settings", "type": "NotificationDeliverySettings" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveTelegramBotTokenRequest",
+            "fields": [
+                { "name": "botToken", "type": "string" }
+            ]
+        }
+    ],
+    "commands": [
+        { "name": "load_config", "request": "EmptyRequest", "response": "ConfigLoadResult" },
+        { "name": "save_config", "request": "SaveConfigRequest", "response": "SaveConfigResult" },
+        { "name": "run_preflight", "request": "RunPreflightRequest", "response": "PreflightResult" },
+        { "name": "run_dry_run", "request": "RunDryRunRequest", "response": "DryRunResult" },
+        { "name": "start_session", "request": "StartSessionRequest", "response": "SessionSnapshot" },
+        { "name": "pause_session", "request": "EmptyRequest", "response": "SessionSnapshot | null" },
+        { "name": "resume_session", "request": "EmptyRequest", "response": "SessionSnapshot | null" },
+        { "name": "stop_session", "request": "EmptyRequest", "response": "SessionSnapshot | null" },
+        { "name": "get_session_state", "request": "EmptyRequest", "response": "SessionSnapshot | null" },
+        { "name": "load_logs", "request": "LoadLogsRequest", "response": "LogLoadResult" },
+        { "name": "load_state", "request": "EmptyRequest", "response": "SenderStateRecord" },
+        { "name": "load_setup_state", "request": "EmptyRequest", "response": "DesktopSetupState" },
+        { "name": "save_environment", "request": "SaveEnvironmentRequest", "response": "DesktopSetupState" },
+        { "name": "clear_secure_token", "request": "EmptyRequest", "response": "DesktopSetupState" },
+        { "name": "load_inbox_monitor_settings", "request": "EmptyRequest", "response": "InboxMonitorSettings" },
+        { "name": "save_inbox_monitor_settings", "request": "SaveInboxMonitorSettingsRequest", "response": "InboxMonitorSnapshot" },
+        { "name": "get_inbox_monitor_state", "request": "EmptyRequest", "response": "InboxMonitorState" },
+        { "name": "start_inbox_monitor", "request": "StartInboxMonitorRequest", "response": "InboxMonitorState" },
+        { "name": "stop_inbox_monitor", "request": "EmptyRequest", "response": "InboxMonitorState" },
+        { "name": "load_notification_delivery_settings", "request": "EmptyRequest", "response": "NotificationDeliverySettings" },
+        { "name": "save_notification_delivery_settings", "request": "SaveNotificationDeliverySettingsRequest", "response": "NotificationDeliverySnapshot" },
+        { "name": "get_notification_delivery_state", "request": "EmptyRequest", "response": "NotificationDeliverySnapshot" },
+        { "name": "save_telegram_bot_token", "request": "SaveTelegramBotTokenRequest", "response": "NotificationDeliverySnapshot" },
+        { "name": "clear_telegram_bot_token", "request": "EmptyRequest", "response": "NotificationDeliverySnapshot" },
+        { "name": "detect_telegram_chat", "request": "EmptyRequest", "response": "TelegramChatDetectionResult" },
+        { "name": "send_test_telegram_notification", "request": "EmptyRequest", "response": "TelegramTestResult" },
+        { "name": "discard_resume_session", "request": "EmptyRequest", "response": "SenderStateRecord" },
+        { "name": "load_release_diagnostics", "request": "EmptyRequest", "response": "ReleaseDiagnostics" },
+        { "name": "open_logs_directory", "request": "EmptyRequest", "response": "string" },
+        { "name": "export_support_bundle", "request": "EmptyRequest", "response": "SupportBundleResult" },
+        { "name": "reset_runtime_state", "request": "EmptyRequest", "response": "ResetRuntimeStateResult" },
+        { "name": "open_log_file", "request": "OpenLogFileRequest", "response": "string" },
+        { "name": "open_data_directory", "request": "EmptyRequest", "response": "string" }
+    ],
+    "sidecarCommandExclusions": [
+        "open_log_file",
+        "open_data_directory",
+        "load_setup_state",
+        "save_environment",
+        "clear_secure_token",
+        "load_notification_delivery_settings",
+        "save_notification_delivery_settings",
+        "get_notification_delivery_state",
+        "save_telegram_bot_token",
+        "clear_telegram_bot_token",
+        "detect_telegram_chat",
+        "send_test_telegram_notification",
+        "load_release_diagnostics",
+        "open_logs_directory",
+        "export_support_bundle",
+        "reset_runtime_state"
+    ]
+}

@@ -1,0 +1,29 @@
+{
+    "types": [
+        {
+            "kind": "string-enum",
+            "name": "LogLevel",
+            "values": ["info", "success", "warning", "error", "debug"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "SessionSegmentKind",
+            "values": ["fresh", "resumed"]
+        },
+        {
+            "kind": "interface",
+            "name": "LogEntry",
+            "fields": [
+                { "name": "id", "type": "string" },
+                { "name": "timestamp", "type": "string" },
+                { "name": "level", "type": "LogLevel" },
+                { "name": "context", "type": "string" },
+                { "name": "message", "type": "string" },
+                { "name": "meta", "type": "unknown", "optional": true, "tsType": "Record<string, string | number | boolean | null>", "rustType": "Option<HashMap<String, Value>>" },
+                { "name": "sessionId", "type": "string", "optional": true },
+                { "name": "segmentId", "type": "string", "optional": true },
+                { "name": "segmentKind", "type": "SessionSegmentKind", "optional": true }
+            ]
+        }
+    ]
+}

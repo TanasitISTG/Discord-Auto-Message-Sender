@@ -1,11 +1,11 @@
 import { ActionTile, MetricCard, StateRow } from '@/shared/components';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { RecoveryState } from '@/controllers/desktop/types';
 import type { SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
 import type { AppReadiness, SetupChecklist } from '@/shared/readiness';
 import { describeBlockingIssue } from '@/shared/readiness';
 import { SetupChecklistCard } from '@/shared/setup-checklist-card';
-import type { RecoveryState } from '@/shared/use-desktop-controller';
 
 interface DashboardScreenProps {
     groupedMetrics: {

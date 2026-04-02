@@ -2,7 +2,7 @@ import React from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import App from '../../app/src/App';
+export { act, render, screen, waitFor, within, userEvent };
 
 const desktopMock = vi.hoisted(() => {
     const baseConfig = {
@@ -323,7 +323,11 @@ vi.mock('sonner', () => ({
     })
 }));
 
-function resetDesktopState() {
+const { default: App } = await import('../../app/src/App');
+
+export { App };
+
+export function resetDesktopState() {
     desktopMock.state.session = null;
     desktopMock.state.senderState = {
         schemaVersion: 1,
@@ -359,312 +363,15 @@ function resetDesktopState() {
     }
 }
 
-function headerActions() {
+export function headerActions() {
     return within(screen.getByRole('banner'));
 }
 
-function sessionWorkspace() {
+export function sessionWorkspace() {
     return within(screen.getByRole('region', { name: 'Session workspace' }));
 }
 
-test('App flips the header CTA to stop and disables the session start button after starting', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
+export function getDesktopMock() {
+    return desktopMock;
+}
 
-    render(<App />);
-
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
-    });
-    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.startSession).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Session' }));
-
-    const startButton = await waitFor(() => sessionWorkspace().getByRole('button', { name: 'Start' }));
-    expect((startButton as HTMLButtonElement).disabled).toBe(true);
-});
-
-test('App can discard a saved checkpoint from the rendered session flow', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Session' }));
-
-    await screen.findByText('Interrupted session available');
-    await user.click(screen.getByRole('button', { name: 'Discard Checkpoint' }));
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Discard Checkpoint' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.discardResumeSession).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-        expect(screen.queryByText('Interrupted session available')).toBeNull();
-    });
-    await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Start' }).length).toBeGreaterThan(0);
-    });
-});
-
-test('App reacts to streamed session events in the rendered flow', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Session' }));
-    await screen.findByText('Interrupted session available');
-
-    await act(async () => {
-        desktopMock.state.eventHandler?.({
-            type: 'session_paused',
-            state: {
-                id: 'session-active',
-                status: 'paused',
-                updatedAt: '2026-03-21T10:02:00.000Z',
-                activeChannels: ['123456789012345678'],
-                completedChannels: [],
-                failedChannels: [],
-                sentMessages: 2
-            }
-        });
-    });
-
-    await screen.findByRole('button', { name: 'Resume' });
-    expect(screen.getAllByText('paused').length).toBeGreaterThan(0);
-});
-
-test('App can remove the secure token and block new session starts', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Config' }));
-    await user.click(await screen.findByRole('button', { name: 'Remove Token' }));
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Remove Token' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.clearSecureToken).toHaveBeenCalledTimes(1);
-    });
-    await screen.findByText('Save a Discord token securely before starting a session.');
-
-    const startButton = screen.getByRole('button', { name: 'Resume' });
-    expect((startButton as HTMLButtonElement).disabled).toBe(true);
-});
-
-test('App keeps an active session running after the secure token is removed', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
-    });
-    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Config' }));
-    await user.click(await screen.findByRole('button', { name: 'Remove Token' }));
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Remove Token' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.clearSecureToken).toHaveBeenCalledTimes(1);
-    });
-
-    await screen.findByText('Save a Discord token securely before starting a session.');
-    expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
-});
-
-test('App keeps preflight available when token readiness is blocked', async () => {
-    resetDesktopState();
-    desktopMock.state.setup = {
-        ...desktopMock.state.setup,
-        tokenPresent: false,
-        tokenStorage: 'missing'
-    };
-    desktopMock.state.diagnostics = {
-        ...desktopMock.state.diagnostics,
-        tokenStorage: 'missing'
-    };
-
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Preflight' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.runPreflight).toHaveBeenCalledTimes(1);
-    });
-});
-
-test('App shows the setup checklist until preflight succeeds, then collapses it to setup complete', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await screen.findByText('Setup Checklist');
-    await screen.findByText('Run preflight successfully');
-
-    await user.click(await screen.findByRole('button', { name: 'Preflight' }));
-    await waitFor(() => {
-        expect(desktopMock.mocks.runPreflight).toHaveBeenCalledTimes(1);
-    });
-
-    await user.click(await screen.findByRole('button', { name: 'Dashboard' }));
-    await screen.findByText('Setup Complete');
-});
-
-test('App shows the public beta version and support diagnostics', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await screen.findByText('v1.0.0 beta');
-    await user.click(await screen.findByRole('button', { name: 'Support' }));
-
-    await screen.findByText('Release Diagnostics');
-    await screen.findByText('Public Beta Notes');
-    await screen.findByText('C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs');
-});
-
-test('App exports a support bundle and opens the logs folder from Support', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Support' }));
-    await user.click(await screen.findByRole('button', { name: 'Open Logs Folder' }));
-    await user.click(await screen.findByRole('button', { name: 'Export Support Bundle' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.openLogsDirectory).toHaveBeenCalledTimes(1);
-        expect(desktopMock.mocks.exportSupportBundle).toHaveBeenCalledTimes(1);
-    });
-    await screen.findByText('Latest support bundle');
-    await screen.findByText('Missing: logs/*.jsonl');
-});
-
-test('App disables runtime reset while a session is active', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
-    });
-    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Support' }));
-    const resetButton = await screen.findByRole('button', { name: 'Reset Runtime State' });
-    expect((resetButton as HTMLButtonElement).disabled).toBe(true);
-});
-
-test('App can reset runtime state from Support when idle', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await user.click(await screen.findByRole('button', { name: 'Support' }));
-    await waitFor(() => {
-        expect((screen.getByRole('button', { name: 'Reset Runtime State' }) as HTMLButtonElement).disabled).toBe(false);
-    });
-    await user.click(screen.getByRole('button', { name: 'Reset Runtime State' }));
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Reset Runtime State' }));
-
-    await waitFor(() => {
-        expect(desktopMock.mocks.resetRuntimeState).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-        expect(screen.getAllByText('Runtime state reset. Deleted 2 log files.').length).toBeGreaterThan(0);
-    });
-});
-
-test('App shows a sidecar restart banner and clears it when the runtime recovers', async () => {
-    resetDesktopState();
-
-    render(<App />);
-    await waitFor(() => {
-        expect(desktopMock.state.eventHandler).toBeTruthy();
-    });
-
-    await act(async () => {
-        desktopMock.state.eventHandler?.({
-            type: 'sidecar_error',
-            status: 'restarting',
-            message: 'Desktop runtime restarted after an unexpected sidecar exit.'
-        });
-    });
-
-    await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
-    await screen.findByText('restarting');
-
-    await act(async () => {
-        desktopMock.state.eventHandler?.({
-            type: 'sidecar_ready'
-        });
-    });
-
-    await waitFor(() => {
-        expect(screen.queryAllByText('Desktop runtime restarted after an unexpected sidecar exit.')).toHaveLength(0);
-    });
-    await screen.findByText('ready');
-});
-
-test('App keeps a recovery card visible after runtime interruption during an active session', async () => {
-    resetDesktopState();
-    const user = userEvent.setup();
-
-    render(<App />);
-
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
-    });
-    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
-    await waitFor(() => {
-        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
-    });
-
-    await act(async () => {
-        desktopMock.state.eventHandler?.({
-            type: 'sidecar_error',
-            status: 'restarting',
-            message: 'Desktop runtime restarted after an unexpected sidecar exit.'
-        });
-    });
-
-    await screen.findAllByText('Runtime interrupted');
-    await screen.findAllByText('Desktop runtime restarted after an unexpected sidecar exit.');
-    expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Discard Checkpoint' })).toBeTruthy();
-});
-
-test('App mounts a single toaster host', async () => {
-    resetDesktopState();
-    render(<App />);
-
-    await screen.findByText('v1.0.0 beta');
-    expect(screen.getAllByTestId('toaster-host')).toHaveLength(1);
-});

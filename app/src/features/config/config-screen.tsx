@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import type { SurfaceNotice } from '@/controllers/desktop/types';
 import type { DesktopSetupState, RuntimeOptions } from '@/lib/desktop';
 import type { SetupChecklist, TokenReadiness } from '@/shared/readiness';
-import type { SurfaceNotice } from '@/shared/use-desktop-controller';
 import { InlineNotice } from '@/shared/components';
 import { SetupChecklistCard } from '@/shared/setup-checklist-card';
 import { AdvancedConfigToolsCard } from './advanced-config-tools-card';

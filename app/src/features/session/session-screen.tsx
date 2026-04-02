@@ -2,11 +2,11 @@ import { AlertCircle, Play, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { RecoveryState, SurfaceNotice } from '@/controllers/desktop/types';
 import type { PreflightResult, RuntimeOptions, SenderStateRecord, SessionSnapshot } from '@/lib/desktop';
 import { InlineNotice, NumberField, StateRow } from '@/shared/components';
 import type { AppReadiness } from '@/shared/readiness';
 import { describeBlockingIssue } from '@/shared/readiness';
-import type { RecoveryState, SurfaceNotice } from '@/shared/use-desktop-controller';
 
 interface SessionScreenProps {
     runtime: RuntimeOptions;
@@ -50,21 +50,14 @@ export function SessionScreen({
     const canResumeCheckpoint = Boolean(resumeSession && !hasActiveSession);
     const checkpoint = canResumeCheckpoint ? resumeSession : null;
     const suppressedEntries = Object.values(session?.channelProgress ?? {}).filter((entry) => entry.status === 'suppressed');
-    const runModeLabel = recoveryState
-        ? 'Runtime interrupted'
-        : session?.status === 'stopping'
-            ? 'Stopping after current send'
-            : session?.status === 'stopped'
-                ? 'Stopped with checkpoint ready'
-            : suppressedEntries.length > 0
-                ? 'Waiting on cooldown'
-                : session?.resumedFromCheckpoint
-                    ? 'Resumed from checkpoint'
-                    : session
-                        ? 'Fresh run'
-                        : resumeSession
-                            ? 'Next start will resume checkpoint'
-                            : 'Fresh run';
+    const runModeLabel = recoveryState ? 'Runtime interrupted'
+        : session?.status === 'stopping' ? 'Stopping after current send'
+        : session?.status === 'stopped' ? 'Stopped with checkpoint ready'
+        : suppressedEntries.length > 0 ? 'Waiting on cooldown'
+        : session?.resumedFromCheckpoint ? 'Resumed from checkpoint'
+        : session ? 'Fresh run'
+        : resumeSession ? 'Next start will resume checkpoint'
+        : 'Fresh run';
 
     return (
         <section aria-label="Session workspace" className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
