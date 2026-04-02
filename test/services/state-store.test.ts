@@ -7,7 +7,7 @@ import {
     loadSenderState,
     resolveStateFile,
     saveSenderState,
-    STATE_SCHEMA_VERSION
+    STATE_SCHEMA_VERSION,
 } from '../../src/services/state-store';
 
 function createTempDir(): string {
@@ -32,10 +32,13 @@ test('saveSenderState clears transient warning metadata before persisting', () =
         schemaVersion: STATE_SCHEMA_VERSION,
         summaries: [],
         recentFailures: [],
-        warning: 'should not persist'
+        warning: 'should not persist',
     });
 
-    const raw = JSON.parse(fs.readFileSync(resolveStateFile(tempDir), 'utf8')) as { warning?: string; schemaVersion?: number };
+    const raw = JSON.parse(fs.readFileSync(resolveStateFile(tempDir), 'utf8')) as {
+        warning?: string;
+        schemaVersion?: number;
+    };
     assert.equal(raw.warning, undefined);
     assert.equal(raw.schemaVersion, STATE_SCHEMA_VERSION);
 });
@@ -48,14 +51,14 @@ test('loadSenderState preserves recent message history for restart-safe anti-rep
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {
-            '123': ['hello', 'world']
-        }
+            '123': ['hello', 'world'],
+        },
     });
 
     const state = loadSenderState(tempDir);
 
     assert.deepEqual(state.recentMessageHistory, {
-        '123': ['hello', 'world']
+        '123': ['hello', 'world'],
     });
 });
 
@@ -67,7 +70,7 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {
-            '123': ['hello']
+            '123': ['hello'],
         },
         channelHealth: {
             '123': {
@@ -77,8 +80,8 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
                 consecutiveRateLimits: 4,
                 consecutiveFailures: 1,
                 suppressionCount: 2,
-                suppressedUntil: '2026-03-21T10:00:00.000Z'
-            }
+                suppressedUntil: '2026-03-21T10:00:00.000Z',
+            },
         },
         resumeSession: {
             sessionId: 'session-1',
@@ -86,7 +89,7 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
             runtime: {
                 numMessages: 5,
                 baseWaitSeconds: 10,
-                marginSeconds: 2
+                marginSeconds: 2,
             },
             configSignature: '{"channels":[]}',
             state: {
@@ -105,14 +108,14 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
                         sentMessages: 1,
                         sentToday: 1,
                         sentTodayDayKey: '2026-03-21',
-                        consecutiveRateLimits: 0
-                    }
-                }
+                        consecutiveRateLimits: 0,
+                    },
+                },
             },
             recentMessageHistory: {
-                '123': ['hello']
-            }
-        }
+                '123': ['hello'],
+            },
+        },
     });
 
     const state = loadSenderState(tempDir);
@@ -122,19 +125,27 @@ test('loadSenderState preserves resume checkpoints and channel health snapshots'
     assert.equal(state.resumeSession?.runtime.baseWaitSeconds, 10);
     assert.equal(state.resumeSession?.state.channelProgress?.['123']?.sentTodayDayKey, '2026-03-21');
     assert.deepEqual(state.resumeSession?.recentMessageHistory, {
-        '123': ['hello']
+        '123': ['hello'],
     });
 });
 
 test('loadSenderState migrates legacy versionless state files to the current schema', () => {
     const tempDir = createTempDir();
-    fs.writeFileSync(resolveStateFile(tempDir), JSON.stringify({
-        summaries: [],
-        recentFailures: [],
-        recentMessageHistory: {
-            '123': ['hello']
-        }
-    }, null, 2), 'utf8');
+    fs.writeFileSync(
+        resolveStateFile(tempDir),
+        JSON.stringify(
+            {
+                summaries: [],
+                recentFailures: [],
+                recentMessageHistory: {
+                    '123': ['hello'],
+                },
+            },
+            null,
+            2,
+        ),
+        'utf8',
+    );
 
     const state = loadSenderState(tempDir);
     const raw = JSON.parse(fs.readFileSync(resolveStateFile(tempDir), 'utf8')) as { schemaVersion?: number };
@@ -152,11 +163,11 @@ test('loadSenderState keeps newer schema files read-only while exposing a warnin
         summaries: [],
         recentFailures: [],
         recentMessageHistory: {
-            '123': ['hello']
+            '123': ['hello'],
         },
         unknownFutureField: {
-            preserved: true
-        }
+            preserved: true,
+        },
     };
     fs.writeFileSync(filePath, JSON.stringify(original, null, 2), 'utf8');
 

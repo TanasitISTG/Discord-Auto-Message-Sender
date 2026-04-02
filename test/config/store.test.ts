@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { DEFAULT_CONFIG_BASE_DIR, readAppConfigResult, readLegacyMessagesResult, resolveConfigPaths, writeAppConfig } from '../../src/config/store';
+import {
+    DEFAULT_CONFIG_BASE_DIR,
+    readAppConfigResult,
+    readLegacyMessagesResult,
+    resolveConfigPaths,
+    writeAppConfig,
+} from '../../src/config/store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-'));
@@ -24,12 +30,19 @@ test('readAppConfigResult distinguishes missing config from invalid config', () 
 
 test('readAppConfigResult surfaces canonical validation errors when userAgent is missing', () => {
     const tempDir = createTempDir();
-    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
-        channels: [],
-        messageGroups: {
-            default: ['Hello!']
-        }
-    }, null, 2));
+    fs.writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify(
+            {
+                channels: [],
+                messageGroups: {
+                    default: ['Hello!'],
+                },
+            },
+            null,
+            2,
+        ),
+    );
 
     const result = readAppConfigResult(resolveConfigPaths(tempDir));
     assert.equal(result.kind, 'invalid');
@@ -38,11 +51,18 @@ test('readAppConfigResult surfaces canonical validation errors when userAgent is
 
 test('readAppConfigResult keeps mixed canonical and legacy keys on the canonical validation path', () => {
     const tempDir = createTempDir();
-    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
-        userAgent: 'UA',
-        user_agent: 'legacy UA',
-        channels: []
-    }, null, 2));
+    fs.writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify(
+            {
+                userAgent: 'UA',
+                user_agent: 'legacy UA',
+                channels: [],
+            },
+            null,
+            2,
+        ),
+    );
 
     const result = readAppConfigResult(resolveConfigPaths(tempDir));
     assert.equal(result.kind, 'invalid');
@@ -52,20 +72,27 @@ test('readAppConfigResult keeps mixed canonical and legacy keys on the canonical
 
 test('readAppConfigResult reports legacy config without messages as invalid', () => {
     const tempDir = createTempDir();
-    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
-        user_agent: 'UA',
-        channels: [
+    fs.writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify(
             {
-                name: 'general',
-                id: '123456789012345678'
-            }
-        ]
-    }, null, 2));
+                user_agent: 'UA',
+                channels: [
+                    {
+                        name: 'general',
+                        id: '123456789012345678',
+                    },
+                ],
+            },
+            null,
+            2,
+        ),
+    );
 
     const result = readAppConfigResult(resolveConfigPaths(tempDir));
     assert.deepEqual(result, {
         kind: 'invalid',
-        error: 'Error loading legacy config: messages.json is required for legacy imports.'
+        error: 'Error loading legacy config: messages.json is required for legacy imports.',
     });
 });
 
@@ -84,15 +111,22 @@ test('readLegacyMessagesResult distinguishes missing messages from invalid messa
 
 test('readAppConfigResult surfaces invalid legacy messages distinctly', () => {
     const tempDir = createTempDir();
-    fs.writeFileSync(path.join(tempDir, 'config.json'), JSON.stringify({
-        user_agent: 'UA',
-        channels: [
+    fs.writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify(
             {
-                name: 'general',
-                id: '123456789012345678'
-            }
-        ]
-    }, null, 2));
+                user_agent: 'UA',
+                channels: [
+                    {
+                        name: 'general',
+                        id: '123456789012345678',
+                    },
+                ],
+            },
+            null,
+            2,
+        ),
+    );
     fs.writeFileSync(path.join(tempDir, 'messages.json'), '{ invalid json');
 
     const result = readAppConfigResult(resolveConfigPaths(tempDir));
@@ -118,20 +152,23 @@ test('writeAppConfig returns the normalized config that was persisted', () => {
     const tempDir = createTempDir();
     const paths = resolveConfigPaths(tempDir);
 
-    const normalized = writeAppConfig({
-        userAgent: '  UA  ',
-        channels: [
-            {
-                name: '  general  ',
-                id: ' 123456789012345678 ',
-                referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: ' default '
-            }
-        ],
-        messageGroups: {
-            default: ['  Hello!  ']
-        }
-    }, paths);
+    const normalized = writeAppConfig(
+        {
+            userAgent: '  UA  ',
+            channels: [
+                {
+                    name: '  general  ',
+                    id: ' 123456789012345678 ',
+                    referrer: 'https://discord.com/channels/@me/123456789012345678',
+                    messageGroup: ' default ',
+                },
+            ],
+            messageGroups: {
+                default: ['  Hello!  '],
+            },
+        },
+        paths,
+    );
 
     assert.equal(normalized.userAgent, 'UA');
     assert.equal(normalized.channels[0].name, 'general');

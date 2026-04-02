@@ -6,7 +6,7 @@ import {
     AlertDialogDescription,
     AlertDialogFooter,
     AlertDialogHeader,
-    AlertDialogTitle
+    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
 export type ConfirmDialogTone = 'danger' | 'warning';
@@ -28,29 +28,29 @@ interface DesktopConfirmDialogProps {
     onConfirm(): void | Promise<void>;
 }
 
-export function DesktopConfirmDialog({
-    dialog,
-    pending,
-    onClose,
-    onConfirm
-}: DesktopConfirmDialogProps) {
+export function DesktopConfirmDialog({ dialog, pending, onClose, onConfirm }: DesktopConfirmDialogProps) {
     return (
-        <AlertDialog open={dialog.open} onOpenChange={(open) => {
-            if (!open && !pending) {
-                onClose();
-            }
-        }}>
+        <AlertDialog
+            open={dialog.open}
+            onOpenChange={(open) => {
+                if (!open && !pending) {
+                    onClose();
+                }
+            }}
+        >
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{dialog.title}</AlertDialogTitle>
                     <AlertDialogDescription>{dialog.description}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={pending}>
-                        {dialog.cancelLabel}
-                    </AlertDialogCancel>
+                    <AlertDialogCancel disabled={pending}>{dialog.cancelLabel}</AlertDialogCancel>
                     <AlertDialogAction
-                        className={dialog.tone === 'warning' ? 'border-amber-500/70 bg-amber-500/90 text-black hover:bg-amber-400' : undefined}
+                        className={
+                            dialog.tone === 'warning'
+                                ? 'border-amber-500/70 bg-amber-500/90 text-black hover:bg-amber-400'
+                                : undefined
+                        }
                         disabled={pending}
                         onClick={(event) => {
                             event.preventDefault();

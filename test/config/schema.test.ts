@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultAppConfig, normalizeLegacyConfig, parseAppConfig, parseRuntimeOptions } from '../../src/config/schema';
+import {
+    createDefaultAppConfig,
+    normalizeLegacyConfig,
+    parseAppConfig,
+    parseRuntimeOptions,
+} from '../../src/config/schema';
 import { ZodError } from 'zod';
 
 test('parseAppConfig accepts canonical config and preserves camelCase shape', () => {
@@ -11,12 +16,12 @@ test('parseAppConfig accepts canonical config and preserves camelCase shape', ()
                 name: 'general',
                 id: '123456789012345678',
                 referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default'
-            }
+                messageGroup: 'default',
+            },
         ],
         messageGroups: {
-            default: ['Hello!']
-        }
+            default: ['Hello!'],
+        },
     });
 
     assert.equal(config.userAgent, 'UA');
@@ -31,13 +36,13 @@ test('normalizeLegacyConfig converts snake_case config and external messages int
             channels: [
                 {
                     name: 'general',
-                    id: '123456789012345678'
-                }
-            ]
+                    id: '123456789012345678',
+                },
+            ],
         },
         {
-            default: ['Hello!']
-        }
+            default: ['Hello!'],
+        },
     );
 
     assert.deepEqual(config, {
@@ -47,60 +52,75 @@ test('normalizeLegacyConfig converts snake_case config and external messages int
                 name: 'general',
                 id: '123456789012345678',
                 referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default'
-            }
+                messageGroup: 'default',
+            },
         ],
         messageGroups: {
-            default: ['Hello!']
-        }
+            default: ['Hello!'],
+        },
     });
 });
 
 test('parseAppConfig rejects duplicate channel IDs', () => {
-    assert.throws(() => parseAppConfig({
-        userAgent: 'UA',
-        channels: [
-            {
-                name: 'general-1',
-                id: '123456789012345678',
-                messageGroup: 'default'
-            },
-            {
-                name: 'general-2',
-                id: '123456789012345678',
-                messageGroup: 'default'
-            }
-        ],
-        messageGroups: {
-            default: ['Hello!']
-        }
-    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate channel ID')));
+    assert.throws(
+        () =>
+            parseAppConfig({
+                userAgent: 'UA',
+                channels: [
+                    {
+                        name: 'general-1',
+                        id: '123456789012345678',
+                        messageGroup: 'default',
+                    },
+                    {
+                        name: 'general-2',
+                        id: '123456789012345678',
+                        messageGroup: 'default',
+                    },
+                ],
+                messageGroups: {
+                    default: ['Hello!'],
+                },
+            }),
+        (error) =>
+            error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate channel ID')),
+    );
 });
 
 test('parseAppConfig rejects message group names that collide after trimming whitespace', () => {
-    assert.throws(() => parseAppConfig({
-        userAgent: 'UA',
-        channels: [],
-        messageGroups: {
-            default: ['Hello!'],
-            ' default ': ['Hello again!']
-        }
-    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('Duplicate message group name')));
+    assert.throws(
+        () =>
+            parseAppConfig({
+                userAgent: 'UA',
+                channels: [],
+                messageGroups: {
+                    default: ['Hello!'],
+                    ' default ': ['Hello again!'],
+                },
+            }),
+        (error) =>
+            error instanceof ZodError &&
+            error.issues.some((issue) => issue.message.includes('Duplicate message group name')),
+    );
 });
 
 test('parseRuntimeOptions rejects blank string inputs instead of coercing them to zero', () => {
-    assert.throws(() => parseRuntimeOptions({
-        numMessages: ' ',
-        baseWaitSeconds: ' ',
-        marginSeconds: ' '
-    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('is required')));
+    assert.throws(
+        () =>
+            parseRuntimeOptions({
+                numMessages: ' ',
+                baseWaitSeconds: ' ',
+                marginSeconds: ' ',
+            }),
+        (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('is required')),
+    );
 });
 
 test('parseAppConfig accepts message group names that overlap with Object prototype properties', () => {
     const config = parseAppConfig({
         userAgent: 'UA',
         channels: [],
-        messageGroups: JSON.parse('{"toString":["Alpha"],"constructor":["Beta"],"__proto__":["Gamma"]}')
+        messageGroups: JSON.parse('{"toString":["Alpha"],"constructor":["Beta"],"__proto__":["Gamma"]}'),
     });
 
     assert.deepEqual(Object.keys(config.messageGroups).sort(), ['__proto__', 'constructor', 'toString']);
@@ -125,57 +145,73 @@ test('createDefaultAppConfig returns a null-prototype messageGroups object safe 
 });
 
 test('parseAppConfig reports invalid message paths using the raw group key from the user config', () => {
-    assert.throws(() => parseAppConfig({
-        userAgent: 'UA',
-        channels: [],
-        messageGroups: {
-            ' default ': ['   ']
-        }
-    }), (error) => error instanceof ZodError
-        && error.issues.some((issue) => issue.path.join('.') === 'messageGroups. default .0'));
+    assert.throws(
+        () =>
+            parseAppConfig({
+                userAgent: 'UA',
+                channels: [],
+                messageGroups: {
+                    ' default ': ['   '],
+                },
+            }),
+        (error) =>
+            error instanceof ZodError &&
+            error.issues.some((issue) => issue.path.join('.') === 'messageGroups. default .0'),
+    );
 });
 
 test('parseAppConfig rejects invalid quiet-hours clock values', () => {
-    assert.throws(() => parseAppConfig({
-        userAgent: 'UA',
-        channels: [
-            {
-                name: 'general',
-                id: '123456789012345678',
-                referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default',
-                schedule: {
-                    intervalSeconds: 5,
-                    randomMarginSeconds: 2,
-                    quietHours: {
-                        start: '99:99',
-                        end: '06:00'
-                    }
-                }
-            }
-        ],
-        messageGroups: {
-            default: ['Hello!']
-        }
-    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.message.includes('valid 24-hour time')));
+    assert.throws(
+        () =>
+            parseAppConfig({
+                userAgent: 'UA',
+                channels: [
+                    {
+                        name: 'general',
+                        id: '123456789012345678',
+                        referrer: 'https://discord.com/channels/@me/123456789012345678',
+                        messageGroup: 'default',
+                        schedule: {
+                            intervalSeconds: 5,
+                            randomMarginSeconds: 2,
+                            quietHours: {
+                                start: '99:99',
+                                end: '06:00',
+                            },
+                        },
+                    },
+                ],
+                messageGroups: {
+                    default: ['Hello!'],
+                },
+            }),
+        (error) =>
+            error instanceof ZodError && error.issues.some((issue) => issue.message.includes('valid 24-hour time')),
+    );
 });
 
 test('parseAppConfig rejects partially specified schedules immediately', () => {
-    assert.throws(() => parseAppConfig({
-        userAgent: 'UA',
-        channels: [
-            {
-                name: 'general',
-                id: '123456789012345678',
-                referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default',
-                schedule: {
-                    intervalSeconds: 5
-                }
-            }
-        ],
-        messageGroups: {
-            default: ['Hello!']
-        }
-    }), (error) => error instanceof ZodError && error.issues.some((issue) => issue.path.join('.') === 'channels.0.schedule.randomMarginSeconds'));
+    assert.throws(
+        () =>
+            parseAppConfig({
+                userAgent: 'UA',
+                channels: [
+                    {
+                        name: 'general',
+                        id: '123456789012345678',
+                        referrer: 'https://discord.com/channels/@me/123456789012345678',
+                        messageGroup: 'default',
+                        schedule: {
+                            intervalSeconds: 5,
+                        },
+                    },
+                ],
+                messageGroups: {
+                    default: ['Hello!'],
+                },
+            }),
+        (error) =>
+            error instanceof ZodError &&
+            error.issues.some((issue) => issue.path.join('.') === 'channels.0.schedule.randomMarginSeconds'),
+    );
 });

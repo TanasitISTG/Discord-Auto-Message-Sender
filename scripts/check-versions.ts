@@ -1,5 +1,5 @@
-const fs = require('fs') as typeof import('fs');
-const path = require('path') as typeof import('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface VersionManifest {
     packageVersion: string;
@@ -9,7 +9,9 @@ export interface VersionManifest {
 
 export function readVersionManifest(rootDir: string): VersionManifest {
     const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as { version: string };
-    const tauriConfig = JSON.parse(fs.readFileSync(path.join(rootDir, 'src-tauri', 'tauri.conf.json'), 'utf8')) as { version: string };
+    const tauriConfig = JSON.parse(fs.readFileSync(path.join(rootDir, 'src-tauri', 'tauri.conf.json'), 'utf8')) as {
+        version: string;
+    };
     const cargoToml = fs.readFileSync(path.join(rootDir, 'src-tauri', 'Cargo.toml'), 'utf8');
     const cargoVersionMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
 
@@ -20,7 +22,7 @@ export function readVersionManifest(rootDir: string): VersionManifest {
     return {
         packageVersion: packageJson.version,
         tauriVersion: tauriConfig.version,
-        cargoVersion: cargoVersionMatch[1]
+        cargoVersion: cargoVersionMatch[1],
     };
 }
 
@@ -30,7 +32,7 @@ export function assertMatchingVersions(manifest: VersionManifest) {
 
     if (mismatched) {
         throw new Error(
-            `Version mismatch detected.\npackage.json: ${manifest.packageVersion}\nsrc-tauri/tauri.conf.json: ${manifest.tauriVersion}\nsrc-tauri/Cargo.toml: ${manifest.cargoVersion}`
+            `Version mismatch detected.\npackage.json: ${manifest.packageVersion}\nsrc-tauri/tauri.conf.json: ${manifest.tauriVersion}\nsrc-tauri/Cargo.toml: ${manifest.cargoVersion}`,
         );
     }
 }

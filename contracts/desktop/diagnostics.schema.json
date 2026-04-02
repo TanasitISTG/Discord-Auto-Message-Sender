@@ -1,0 +1,72 @@
+{
+    "types": [
+        {
+            "kind": "tagged-union",
+            "name": "ConfigLoadResult",
+            "tag": "kind",
+            "variants": [
+                {
+                    "tagValue": "ok",
+                    "fields": [{ "name": "config", "type": "AppConfig" }]
+                },
+                {
+                    "tagValue": "missing"
+                },
+                {
+                    "tagValue": "invalid",
+                    "fields": [{ "name": "error", "type": "string" }]
+                }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SaveConfigResult",
+            "fields": [
+                { "name": "ok", "type": "boolean" },
+                { "name": "config", "type": "AppConfig" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "LogLoadResult",
+            "fields": [
+                { "name": "ok", "type": "boolean" },
+                { "name": "path", "type": "string" },
+                { "name": "entries", "type": "LogEntry[]" },
+                { "name": "warnings", "type": "string[]", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "ReleaseDiagnostics",
+            "fields": [
+                { "name": "appVersion", "type": "string" },
+                { "name": "dataDir", "type": "string" },
+                { "name": "logsDir", "type": "string" },
+                { "name": "configPath", "type": "string" },
+                { "name": "statePath", "type": "string" },
+                { "name": "secureStorePath", "type": "string" },
+                { "name": "tokenStorage", "type": "TokenStorageMode" },
+                { "name": "sidecarStatus", "type": "SidecarStatus" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SupportBundleResult",
+            "fields": [
+                { "name": "path", "type": "string" },
+                { "name": "includedFiles", "type": "string[]" },
+                { "name": "missingFiles", "type": "string[]" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "ResetRuntimeStateResult",
+            "fields": [
+                { "name": "ok", "type": "boolean" },
+                { "name": "clearedStateFile", "type": "boolean" },
+                { "name": "deletedLogFiles", "type": "integer", "rustType": "usize" }
+            ]
+        }
+    ]
+}

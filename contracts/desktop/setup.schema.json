@@ -1,0 +1,29 @@
+{
+    "types": [
+        {
+            "kind": "string-enum",
+            "name": "TokenStorageMode",
+            "values": ["secure", "missing"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "SidecarStatus",
+            "values": ["connecting", "ready", "restarting", "failed"]
+        },
+        {
+            "kind": "interface",
+            "name": "DesktopSetupState",
+            "fields": [
+                { "name": "tokenPresent", "type": "boolean" },
+                { "name": "tokenStorage", "type": "TokenStorageMode" },
+                { "name": "dataDir", "type": "string" },
+                { "name": "secureStorePath", "type": "string" },
+                { "name": "envPath", "type": "string" },
+                { "name": "configPath", "type": "string" },
+                { "name": "statePath", "type": "string" },
+                { "name": "logsDir", "type": "string" },
+                { "name": "warning", "type": "string", "optional": true }
+            ]
+        }
+    ]
+}

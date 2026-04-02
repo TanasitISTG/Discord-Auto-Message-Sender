@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInboxMonitorService } from '../../src/services/inbox-monitor';
+import { pollInboxSnapshot } from '../../src/application/inbox-monitor/poller';
 import { getDefaultInboxMonitorSnapshot } from '../../src/services/state-store';
 import { AppEvent } from '../../src/types';
 
@@ -17,8 +18,8 @@ function createResponse(status: number, body: unknown) {
     return new Response(JSON.stringify(body), {
         status,
         headers: {
-            'Content-Type': 'application/json'
-        }
+            'Content-Type': 'application/json',
+        },
     });
 }
 
@@ -30,12 +31,14 @@ test('inbox monitor establishes a silent baseline before notifying on later DMs'
     const snapshot = getDefaultInboxMonitorSnapshot();
     snapshot.settings.enabled = true;
 
-    let latestMessages = [{
-        id: '100',
-        content: 'first',
-        timestamp: '2026-03-24T10:00:00.000Z',
-        author: { id: 'friend-1', username: 'friend' }
-    }];
+    let latestMessages = [
+        {
+            id: '100',
+            content: 'first',
+            timestamp: '2026-03-24T10:00:00.000Z',
+            author: { id: 'friend-1', username: 'friend' },
+        },
+    ];
     let sleepCount = 0;
     const notifications: AppEvent[] = [];
     const notificationReady = createDeferred<void>();
@@ -53,11 +56,13 @@ test('inbox monitor establishes a silent baseline before notifying on later DMs'
                 return createResponse(200, { id: 'self-user' });
             }
             if (url.endsWith('/users/@me/channels')) {
-                return createResponse(200, [{
-                    id: 'dm-1',
-                    type: 1,
-                    recipients: [{ id: 'friend-1', username: 'friend' }]
-                }]);
+                return createResponse(200, [
+                    {
+                        id: 'dm-1',
+                        type: 1,
+                        recipients: [{ id: 'friend-1', username: 'friend' }],
+                    },
+                ]);
             }
             if (url.includes('/channels/dm-1/messages')) {
                 return createResponse(200, latestMessages);
@@ -67,16 +72,19 @@ test('inbox monitor establishes a silent baseline before notifying on later DMs'
         sleep: async () => {
             sleepCount += 1;
             if (sleepCount === 1) {
-                latestMessages = [{
-                    id: '101',
-                    content: 'second',
-                    timestamp: '2026-03-24T10:01:00.000Z',
-                    author: { id: 'friend-1', username: 'friend' }
-                }, ...latestMessages];
+                latestMessages = [
+                    {
+                        id: '101',
+                        content: 'second',
+                        timestamp: '2026-03-24T10:01:00.000Z',
+                        author: { id: 'friend-1', username: 'friend' },
+                    },
+                    ...latestMessages,
+                ];
                 return;
             }
             monitor.stop();
-        }
+        },
     });
 
     await monitor.start({ token: 'token' });
@@ -91,12 +99,14 @@ test('inbox monitor does not notify for self-authored messages', async () => {
     const snapshot = getDefaultInboxMonitorSnapshot();
     snapshot.settings.enabled = true;
 
-    let latestMessages = [{
-        id: '200',
-        content: 'hello from me',
-        timestamp: '2026-03-24T10:00:00.000Z',
-        author: { id: 'self-user', username: 'me' }
-    }];
+    let latestMessages = [
+        {
+            id: '200',
+            content: 'hello from me',
+            timestamp: '2026-03-24T10:00:00.000Z',
+            author: { id: 'self-user', username: 'me' },
+        },
+    ];
     const notifications: AppEvent[] = [];
     const stopCompleted = createDeferred<void>();
     const monitor = createInboxMonitorService({
@@ -108,11 +118,13 @@ test('inbox monitor does not notify for self-authored messages', async () => {
                 return createResponse(200, { id: 'self-user' });
             }
             if (url.endsWith('/users/@me/channels')) {
-                return createResponse(200, [{
-                    id: 'dm-1',
-                    type: 1,
-                    recipients: [{ id: 'friend-1', username: 'friend' }]
-                }]);
+                return createResponse(200, [
+                    {
+                        id: 'dm-1',
+                        type: 1,
+                        recipients: [{ id: 'friend-1', username: 'friend' }],
+                    },
+                ]);
             }
             if (url.includes('/channels/dm-1/messages')) {
                 return createResponse(200, latestMessages);
@@ -120,15 +132,18 @@ test('inbox monitor does not notify for self-authored messages', async () => {
             throw new Error(`Unexpected URL ${url}`);
         }),
         sleep: async () => {
-            latestMessages = [{
-                id: '201',
-                content: 'follow-up from me',
-                timestamp: '2026-03-24T10:01:00.000Z',
-                author: { id: 'self-user', username: 'me' }
-            }, ...latestMessages];
+            latestMessages = [
+                {
+                    id: '201',
+                    content: 'follow-up from me',
+                    timestamp: '2026-03-24T10:01:00.000Z',
+                    author: { id: 'self-user', username: 'me' },
+                },
+                ...latestMessages,
+            ];
             monitor.stop();
             stopCompleted.resolve();
-        }
+        },
     });
 
     await monitor.start({ token: 'token' });
@@ -162,7 +177,7 @@ test('inbox monitor surfaces a failed state after HTTP 401', async () => {
                 return createResponse(401, { message: 'Unauthorized' });
             }
             throw new Error(`Unexpected URL ${url}`);
-        })
+        }),
     });
 
     await monitor.start({ token: 'token' });
@@ -199,7 +214,7 @@ test('inbox monitor emits a degraded state after HTTP 429', async () => {
         }),
         sleep: async () => {
             monitor.stop();
-        }
+        },
     });
 
     await monitor.start({ token: 'token' });
@@ -228,28 +243,32 @@ test('inbox monitor stops the active loop when settings are disabled', async () 
             }
             if (url.endsWith('/users/@me/channels')) {
                 channelFetchCount += 1;
-                return createResponse(200, [{
-                    id: 'dm-1',
-                    type: 1,
-                    recipients: [{ id: 'friend-1', username: 'friend' }]
-                }]);
+                return createResponse(200, [
+                    {
+                        id: 'dm-1',
+                        type: 1,
+                        recipients: [{ id: 'friend-1', username: 'friend' }],
+                    },
+                ]);
             }
             if (url.includes('/channels/dm-1/messages')) {
-                return createResponse(200, [{
-                    id: '300',
-                    content: 'hello',
-                    timestamp: '2026-03-24T10:00:00.000Z',
-                    author: { id: 'friend-1', username: 'friend' }
-                }]);
+                return createResponse(200, [
+                    {
+                        id: '300',
+                        content: 'hello',
+                        timestamp: '2026-03-24T10:00:00.000Z',
+                        author: { id: 'friend-1', username: 'friend' },
+                    },
+                ]);
             }
             throw new Error(`Unexpected URL ${url}`);
         }),
         sleep: async () => {
             monitor.saveSettings({
                 ...monitor.loadSettings(),
-                enabled: false
+                enabled: false,
             });
-        }
+        },
     });
 
     await monitor.start({ token: 'token' });
@@ -272,9 +291,10 @@ test('inbox monitor restarts cleanly when the token changes while running', asyn
         initialSnapshot: snapshot,
         fetchImpl: createFetch(async (input, init) => {
             const url = String(input);
-            const token = init?.headers instanceof Headers
-                ? (init.headers.get('Authorization') ?? '')
-                : ((init?.headers as Record<string, string> | undefined)?.Authorization ?? '');
+            const token =
+                init?.headers instanceof Headers
+                    ? (init.headers.get('Authorization') ?? '')
+                    : ((init?.headers as Record<string, string> | undefined)?.Authorization ?? '');
             if (url.endsWith('/users/@me')) {
                 return createResponse(200, { id: 'self-user' });
             }
@@ -282,11 +302,13 @@ test('inbox monitor restarts cleanly when the token changes while running', asyn
                 if (token === 'token-2') {
                     secondTokenSeen.resolve();
                 }
-                return createResponse(200, [{
-                    id: 'dm-1',
-                    type: 1,
-                    recipients: [{ id: 'friend-1', username: 'friend' }]
-                }]);
+                return createResponse(200, [
+                    {
+                        id: 'dm-1',
+                        type: 1,
+                        recipients: [{ id: 'friend-1', username: 'friend' }],
+                    },
+                ]);
             }
             if (url.includes('/channels/dm-1/messages')) {
                 return createResponse(200, []);
@@ -302,7 +324,7 @@ test('inbox monitor restarts cleanly when the token changes while running', asyn
             }
 
             monitor.stop();
-        }
+        },
     });
 
     await monitor.start({ token: 'token-1' });
@@ -328,9 +350,10 @@ test('inbox monitor aborts a hung poll before restarting with a new token', asyn
         initialSnapshot: snapshot,
         fetchImpl: createFetch(async (input, init) => {
             const url = String(input);
-            const token = init?.headers instanceof Headers
-                ? (init.headers.get('Authorization') ?? '')
-                : ((init?.headers as Record<string, string> | undefined)?.Authorization ?? '');
+            const token =
+                init?.headers instanceof Headers
+                    ? (init.headers.get('Authorization') ?? '')
+                    : ((init?.headers as Record<string, string> | undefined)?.Authorization ?? '');
 
             if (url.endsWith('/users/@me')) {
                 return createResponse(200, { id: 'self-user' });
@@ -339,17 +362,21 @@ test('inbox monitor aborts a hung poll before restarting with a new token', asyn
             if (url.endsWith('/users/@me/channels') && token === 'token-1') {
                 firstTokenBlocked.resolve();
                 return await new Promise<Response>((_, reject) => {
-                    init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+                    init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+                        once: true,
+                    });
                 });
             }
 
             if (url.endsWith('/users/@me/channels') && token === 'token-2') {
                 secondTokenSeen.resolve();
-                return createResponse(200, [{
-                    id: 'dm-1',
-                    type: 1,
-                    recipients: [{ id: 'friend-1', username: 'friend' }]
-                }]);
+                return createResponse(200, [
+                    {
+                        id: 'dm-1',
+                        type: 1,
+                        recipients: [{ id: 'friend-1', username: 'friend' }],
+                    },
+                ]);
             }
 
             if (url.includes('/channels/dm-1/messages')) {
@@ -360,7 +387,7 @@ test('inbox monitor aborts a hung poll before restarting with a new token', asyn
         }),
         sleep: async () => {
             monitor.stop();
-        }
+        },
     });
 
     await monitor.start({ token: 'token-1' });
@@ -370,4 +397,27 @@ test('inbox monitor aborts a hung poll before restarting with a new token', asyn
     await secondTokenSeen.promise;
 
     assert.equal(monitor.getState().lastError, undefined);
+});
+
+test('pollInboxSnapshot aborts immediately when the incoming signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException('Aborted', 'AbortError'));
+
+    let fetchCalls = 0;
+
+    await assert.rejects(
+        pollInboxSnapshot({
+            snapshot: getDefaultInboxMonitorSnapshot(),
+            token: 'token',
+            fetchImpl: createFetch(async () => {
+                fetchCalls += 1;
+                return createResponse(200, {});
+            }),
+            now: () => new Date('2026-03-24T10:00:00.000Z'),
+            abortSignal: controller.signal,
+        }),
+        /Aborted/,
+    );
+
+    assert.equal(fetchCalls, 0);
 });

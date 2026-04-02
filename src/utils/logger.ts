@@ -75,7 +75,10 @@ export function createConsoleSink(): LogSink {
     return (entry) => {
         const color = colorFromLevel(entry.level);
         const timestamp = new Date(entry.timestamp).toLocaleTimeString();
-        console.log(chalk.gray(`[${timestamp}]`) + ` [${chalk[color](entry.context)}] ${entry.message}${formatMeta(entry.meta)}`);
+        console.log(
+            chalk.gray(`[${timestamp}]`) +
+                ` [${chalk[color](entry.context)}] ${entry.message}${formatMeta(entry.meta)}`,
+        );
     };
 }
 
@@ -91,7 +94,7 @@ export function createBufferedFileWriter(filePath: string): BufferedFileWriter {
 
     const stream = fs.createWriteStream(filePath, {
         flags: 'a',
-        encoding: 'utf8'
+        encoding: 'utf8',
     });
 
     const queue: string[] = [];
@@ -201,7 +204,7 @@ export function createBufferedFileWriter(filePath: string): BufferedFileWriter {
                 stream.end(() => resolve());
             });
             destroyed = true;
-        }
+        },
     };
 }
 
@@ -222,7 +225,7 @@ export function createStructuredLogger(options: StructuredLoggerOptions = {}): S
                 meta: entry.meta,
                 sessionId: entry.sessionId ?? defaults.sessionId,
                 segmentId: entry.segmentId ?? defaults.segmentId,
-                segmentKind: entry.segmentKind ?? defaults.segmentKind
+                segmentKind: entry.segmentKind ?? defaults.segmentKind,
             };
 
             if (maxEntries > 0) {
@@ -242,19 +245,19 @@ export function createStructuredLogger(options: StructuredLoggerOptions = {}): S
                 sinks,
                 defaults: {
                     ...defaults,
-                    ...childDefaults
+                    ...childDefaults,
                 },
-                maxEntries
+                maxEntries,
             });
         },
         getEntries() {
             return [...entries];
-        }
+        },
     };
 }
 
 export const defaultLogger = createStructuredLogger({
-    sinks: [createConsoleSink()]
+    sinks: [createConsoleSink()],
 });
 
 export function emitLog(
@@ -262,16 +265,12 @@ export function emitLog(
     context: string,
     message: string,
     color: LogColor = 'blue',
-    meta?: LogMeta
+    meta?: LogMeta,
 ) {
     return logger.emit({
         context,
         level: levelFromColor(color),
         message,
-        meta: meta
-            ? Object.fromEntries(
-                Object.entries(meta).map(([key, value]) => [key, value ?? null])
-            )
-            : undefined
+        meta: meta ? Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, value ?? null])) : undefined,
     });
 }

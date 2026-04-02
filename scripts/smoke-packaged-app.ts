@@ -4,7 +4,13 @@ import path from 'path';
 import { spawn, spawnSync } from 'child_process';
 
 const rootDir = path.resolve(import.meta.dir, '..');
-const executablePath = path.join(rootDir, 'src-tauri', 'target', 'release', process.platform === 'win32' ? 'discord-auto-message-sender.exe' : 'discord-auto-message-sender');
+const executablePath = path.join(
+    rootDir,
+    'src-tauri',
+    'target',
+    'release',
+    process.platform === 'win32' ? 'discord-auto-message-sender.exe' : 'discord-auto-message-sender',
+);
 const diagnosticsFlag = '--print-release-diagnostics-json';
 const exportSupportBundleFlag = '--export-support-bundle-json';
 const resetRuntimeStateFlag = '--reset-runtime-state-json';
@@ -50,9 +56,9 @@ function isolatedEnvironment(tempRoot: string) {
     return {
         env: {
             ...process.env,
-            DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR: appDataDir
+            DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR: appDataDir,
         },
-        appDataDir
+        appDataDir,
     };
 }
 
@@ -61,7 +67,7 @@ function runJsonCommand<T>(flag: string, env: NodeJS.ProcessEnv, cwd: string) {
         cwd,
         env,
         encoding: 'utf8',
-        timeout: 15000
+        timeout: 15000,
     });
 
     if (result.error) {
@@ -99,35 +105,53 @@ function resetRuntimeState(env: NodeJS.ProcessEnv, cwd: string) {
 function seedRuntimeFiles(diagnostics: ReleaseDiagnostics) {
     fs.mkdirSync(path.dirname(diagnostics.configPath), { recursive: true });
     fs.mkdirSync(diagnostics.logsDir, { recursive: true });
-    fs.writeFileSync(diagnostics.configPath, JSON.stringify({
-        userAgent: 'Smoke UA',
-        channels: [],
-        messageGroups: {
-            default: ['Hello from smoke']
-        }
-    }, null, 2));
-    fs.writeFileSync(diagnostics.statePath, JSON.stringify({
-        schemaVersion: 1,
-        summaries: [],
-        recentFailures: [],
-        recentMessageHistory: {},
-        channelHealth: {}
-    }, null, 2));
+    fs.writeFileSync(
+        diagnostics.configPath,
+        JSON.stringify(
+            {
+                userAgent: 'Smoke UA',
+                channels: [],
+                messageGroups: {
+                    default: ['Hello from smoke'],
+                },
+            },
+            null,
+            2,
+        ),
+    );
+    fs.writeFileSync(
+        diagnostics.statePath,
+        JSON.stringify(
+            {
+                schemaVersion: 1,
+                summaries: [],
+                recentFailures: [],
+                recentMessageHistory: {},
+                channelHealth: {},
+            },
+            null,
+            2,
+        ),
+    );
     fs.writeFileSync(path.join(diagnostics.logsDir, 'session-a.jsonl'), '{"event":"smoke-a"}\n');
     fs.writeFileSync(path.join(diagnostics.logsDir, 'session-b.jsonl'), '{"event":"smoke-b"}\n');
 }
 
 function expandZipArchive(zipPath: string, destinationDir: string) {
     fs.mkdirSync(destinationDir, { recursive: true });
-    const result = spawnSync('powershell', [
-        '-NoProfile',
-        '-Command',
-        `Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destinationDir.replace(/'/g, "''")}' -Force`
-    ], {
-        encoding: 'utf8',
-        timeout: 30000,
-        windowsHide: true
-    });
+    const result = spawnSync(
+        'powershell',
+        [
+            '-NoProfile',
+            '-Command',
+            `Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destinationDir.replace(/'/g, "''")}' -Force`,
+        ],
+        {
+            encoding: 'utf8',
+            timeout: 30000,
+            windowsHide: true,
+        },
+    );
 
     if (result.error) {
         throw result.error;
@@ -162,7 +186,9 @@ async function main() {
     }
 
     if (!diagnostics.secureStorePath.startsWith(diagnostics.dataDir)) {
-        throw new Error(`Expected secure store path '${diagnostics.secureStorePath}' to live under '${diagnostics.dataDir}'.`);
+        throw new Error(
+            `Expected secure store path '${diagnostics.secureStorePath}' to live under '${diagnostics.dataDir}'.`,
+        );
     }
 
     const supportBundle = exportSupportBundle(env, tempRoot);
@@ -197,7 +223,7 @@ async function main() {
         env,
         detached: false,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: true,
     });
 
     await sleep(8000);
@@ -212,7 +238,7 @@ async function main() {
 
     spawnSync('taskkill', ['/PID', String(processHandle.pid), '/T', '/F'], {
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: true,
     });
 
     console.log(`Smoke passed for ${path.basename(executablePath)} using isolated APPDATA '${appDataDir}'.`);

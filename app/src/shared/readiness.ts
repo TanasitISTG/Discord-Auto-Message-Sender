@@ -76,7 +76,7 @@ export function deriveTokenReadiness(setup: DesktopSetupState | null): TokenRead
             status: 'loading',
             label: 'loading',
             detail: 'Loading desktop token state.',
-            blocking: true
+            blocking: true,
         };
     }
 
@@ -85,7 +85,7 @@ export function deriveTokenReadiness(setup: DesktopSetupState | null): TokenRead
             status: 'corrupted',
             label: 'unreadable',
             detail: setup.warning ?? 'Stored token could not be read.',
-            blocking: true
+            blocking: true,
         };
     }
 
@@ -94,7 +94,7 @@ export function deriveTokenReadiness(setup: DesktopSetupState | null): TokenRead
             status: 'secure',
             label: 'secure',
             detail: 'Stored securely for this Windows user.',
-            blocking: false
+            blocking: false,
         };
     }
 
@@ -102,7 +102,7 @@ export function deriveTokenReadiness(setup: DesktopSetupState | null): TokenRead
         status: 'missing',
         label: 'missing',
         detail: 'No Discord token is configured yet.',
-        blocking: true
+        blocking: true,
     };
 }
 
@@ -131,7 +131,7 @@ export function deriveAppReadiness({
     setup,
     configStatus,
     configError,
-    sidecarStatus
+    sidecarStatus,
 }: DeriveAppReadinessOptions): AppReadiness {
     const warnings: string[] = [];
     const blockingIssues: BlockingIssue[] = [];
@@ -174,12 +174,12 @@ export function deriveAppReadiness({
         token,
         config: {
             status: configStatus,
-            detail: configDetail
+            detail: configDetail,
         },
         sidecar: sidecarStatus,
         blockingIssues,
         warnings,
-        canStartSession: blockingIssues.length === 0
+        canStartSession: blockingIssues.length === 0,
     };
 }
 
@@ -188,10 +188,12 @@ export function deriveSetupChecklist({
     config,
     configStatus,
     validationErrors,
-    preflight
+    preflight,
 }: DeriveSetupChecklistOptions): SetupChecklist {
     const token = deriveTokenReadiness(setup);
-    const nonEmptyGroups = Object.entries(config.messageGroups).filter(([, messages]) => messages.some((message) => message.trim().length > 0));
+    const nonEmptyGroups = Object.entries(config.messageGroups).filter(([, messages]) =>
+        messages.some((message) => message.trim().length > 0),
+    );
     const hasValidGroups = nonEmptyGroups.length > 0;
     const hasChannels = config.channels.length > 0;
     const hasSavedConfig = configStatus === 'ready' && validationErrors.length === 0;
@@ -201,47 +203,56 @@ export function deriveSetupChecklist({
         {
             id: 'secure_token',
             label: 'Save Discord token securely',
-            detail: token.status === 'secure'
-                ? 'Secure token storage is configured.'
-                : token.status === 'corrupted'
-                    ? 'Stored token could not be read.'
-                    : 'Token storage still needs setup.',
+            detail:
+                token.status === 'secure'
+                    ? 'Secure token storage is configured.'
+                    : token.status === 'corrupted'
+                      ? 'Stored token could not be read.'
+                      : 'Token storage still needs setup.',
             done: token.status === 'secure',
             action: 'config',
-            actionLabel: 'Open Config'
+            actionLabel: 'Open Config',
         },
         {
             id: 'channel',
             label: 'Create at least one channel',
-            detail: hasChannels ? `${config.channels.length} channel${config.channels.length === 1 ? '' : 's'} configured.` : 'No channels configured yet.',
+            detail: hasChannels
+                ? `${config.channels.length} channel${config.channels.length === 1 ? '' : 's'} configured.`
+                : 'No channels configured yet.',
             done: hasChannels,
             action: 'config',
-            actionLabel: 'Open Config'
+            actionLabel: 'Open Config',
         },
         {
             id: 'message_group',
             label: 'Create at least one non-empty message group',
-            detail: hasValidGroups ? `${nonEmptyGroups.length} usable group${nonEmptyGroups.length === 1 ? '' : 's'} configured.` : 'No usable message groups yet.',
+            detail: hasValidGroups
+                ? `${nonEmptyGroups.length} usable group${nonEmptyGroups.length === 1 ? '' : 's'} configured.`
+                : 'No usable message groups yet.',
             done: hasValidGroups,
             action: 'config',
-            actionLabel: 'Open Config'
+            actionLabel: 'Open Config',
         },
         {
             id: 'save_config',
             label: 'Save config',
-            detail: hasSavedConfig ? 'A valid config is saved locally.' : 'Save the current draft before starting sessions.',
+            detail: hasSavedConfig
+                ? 'A valid config is saved locally.'
+                : 'Save the current draft before starting sessions.',
             done: hasSavedConfig,
             action: 'config',
-            actionLabel: 'Open Config'
+            actionLabel: 'Open Config',
         },
         {
             id: 'preflight',
             label: 'Run preflight successfully',
-            detail: preflightPassed ? 'Preflight passed in this app session.' : 'Run preflight once to confirm access and validation.',
+            detail: preflightPassed
+                ? 'Preflight passed in this app session.'
+                : 'Run preflight once to confirm access and validation.',
             done: preflightPassed,
             action: 'preflight',
-            actionLabel: 'Run Preflight'
-        }
+            actionLabel: 'Run Preflight',
+        },
     ];
 
     const completedCount = items.filter((item) => item.done).length;
@@ -249,6 +260,6 @@ export function deriveSetupChecklist({
         items,
         completedCount,
         totalCount: items.length,
-        complete: completedCount === items.length
+        complete: completedCount === items.length,
     };
 }

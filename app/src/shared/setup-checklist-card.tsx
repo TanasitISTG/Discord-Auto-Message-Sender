@@ -16,7 +16,7 @@ function ActionButton({
     currentScreen,
     onOpenConfig,
     onRunPreflight,
-    onOpenSession
+    onOpenSession,
 }: {
     item: SetupChecklistItem;
     currentScreen: 'dashboard' | 'config';
@@ -25,29 +25,28 @@ function ActionButton({
     onOpenSession(): void;
 }) {
     if (item.done) {
-        return (
-            <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-300">
-                Done
-            </span>
-        );
+        return <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-300">Done</span>;
     }
 
-    const actionMap: Record<SetupChecklistAction, { label: string; onClick: () => void | Promise<void>; icon: typeof Settings2 }> = {
+    const actionMap: Record<
+        SetupChecklistAction,
+        { label: string; onClick: () => void | Promise<void>; icon: typeof Settings2 }
+    > = {
         config: {
             label: currentScreen === 'config' ? 'Complete Below' : item.actionLabel,
             onClick: onOpenConfig,
-            icon: Settings2
+            icon: Settings2,
         },
         preflight: {
             label: item.actionLabel,
             onClick: onRunPreflight,
-            icon: ShieldCheck
+            icon: ShieldCheck,
         },
         session: {
             label: item.actionLabel,
             onClick: onOpenSession,
-            icon: Play
-        }
+            icon: Play,
+        },
     };
 
     const action = actionMap[item.action];
@@ -70,14 +69,17 @@ export function SetupChecklistCard({
     currentScreen,
     onOpenConfig,
     onRunPreflight,
-    onOpenSession
+    onOpenSession,
 }: SetupChecklistCardProps) {
     if (checklist.complete) {
         return (
             <Card>
                 <CardHeader>
                     <CardTitle>Setup Complete</CardTitle>
-                    <CardDescription>The packaged app has the basics it needs: secure token, saved config, and a successful preflight in this session.</CardDescription>
+                    <CardDescription>
+                        The packaged app has the basics it needs: secure token, saved config, and a successful preflight
+                        in this session.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">

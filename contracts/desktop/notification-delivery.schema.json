@@ -1,0 +1,136 @@
+{
+    "types": [
+        {
+            "kind": "string-enum",
+            "name": "InboxNotificationKind",
+            "values": ["direct_message", "message_request"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "InboxMonitorStatus",
+            "values": ["stopped", "starting", "running", "blocked", "degraded", "failed"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "TelegramDeliveryStatus",
+            "values": ["disabled", "unconfigured", "ready", "testing", "failed"]
+        },
+        {
+            "kind": "string-enum",
+            "name": "TelegramPreviewMode",
+            "values": ["full"]
+        },
+        {
+            "kind": "interface",
+            "name": "InboxNotificationItem",
+            "fields": [
+                { "name": "id", "type": "string" },
+                { "name": "kind", "type": "InboxNotificationKind" },
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "authorId", "type": "string" },
+                { "name": "authorName", "type": "string" },
+                { "name": "previewText", "type": "string" },
+                { "name": "messageId", "type": "string" },
+                { "name": "receivedAt", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "InboxMonitorSettings",
+            "fields": [
+                { "name": "enabled", "type": "boolean" },
+                { "name": "pollIntervalSeconds", "type": "integer" },
+                { "name": "notifyDirectMessages", "type": "boolean" },
+                { "name": "notifyMessageRequests", "type": "boolean" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "InboxMonitorState",
+            "fields": [
+                { "name": "status", "type": "InboxMonitorStatus" },
+                { "name": "enabled", "type": "boolean" },
+                { "name": "pollIntervalSeconds", "type": "integer" },
+                { "name": "lastCheckedAt", "type": "string", "optional": true },
+                { "name": "lastSuccessfulPollAt", "type": "string", "optional": true },
+                { "name": "lastNotificationAt", "type": "string", "optional": true },
+                { "name": "lastError", "type": "string", "optional": true },
+                { "name": "backoffUntil", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "InboxMonitorLastSeen",
+            "fields": [
+                { "name": "initializedAt", "type": "string", "optional": true },
+                { "name": "selfUserId", "type": "string", "optional": true },
+                { "name": "channelMessageIds", "type": "Record<string, string>" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "InboxMonitorSnapshot",
+            "fields": [
+                { "name": "settings", "type": "InboxMonitorSettings" },
+                { "name": "state", "type": "InboxMonitorState" },
+                { "name": "lastSeen", "type": "InboxMonitorLastSeen" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "TelegramSettings",
+            "fields": [
+                { "name": "enabled", "type": "boolean" },
+                { "name": "botTokenStored", "type": "boolean" },
+                { "name": "chatId", "type": "string" },
+                { "name": "previewMode", "type": "TelegramPreviewMode" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "TelegramState",
+            "fields": [
+                { "name": "status", "type": "TelegramDeliveryStatus" },
+                { "name": "lastCheckedAt", "type": "string", "optional": true },
+                { "name": "lastDeliveredAt", "type": "string", "optional": true },
+                { "name": "lastTestedAt", "type": "string", "optional": true },
+                { "name": "lastError", "type": "string", "optional": true },
+                { "name": "lastResolvedChatTitle", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "NotificationDeliverySettings",
+            "fields": [
+                { "name": "windowsDesktopEnabled", "type": "boolean" },
+                { "name": "telegram", "type": "TelegramSettings" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "NotificationDeliverySnapshot",
+            "fields": [
+                { "name": "settings", "type": "NotificationDeliverySettings" },
+                { "name": "telegramState", "type": "TelegramState" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "TelegramChatDetectionResult",
+            "fields": [
+                { "name": "chatId", "type": "string" },
+                { "name": "title", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "TelegramTestResult",
+            "fields": [
+                { "name": "ok", "type": "boolean" },
+                { "name": "message", "type": "string" },
+                { "name": "state", "type": "TelegramState" }
+            ]
+        }
+    ]
+}

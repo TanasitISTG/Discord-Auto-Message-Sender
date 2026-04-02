@@ -26,6 +26,17 @@ Windows-only public beta desktop app for configuring, validating, previewing, an
 - Secure Windows token storage for packaged builds
 - Support diagnostics and support-bundle export
 
+## Codebase Layout
+
+The repository is organized as a modular monolith:
+
+- `app/src/app-shell`, `app/src/controllers`, and `app/src/features` contain the React/Tauri UI shell, desktop controller hooks, and screen-level feature modules.
+- `src/domain`, `src/application`, and `src/infrastructure` contain pure business logic, orchestration flows, and persistence/integration code for the TypeScript sidecar.
+- `src/desktop` contains the TypeScript desktop transport, runtime bridge, and generated desktop contracts.
+- `src-tauri/src/commands` plus the other `src-tauri/src/*.rs` modules contain the Rust desktop shell, command handlers, runtime paths, secure token storage, support bundle export, and sidecar management.
+- `contracts/desktop/*.schema.json` define the desktop payload schemas that generate `src/desktop/contracts.ts` and `src-tauri/src/contracts.rs`.
+- `src/services/*` and `src/core/*` still exist as compatibility barrels during the migration; new logic should land in the layered modules instead.
+
 ## Install
 
 ### Public beta install
@@ -51,9 +62,52 @@ bun install
 Run the desktop app in development:
 
 ```bash
-bun run dev
 bun run desktop:dev
 ```
+
+`bun run desktop:dev` starts the Vite dev server through Tauri's `beforeDevCommand`. If you only need the web UI, run `bun run dev` directly.
+
+## Lint And Format
+
+Run the repo quality tools from the root:
+
+```bash
+bun run lint
+bun run format
+```
+
+Check-only variants:
+
+```bash
+bun run lint:eslint
+bun run format:check
+```
+
+The TypeScript and frontend code use ESLint 9 plus Prettier 3. Rust formatting stays on `cargo fmt`.
+
+## Contracts And Architecture
+
+Desktop contracts are schema-owned and generated from `contracts/desktop/*.schema.json`.
+
+Generate updated contracts after editing a schema:
+
+```bash
+bun run contracts:generate
+```
+
+Verify generated outputs are current:
+
+```bash
+bun run contracts:check
+```
+
+The repo also enforces architecture boundaries and file-size budgets:
+
+```bash
+bun run lint:architecture
+```
+
+Architecture decisions for the layered structure, schema-first contracts, and frontend controller composition live under `docs/adr/`.
 
 ## Manual Update Flow
 
@@ -92,7 +146,7 @@ Notes:
 
 - Packaged Windows builds store `DISCORD_TOKEN` in a DPAPI-protected local secure store.
 - The frontend never receives the plaintext token back after save.
-- Support exports exclude the secure token store, `.env`, and plaintext token values.
+- Support exports exclude the secure token store and `.env`, and they redact plaintext token values, message templates, recent message history, and Telegram error details.
 - Desktop session and preflight flows now require the secure token store instead of `.env` or shell-environment fallbacks.
 
 ## Local Runtime Files
@@ -103,14 +157,14 @@ The packaged app keeps runtime data under the OS app-data directory. On Windows 
 
 Key files:
 
-| Path | Purpose |
-| --- | --- |
-| `discord-token.secure` | DPAPI-protected token store for the packaged Windows app |
-| `.env` | legacy migration path that is scrubbed when secure storage takes over |
-| `config.json` | canonical saved configuration |
-| `.sender-state.json` | summaries, health data, and resumable checkpoint state |
-| `logs/*.jsonl` | structured session logs |
-| `support/*.zip` | exported support bundles |
+| Path                   | Purpose                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| `discord-token.secure` | DPAPI-protected token store for the packaged Windows app              |
+| `.env`                 | legacy migration path that is scrubbed when secure storage takes over |
+| `config.json`          | canonical saved configuration                                         |
+| `.sender-state.json`   | summaries, health data, and resumable checkpoint state                |
+| `logs/*.jsonl`         | structured session logs                                               |
+| `support/*.zip`        | exported support bundles                                              |
 
 The app can report the exact runtime paths from `Support -> Release Diagnostics`.
 
@@ -147,6 +201,8 @@ The export does not include:
 - `discord-token.secure`
 - `.env`
 - plaintext Discord tokens
+- plaintext Telegram bot tokens
+- unredacted message templates or recent session history
 - process environment dumps
 
 ## Reset Runtime State
@@ -204,12 +260,15 @@ bun run release:check
 
 That runs:
 
-1. `bun run typecheck`
-2. `bun run test`
-3. `cargo test --manifest-path src-tauri/Cargo.toml`
-4. `bun run desktop:build`
-5. `bun run smoke:desktop`
-6. `bun run release:version-check`
+1. `bun run lint`
+2. `bun run format:check`
+3. `bun run contracts:check`
+4. `bun run typecheck`
+5. `bun run test`
+6. `cargo test --manifest-path src-tauri/Cargo.toml`
+7. `bun run desktop:build`
+8. `bun run smoke:desktop`
+9. `bun run release:version-check`
 
 You can also run the version guard by itself:
 

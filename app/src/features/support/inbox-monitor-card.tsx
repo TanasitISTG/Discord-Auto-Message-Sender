@@ -34,12 +34,7 @@ function formatLocalTimestamp(value: string) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export function InboxMonitorCard({
-    settings,
-    state,
-    tokenPresent,
-    onSave
-}: InboxMonitorCardProps) {
+export function InboxMonitorCard({ settings, state, tokenPresent, onSave }: InboxMonitorCardProps) {
     const [draft, setDraft] = useState<InboxMonitorSettings>(settings);
 
     useEffect(() => {
@@ -50,17 +45,21 @@ export function InboxMonitorCard({
         <Card>
             <CardHeader>
                 <CardTitle>Inbox Notifications</CardTitle>
-                <CardDescription>Windows desktop toasts for new DMs and message requests while the app is running.</CardDescription>
+                <CardDescription>
+                    Windows desktop toasts for new DMs and message requests while the app is running.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
                     <span className="font-medium">Enable inbox notifications</span>
                     <Checkbox
                         checked={draft.enabled}
-                        onCheckedChange={(checked) => setDraft((previous) => ({
-                            ...previous,
-                            enabled: checked === true
-                        }))}
+                        onCheckedChange={(checked) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                enabled: checked === true,
+                            }))
+                        }
                     />
                 </label>
 
@@ -68,10 +67,12 @@ export function InboxMonitorCard({
                     <span className="font-medium">Notify on direct messages</span>
                     <Checkbox
                         checked={draft.notifyDirectMessages}
-                        onCheckedChange={(checked) => setDraft((previous) => ({
-                            ...previous,
-                            notifyDirectMessages: checked === true
-                        }))}
+                        onCheckedChange={(checked) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                notifyDirectMessages: checked === true,
+                            }))
+                        }
                     />
                 </label>
 
@@ -79,10 +80,12 @@ export function InboxMonitorCard({
                     <span className="font-medium">Notify on message requests</span>
                     <Checkbox
                         checked={draft.notifyMessageRequests}
-                        onCheckedChange={(checked) => setDraft((previous) => ({
-                            ...previous,
-                            notifyMessageRequests: checked === true
-                        }))}
+                        onCheckedChange={(checked) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                notifyMessageRequests: checked === true,
+                            }))
+                        }
                     />
                 </label>
 
@@ -93,27 +96,38 @@ export function InboxMonitorCard({
                         min={15}
                         max={300}
                         value={draft.pollIntervalSeconds}
-                        onChange={(event) => setDraft((previous) => ({
-                            ...previous,
-                            pollIntervalSeconds: Number(event.target.value || previous.pollIntervalSeconds)
-                        }))}
+                        onChange={(event) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                pollIntervalSeconds: Number(event.target.value || previous.pollIntervalSeconds),
+                            }))
+                        }
                     />
                 </label>
 
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Monitor state</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                            Monitor state
+                        </div>
                         <div className="mt-2 font-semibold text-foreground">{statusLabel(state)}</div>
                     </div>
                     <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Token readiness</div>
-                        <div className="mt-2 font-semibold text-foreground">{tokenPresent ? 'available' : 'missing'}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                            Token readiness
+                        </div>
+                        <div className="mt-2 font-semibold text-foreground">
+                            {tokenPresent ? 'available' : 'missing'}
+                        </div>
                     </div>
                 </div>
 
                 {state.lastSuccessfulPollAt ? (
                     <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
-                        Last successful poll: <span className="font-mono text-xs text-foreground/90">{formatLocalTimestamp(state.lastSuccessfulPollAt)}</span>
+                        Last successful poll:{' '}
+                        <span className="font-mono text-xs text-foreground/90">
+                            {formatLocalTimestamp(state.lastSuccessfulPollAt)}
+                        </span>
                     </div>
                 ) : null}
 

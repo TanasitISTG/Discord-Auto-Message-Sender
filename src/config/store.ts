@@ -8,7 +8,7 @@ import {
     normalizeLegacyConfig,
     parseAppConfig,
     parseLegacyConfig,
-    parseLegacyMessages
+    parseLegacyMessages,
 } from './schema';
 import { defaultLogger, emitLog, StructuredLogger } from '../utils/logger';
 
@@ -29,7 +29,7 @@ export type LegacyMessagesReadResult =
 export function resolveConfigPaths(baseDir: string = DEFAULT_CONFIG_BASE_DIR): ConfigPaths {
     return {
         configFile: path.join(baseDir, CONFIG_FILE),
-        messagesFile: path.join(baseDir, LEGACY_MESSAGES_FILE)
+        messagesFile: path.join(baseDir, LEGACY_MESSAGES_FILE),
     };
 }
 
@@ -100,7 +100,10 @@ export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): 
         const legacyMessagesResult = readLegacyMessagesResult(paths);
 
         if (legacyMessagesResult.kind === 'missing') {
-            return { kind: 'invalid', error: 'Error loading legacy config: messages.json is required for legacy imports.' };
+            return {
+                kind: 'invalid',
+                error: 'Error loading legacy config: messages.json is required for legacy imports.',
+            };
         }
 
         if (legacyMessagesResult.kind === 'invalid') {
@@ -113,7 +116,10 @@ export function readAppConfigResult(paths: ConfigPaths = resolveConfigPaths()): 
     }
 }
 
-export function readAppConfig(paths: ConfigPaths = resolveConfigPaths(), logger: StructuredLogger = defaultLogger): AppConfig | null {
+export function readAppConfig(
+    paths: ConfigPaths = resolveConfigPaths(),
+    logger: StructuredLogger = defaultLogger,
+): AppConfig | null {
     const result = readAppConfigResult(paths);
 
     if (result.kind === 'invalid') {

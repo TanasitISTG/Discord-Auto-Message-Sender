@@ -1,0 +1,127 @@
+import type { AppConfig, ChannelPreflightResult, EnvironmentConfig, PreflightResult } from '../../types';
+import { parseAppConfig } from '../../config/schema';
+
+const API_BASE = 'https://discord.com/api/v10';
+export const PREFLIGHT_ACCESS_CONCURRENCY = 4;
+type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export interface PreflightOptions {
+    token?: string;
+    fetchImpl?: FetchImpl;
+    checkAccess?: boolean;
+}
+
+function summarizeChannelError(status: number): string {
+    switch (status) {
+        case 401:
+            return 'Unauthorized. Check the Discord token.';
+        case 403:
+            return 'Forbidden. The token cannot access this channel.';
+        case 404:
+            return 'Channel not found.';
+        default:
+            return `HTTP ${status}`;
+    }
+}
+
+async function verifyChannelAccess(
+    config: AppConfig,
+    env: Pick<EnvironmentConfig, 'DISCORD_TOKEN'>,
+    fetchImpl: FetchImpl,
+): Promise<ChannelPreflightResult[]> {
+    const results: ChannelPreflightResult[] = new Array(config.channels.length);
+    let nextIndex = 0;
+
+    async function verifyChannel(channel: AppConfig['channels'][number]): Promise<ChannelPreflightResult> {
+        try {
+            const response = await fetchImpl(`${API_BASE}/channels/${channel.id}`, {
+                method: 'GET',
+                headers: {
+                    Authorization: env.DISCORD_TOKEN,
+                    'User-Agent': config.userAgent,
+                    Referer: channel.referrer,
+                },
+            });
+
+            if (response.ok) {
+                return {
+                    channelId: channel.id,
+                    channelName: channel.name,
+                    ok: true,
+                    status: response.status,
+                };
+            }
+
+            return {
+                channelId: channel.id,
+                channelName: channel.name,
+                ok: false,
+                reason: summarizeChannelError(response.status),
+                status: response.status,
+            };
+        } catch (error) {
+            return {
+                channelId: channel.id,
+                channelName: channel.name,
+                ok: false,
+                reason: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    const workers = Array.from({ length: Math.min(PREFLIGHT_ACCESS_CONCURRENCY, config.channels.length) }, async () => {
+        while (true) {
+            const channelIndex = nextIndex;
+            if (channelIndex >= config.channels.length) {
+                return;
+            }
+            nextIndex += 1;
+            results[channelIndex] = await verifyChannel(config.channels[channelIndex]!);
+        }
+    });
+
+    await Promise.all(workers);
+    return results;
+}
+
+export async function runPreflight(config: AppConfig, options: PreflightOptions = {}): Promise<PreflightResult> {
+    const checkedAt = new Date().toISOString();
+    const issues: string[] = [];
+    let configValid = true;
+
+    try {
+        parseAppConfig(config);
+    } catch (error) {
+        configValid = false;
+        issues.push(error instanceof Error ? error.message : 'Configuration validation failed.');
+    }
+
+    const tokenPresent = typeof options.token === 'string' && options.token.trim().length > 0;
+    if (!tokenPresent) {
+        issues.push('DISCORD_TOKEN is missing.');
+    }
+
+    const channels =
+        configValid && tokenPresent && options.checkAccess
+            ? await verifyChannelAccess(config, { DISCORD_TOKEN: options.token!.trim() }, options.fetchImpl ?? fetch)
+            : config.channels.map((channel) => ({
+                  channelId: channel.id,
+                  channelName: channel.name,
+                  ok: tokenPresent,
+                  skipped: true,
+                  reason: tokenPresent ? 'Access check skipped.' : 'Missing token.',
+              }));
+
+    if (channels.some((channel) => !channel.ok && !channel.skipped)) {
+        issues.push('One or more channels failed access verification.');
+    }
+
+    return {
+        ok: configValid && tokenPresent && channels.every((channel) => channel.ok || channel.skipped),
+        checkedAt,
+        configValid,
+        tokenPresent,
+        issues,
+        channels,
+    };
+}

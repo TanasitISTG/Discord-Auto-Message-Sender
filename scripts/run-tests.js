@@ -33,7 +33,7 @@ if (testFiles.length === 0) {
 
 const result = spawnSync(process.execPath, ['--test', '-r', 'ts-node/register', ...testFiles], {
     cwd: rootDir,
-    stdio: 'inherit'
+    stdio: 'inherit',
 });
 
 if (result.error) {

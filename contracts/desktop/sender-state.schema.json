@@ -1,0 +1,286 @@
+{
+    "types": [
+        {
+            "kind": "interface",
+            "name": "ChannelQuietHours",
+            "fields": [
+                { "name": "start", "type": "string" },
+                { "name": "end", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "ChannelSchedule",
+            "fields": [
+                { "name": "intervalSeconds", "type": "number" },
+                { "name": "randomMarginSeconds", "type": "number" },
+                { "name": "quietHours", "type": "ChannelQuietHours | null", "optional": true },
+                { "name": "timezone", "type": "string | null", "optional": true },
+                { "name": "maxSendsPerDay", "type": "integer | null", "optional": true },
+                { "name": "cooldownWindowSize", "type": "integer", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "AppChannel",
+            "fields": [
+                { "name": "name", "type": "string" },
+                { "name": "id", "type": "string" },
+                { "name": "referrer", "type": "string" },
+                { "name": "messageGroup", "type": "string" },
+                { "name": "schedule", "type": "ChannelSchedule", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "AppConfig",
+            "fields": [
+                { "name": "userAgent", "type": "string" },
+                { "name": "channels", "type": "AppChannel[]" },
+                { "name": "messageGroups", "type": "Record<string, string[]>" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "RuntimeOptions",
+            "fields": [
+                { "name": "numMessages", "type": "integer" },
+                { "name": "baseWaitSeconds", "type": "number" },
+                { "name": "marginSeconds", "type": "number" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "AdaptivePacingState",
+            "fields": [
+                { "name": "baseRequestIntervalMs", "type": "integer" },
+                { "name": "currentRequestIntervalMs", "type": "integer" },
+                { "name": "maxRequestIntervalMs", "type": "integer" },
+                { "name": "penaltyLevel", "type": "integer" },
+                { "name": "recentRateLimitCount", "type": "integer" },
+                { "name": "lastRateLimitAt", "type": "string", "optional": true },
+                { "name": "lastRecoveryAt", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "string-enum",
+            "name": "ChannelHealthStatus",
+            "values": ["healthy", "degraded", "suppressed", "recovering", "failed"],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "interface",
+            "name": "ChannelHealthRecord",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "status", "type": "string", "tsType": "ChannelHealthStatus", "rustType": "String" },
+                { "name": "consecutiveRateLimits", "type": "integer" },
+                { "name": "consecutiveFailures", "type": "integer" },
+                { "name": "suppressionCount", "type": "integer" },
+                { "name": "lastReason", "type": "string", "optional": true },
+                { "name": "lastFailureAt", "type": "string", "optional": true },
+                { "name": "lastSuccessAt", "type": "string", "optional": true },
+                { "name": "suppressedUntil", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "string-enum",
+            "name": "ChannelProgressStatus",
+            "values": ["pending", "running", "suppressed", "stopped", "completed", "failed"],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "interface",
+            "name": "ChannelProgressRecord",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "status", "type": "string", "tsType": "ChannelProgressStatus", "rustType": "String" },
+                { "name": "sentMessages", "type": "integer" },
+                { "name": "sentToday", "type": "integer" },
+                { "name": "sentTodayDayKey", "type": "string", "optional": true },
+                { "name": "consecutiveRateLimits", "type": "integer" },
+                { "name": "lastMessage", "type": "string", "optional": true },
+                { "name": "lastSentAt", "type": "string", "optional": true },
+                { "name": "lastError", "type": "string", "optional": true },
+                { "name": "suppressedUntil", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "string-enum",
+            "name": "SessionStatus",
+            "values": ["idle", "running", "paused", "stopping", "stopped", "completed", "failed"],
+            "targets": ["ts"]
+        },
+        {
+            "kind": "interface",
+            "name": "SessionChannelOutcome",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "tsType": "'completed' | 'failed' | 'suppressed'",
+                    "rustType": "String"
+                },
+                { "name": "sentMessages", "type": "integer" },
+                { "name": "lastError", "type": "string", "optional": true },
+                { "name": "suppressedUntil", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SessionSummary",
+            "fields": [
+                { "name": "totalChannels", "type": "integer", "rustType": "usize" },
+                { "name": "completedChannels", "type": "integer", "rustType": "usize" },
+                { "name": "failedChannels", "type": "integer", "rustType": "usize" },
+                { "name": "sentMessages", "type": "integer" },
+                { "name": "startedAt", "type": "string" },
+                { "name": "finishedAt", "type": "string", "optional": true },
+                { "name": "stopReason", "type": "string", "optional": true },
+                { "name": "rateLimitEvents", "type": "integer", "optional": true },
+                { "name": "suppressedChannels", "type": "integer", "optional": true, "rustType": "Option<usize>" },
+                { "name": "resumedFromCheckpoint", "type": "boolean", "optional": true },
+                { "name": "maxPacingIntervalMs", "type": "integer", "optional": true },
+                { "name": "channelOutcomes", "type": "SessionChannelOutcome[]", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SessionSnapshot",
+            "fields": [
+                { "name": "id", "type": "string" },
+                { "name": "status", "type": "string", "tsType": "SessionStatus", "rustType": "String" },
+                { "name": "startedAt", "type": "string", "optional": true },
+                { "name": "updatedAt", "type": "string" },
+                { "name": "currentSegmentId", "type": "string", "optional": true },
+                { "name": "currentSegmentKind", "type": "string", "optional": true },
+                { "name": "currentSegmentStartedAt", "type": "string", "optional": true },
+                { "name": "resumedFromCheckpointAt", "type": "string", "optional": true },
+                { "name": "activeChannels", "type": "string[]" },
+                { "name": "completedChannels", "type": "string[]" },
+                { "name": "failedChannels", "type": "string[]" },
+                { "name": "sentMessages", "type": "integer" },
+                { "name": "stopReason", "type": "string", "optional": true },
+                { "name": "summary", "type": "SessionSummary", "optional": true },
+                { "name": "runtime", "type": "RuntimeOptions", "optional": true },
+                { "name": "channelProgress", "type": "Record<string, ChannelProgressRecord>", "optional": true },
+                { "name": "channelHealth", "type": "Record<string, ChannelHealthRecord>", "optional": true },
+                { "name": "pacing", "type": "AdaptivePacingState", "optional": true },
+                { "name": "resumedFromCheckpoint", "type": "boolean", "optional": true }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "ChannelPreflightResult",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "ok", "type": "boolean" },
+                { "name": "skipped", "type": "boolean", "optional": true },
+                { "name": "reason", "type": "string", "optional": true },
+                { "name": "status", "type": "integer", "optional": true, "rustType": "Option<u16>" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "PreflightResult",
+            "fields": [
+                { "name": "ok", "type": "boolean" },
+                { "name": "checkedAt", "type": "string" },
+                { "name": "configValid", "type": "boolean" },
+                { "name": "tokenPresent", "type": "boolean" },
+                { "name": "issues", "type": "string[]" },
+                { "name": "channels", "type": "ChannelPreflightResult[]" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "DryRunCadence",
+            "fields": [
+                { "name": "numMessages", "type": "integer" },
+                { "name": "baseWaitSeconds", "type": "number" },
+                { "name": "marginSeconds", "type": "number" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "DryRunChannelPreview",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "groupName", "type": "string" },
+                { "name": "enabled", "type": "boolean" },
+                { "name": "sampleMessages", "type": "string[]" },
+                { "name": "cadence", "type": "DryRunCadence" },
+                { "name": "skipReasons", "type": "string[]" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "DryRunSummary",
+            "fields": [
+                { "name": "selectedChannels", "type": "integer" },
+                { "name": "skippedChannels", "type": "integer" },
+                { "name": "totalSampleMessages", "type": "integer" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "DryRunResult",
+            "fields": [
+                { "name": "generatedAt", "type": "string" },
+                { "name": "willSendMessages", "type": "boolean" },
+                { "name": "channels", "type": "DryRunChannelPreview[]" },
+                { "name": "summary", "type": "DryRunSummary" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "RecentFailure",
+            "fields": [
+                { "name": "channelId", "type": "string" },
+                { "name": "channelName", "type": "string" },
+                { "name": "reason", "type": "string" },
+                { "name": "timestamp", "type": "string" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "ResumeSessionRecord",
+            "fields": [
+                { "name": "sessionId", "type": "string" },
+                { "name": "updatedAt", "type": "string" },
+                { "name": "runtime", "type": "RuntimeOptions" },
+                { "name": "configSignature", "type": "string" },
+                { "name": "state", "type": "SessionSnapshot" },
+                { "name": "recentMessageHistory", "type": "Record<string, string[]>" }
+            ]
+        },
+        {
+            "kind": "interface",
+            "name": "SenderStateRecord",
+            "fields": [
+                { "name": "schemaVersion", "type": "integer" },
+                { "name": "lastSession", "type": "SessionSnapshot", "optional": true },
+                { "name": "summaries", "type": "SessionSummary[]" },
+                { "name": "recentFailures", "type": "RecentFailure[]" },
+                { "name": "recentMessageHistory", "type": "Record<string, string[]>", "optional": true },
+                { "name": "channelHealth", "type": "Record<string, ChannelHealthRecord>", "optional": true },
+                { "name": "resumeSession", "type": "ResumeSessionRecord", "optional": true },
+                { "name": "inboxMonitor", "type": "InboxMonitorSnapshot", "optional": true },
+                { "name": "notificationDelivery", "type": "NotificationDeliverySnapshot", "optional": true },
+                { "name": "warning", "type": "string", "optional": true }
+            ]
+        },
+        {
+            "kind": "alias",
+            "name": "StateLoadResult",
+            "type": "SenderStateRecord",
+            "targets": ["ts"]
+        }
+    ]
+}

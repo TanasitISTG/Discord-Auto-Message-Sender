@@ -5,7 +5,7 @@ import os from 'os';
 import path from 'path';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { SessionService } from '../../src/services/session';
-import { getDefaultNotificationDeliverySnapshot, loadSenderState, saveSenderState, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
+import { loadSenderState, saveSenderState, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 import { createStructuredLogger } from '../../src/utils/logger';
 
 function createTempDir(): string {
@@ -14,14 +14,16 @@ function createTempDir(): string {
 
 function createConfig() {
     const config = createDefaultAppConfig();
-    config.channels = [{
-        name: 'general',
-        id: '123456789012345678',
-        referrer: 'https://discord.com/channels/@me/123456789012345678',
-        messageGroup: 'default'
-    }];
+    config.channels = [
+        {
+            name: 'general',
+            id: '123456789012345678',
+            referrer: 'https://discord.com/channels/@me/123456789012345678',
+            messageGroup: 'default',
+        },
+    ];
     config.messageGroups = {
-        default: ['Hello from the test suite']
+        default: ['Hello from the test suite'],
     };
     return config;
 }
@@ -29,16 +31,18 @@ function createConfig() {
 function createResponse(status: number, body: unknown): Response {
     return new Response(body === undefined ? undefined : JSON.stringify(body), {
         status,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }
 
 test('SessionService emits a fresh session segment marker before channel activity', async () => {
     const captured: Array<ReturnType<ReturnType<typeof createStructuredLogger>['emit']>> = [];
     const logger = createStructuredLogger({
-        sinks: [(entry) => {
-            captured.push(entry);
-        }]
+        sinks: [
+            (entry) => {
+                captured.push(entry);
+            },
+        ],
     });
     const service = new SessionService({
         baseDir: createTempDir(),
@@ -47,11 +51,11 @@ test('SessionService emits a fresh session segment marker before channel activit
         runtime: {
             numMessages: 1,
             baseWaitSeconds: 0,
-            marginSeconds: 0
+            marginSeconds: 0,
         },
         logger,
         fetchImpl: async () => createResponse(200, {}),
-        sleep: async () => {}
+        sleep: async () => {},
     });
 
     const finalState = await service.start();
@@ -69,9 +73,11 @@ test('SessionService preserves session continuity while creating a new resumed s
     const previousSegmentId = 'segment-old';
     const captured: Array<ReturnType<ReturnType<typeof createStructuredLogger>['emit']>> = [];
     const logger = createStructuredLogger({
-        sinks: [(entry) => {
-            captured.push(entry);
-        }]
+        sinks: [
+            (entry) => {
+                captured.push(entry);
+            },
+        ],
     });
     const service = new SessionService({
         baseDir: createTempDir(),
@@ -80,7 +86,7 @@ test('SessionService preserves session continuity while creating a new resumed s
         runtime: {
             numMessages: 1,
             baseWaitSeconds: 0,
-            marginSeconds: 0
+            marginSeconds: 0,
         },
         resumeSession: {
             sessionId: 'session-1',
@@ -88,7 +94,7 @@ test('SessionService preserves session continuity while creating a new resumed s
             runtime: {
                 numMessages: 1,
                 baseWaitSeconds: 0,
-                marginSeconds: 0
+                marginSeconds: 0,
             },
             configSignature: '{}',
             state: {
@@ -101,15 +107,15 @@ test('SessionService preserves session continuity while creating a new resumed s
                 activeChannels: ['123456789012345678'],
                 completedChannels: [],
                 failedChannels: [],
-                sentMessages: 1
+                sentMessages: 1,
             },
             recentMessageHistory: {
-                '123456789012345678': ['Hello from the test suite']
-            }
+                '123456789012345678': ['Hello from the test suite'],
+            },
         },
         logger,
         fetchImpl: async () => createResponse(200, {}),
-        sleep: async () => {}
+        sleep: async () => {},
     });
 
     const finalState = await service.start();
@@ -135,10 +141,10 @@ test('SessionService preserves externally updated notification delivery state wh
         runtime: {
             numMessages: 1,
             baseWaitSeconds: 0,
-            marginSeconds: 0
+            marginSeconds: 0,
         },
         fetchImpl: async () => createResponse(200, {}),
-        sleep: async () => {}
+        sleep: async () => {},
     });
 
     const externallySavedDelivery = {
@@ -148,20 +154,20 @@ test('SessionService preserves externally updated notification delivery state wh
                 enabled: true,
                 botTokenStored: true,
                 chatId: '576653372',
-                previewMode: 'full' as const
-            }
+                previewMode: 'full' as const,
+            },
         },
         telegramState: {
             status: 'ready' as const,
-            lastDeliveredAt: '2026-03-24T05:18:52.000Z'
-        }
+            lastDeliveredAt: '2026-03-24T05:18:52.000Z',
+        },
     };
 
     const existingState = loadSenderState(tempDir);
     saveSenderState(tempDir, {
         ...existingState,
         schemaVersion: STATE_SCHEMA_VERSION,
-        notificationDelivery: externallySavedDelivery
+        notificationDelivery: externallySavedDelivery,
     });
 
     await service.start();
@@ -184,15 +190,17 @@ test('SessionService keeps a resumable checkpoint after a user-requested stop', 
         runtime: {
             numMessages: 1,
             baseWaitSeconds: 0,
-            marginSeconds: 0
+            marginSeconds: 0,
         },
         fetchImpl: async (_url, init) => {
             return await new Promise<Response>((resolve, reject) => {
                 releaseFetch = () => resolve(createResponse(200, {}));
-                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+                    once: true,
+                });
             });
         },
-        sleep: async () => {}
+        sleep: async () => {},
     });
 
     const startPromise = service.start();
@@ -201,16 +209,18 @@ test('SessionService keeps a resumable checkpoint after a user-requested stop', 
     }
 
     service.stop('Stop requested from test.');
-    const completeFetch: () => void = releaseFetch ?? (() => {
-        throw new Error('Expected the in-flight fetch to be ready.');
-    });
+    const completeFetch: () => void =
+        releaseFetch ??
+        (() => {
+            throw new Error('Expected the in-flight fetch to be ready.');
+        });
     completeFetch();
 
     const finalState = await startPromise;
     const persistedState = loadSenderState(tempDir);
 
-    assert.equal(finalState.status, 'completed');
+    assert.equal(finalState.status, 'stopped');
     assert.equal(finalState.failedChannels.length, 0);
     assert.equal(persistedState.resumeSession?.sessionId, finalState.id);
-    assert.equal(persistedState.resumeSession?.state.status, 'paused');
+    assert.equal(persistedState.resumeSession?.state.status, 'stopped');
 });

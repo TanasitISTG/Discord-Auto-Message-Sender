@@ -24,8 +24,8 @@ const desktopMock = vi.hoisted(() => {
                     failedChannels: 0,
                     sentMessages: 1,
                     startedAt: '2026-03-21T10:00:00.000Z',
-                    finishedAt: '2026-03-21T10:05:00.000Z'
-                }
+                    finishedAt: '2026-03-21T10:05:00.000Z',
+                },
             },
             summaries: [
                 {
@@ -34,12 +34,12 @@ const desktopMock = vi.hoisted(() => {
                     failedChannels: 0,
                     sentMessages: 1,
                     startedAt: '2026-03-21T10:00:00.000Z',
-                    finishedAt: '2026-03-21T10:05:00.000Z'
-                }
+                    finishedAt: '2026-03-21T10:05:00.000Z',
+                },
             ],
             recentFailures: [],
             recentMessageHistory: {},
-            channelHealth: {}
+            channelHealth: {},
         } as any,
         setup: {
             tokenPresent: true,
@@ -49,7 +49,7 @@ const desktopMock = vi.hoisted(() => {
             envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
             configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
         } as any,
         diagnostics: {
             appVersion: '1.0.0',
@@ -59,9 +59,9 @@ const desktopMock = vi.hoisted(() => {
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
             secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
             tokenStorage: 'secure',
-            sidecarStatus: 'ready'
+            sidecarStatus: 'ready',
         } as any,
-        eventHandler: null as ((event: any) => void) | null
+        eventHandler: null as ((event: any) => void) | null,
     };
 
     const mocks = {
@@ -71,9 +71,9 @@ const desktopMock = vi.hoisted(() => {
                 userAgent: 'UA',
                 channels: [],
                 messageGroups: {
-                    default: ['Hello']
-                }
-            }
+                    default: ['Hello'],
+                },
+            },
         })),
         getSessionState: vi.fn(async () => state.session),
         loadState: vi.fn(async () => structuredClone(state.senderState)),
@@ -82,12 +82,12 @@ const desktopMock = vi.hoisted(() => {
             enabled: false,
             pollIntervalSeconds: 30,
             notifyDirectMessages: true,
-            notifyMessageRequests: true
+            notifyMessageRequests: true,
         })),
         getInboxMonitorState: vi.fn(async () => ({
             status: 'stopped',
             enabled: false,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         loadNotificationDeliverySettings: vi.fn(async () => ({
             windowsDesktopEnabled: true,
@@ -95,8 +95,8 @@ const desktopMock = vi.hoisted(() => {
                 enabled: false,
                 botTokenStored: false,
                 chatId: '',
-                previewMode: 'full'
-            }
+                previewMode: 'full',
+            },
         })),
         getNotificationDeliveryState: vi.fn(async () => ({
             settings: {
@@ -105,12 +105,12 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: false,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(),
@@ -120,17 +120,17 @@ const desktopMock = vi.hoisted(() => {
             state: {
                 status: settings.enabled ? 'running' : 'stopped',
                 enabled: settings.enabled,
-                pollIntervalSeconds: settings.pollIntervalSeconds
+                pollIntervalSeconds: settings.pollIntervalSeconds,
             },
             lastSeen: {
-                channelMessageIds: {}
-            }
+                channelMessageIds: {},
+            },
         })),
         saveNotificationDeliverySettings: vi.fn(async ({ settings }) => ({
             settings,
             telegramState: {
-                status: settings.telegram.enabled && settings.telegram.chatId ? 'unconfigured' : 'disabled'
-            }
+                status: settings.telegram.enabled && settings.telegram.chatId ? 'unconfigured' : 'disabled',
+            },
         })),
         saveTelegramBotToken: vi.fn(async () => ({
             settings: {
@@ -139,12 +139,12 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: true,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         clearTelegramBotToken: vi.fn(async () => ({
             settings: {
@@ -153,24 +153,24 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: false,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         detectTelegramChat: vi.fn(async () => ({
             chatId: '123456789',
-            title: 'tana'
+            title: 'tana',
         })),
         sendTestTelegramNotification: vi.fn(async () => ({
             ok: true,
             message: 'Telegram test notification sent.',
             state: {
                 status: 'ready',
-                lastTestedAt: '2026-03-21T10:00:00.000Z'
-            }
+                lastTestedAt: '2026-03-21T10:00:00.000Z',
+            },
         })),
         clearSecureToken: vi.fn(),
         runPreflight: vi.fn(),
@@ -181,13 +181,13 @@ const desktopMock = vi.hoisted(() => {
         startInboxMonitor: vi.fn(async () => ({
             status: 'running',
             enabled: true,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         stopSession: vi.fn(),
         stopInboxMonitor: vi.fn(async () => ({
             status: 'stopped',
             enabled: false,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         loadLogs: vi.fn(async () => ({
             ok: true,
@@ -198,15 +198,15 @@ const desktopMock = vi.hoisted(() => {
                     timestamp: '2026-03-21T10:05:00.000Z',
                     level: 'info',
                     context: 'desktop',
-                    message: 'session complete'
-                }
-            ]
+                    message: 'session complete',
+                },
+            ],
         })),
         openLogsDirectory: vi.fn(async () => state.setup.logsDir),
         exportSupportBundle: vi.fn(async () => ({
             path: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/support/discord-auto-message-sender-support-123.zip',
             includedFiles: ['diagnostics.json', 'setup.json', 'config.json'],
-            missingFiles: []
+            missingFiles: [],
         })),
         resetRuntimeState: vi.fn(async () => {
             state.senderState = {
@@ -214,12 +214,12 @@ const desktopMock = vi.hoisted(() => {
                 summaries: [],
                 recentFailures: [],
                 recentMessageHistory: {},
-                channelHealth: {}
+                channelHealth: {},
             };
             return {
                 ok: true,
                 clearedStateFile: true,
-                deletedLogFiles: 1
+                deletedLogFiles: 1,
             };
         }),
         openLogFile: vi.fn(),
@@ -230,7 +230,7 @@ const desktopMock = vi.hoisted(() => {
             return () => {
                 state.eventHandler = null;
             };
-        })
+        }),
     };
 
     return { state, mocks };
@@ -242,7 +242,7 @@ const toastMock = vi.hoisted(() => ({
     showSuccessToast: vi.fn(),
     showWarningToast: vi.fn(),
     showErrorToast: vi.fn(),
-    showInfoToast: vi.fn()
+    showInfoToast: vi.fn(),
 }));
 vi.mock('../../app/src/shared/toast', () => toastMock);
 vi.mock('@/shared/toast', () => toastMock);
@@ -266,8 +266,8 @@ function resetDesktopState() {
                 failedChannels: 0,
                 sentMessages: 1,
                 startedAt: '2026-03-21T10:00:00.000Z',
-                finishedAt: '2026-03-21T10:05:00.000Z'
-            }
+                finishedAt: '2026-03-21T10:05:00.000Z',
+            },
         },
         summaries: [
             {
@@ -276,12 +276,12 @@ function resetDesktopState() {
                 failedChannels: 0,
                 sentMessages: 1,
                 startedAt: '2026-03-21T10:00:00.000Z',
-                finishedAt: '2026-03-21T10:05:00.000Z'
-            }
+                finishedAt: '2026-03-21T10:05:00.000Z',
+            },
         ],
         recentFailures: [],
         recentMessageHistory: {},
-        channelHealth: {}
+        channelHealth: {},
     };
 
     for (const mock of Object.values(desktopMock.mocks)) {
@@ -332,7 +332,9 @@ test('desktop controller reports the exported support bundle path back to the UI
     await waitFor(() => {
         expect(desktopMock.mocks.exportSupportBundle).toHaveBeenCalledTimes(1);
     });
-    await screen.findByText('C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/support/discord-auto-message-sender-support-123.zip');
+    await screen.findByText(
+        'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/support/discord-auto-message-sender-support-123.zip',
+    );
 });
 
 test('desktop controller refreshes sender state and clears logs after a runtime reset', async () => {
@@ -370,8 +372,8 @@ test('desktop controller deduplicates repeated live log events by entry id', asy
         context: 'BLACK MARKET',
         message: 'Message sent',
         meta: {
-            event: 'message_sent'
-        }
+            event: 'message_sent',
+        },
     };
 
     await act(async () => {

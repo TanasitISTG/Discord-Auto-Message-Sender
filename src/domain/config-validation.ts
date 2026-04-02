@@ -86,7 +86,9 @@ export function validateAppConfig(config: AppConfig): string[] {
             }
 
             if (message.length > 2000) {
-                errors.push(`Message group '${groupName}' contains a message longer than Discord's 2000 character limit.`);
+                errors.push(
+                    `Message group '${groupName}' contains a message longer than Discord's 2000 character limit.`,
+                );
             }
         }
     }
@@ -122,10 +124,15 @@ export function validateAppConfig(config: AppConfig): string[] {
                 errors.push(`Channel '${channel.name || channel.id}' has a negative random margin.`);
             }
             if (channel.schedule.timezone && !isValidTimeZone(channel.schedule.timezone)) {
-                errors.push(`Channel '${channel.name || channel.id}' has an invalid timezone '${channel.schedule.timezone}'.`);
+                errors.push(
+                    `Channel '${channel.name || channel.id}' has an invalid timezone '${channel.schedule.timezone}'.`,
+                );
             }
             if (channel.schedule.quietHours) {
-                if (!isValidClockTime(channel.schedule.quietHours.start) || !isValidClockTime(channel.schedule.quietHours.end)) {
+                if (
+                    !isValidClockTime(channel.schedule.quietHours.start) ||
+                    !isValidClockTime(channel.schedule.quietHours.end)
+                ) {
                     errors.push(`Channel '${channel.name || channel.id}' must use valid 24-hour HH:MM quiet hours.`);
                 }
             }
@@ -152,7 +159,7 @@ export function normalizeImportedConfig(value: unknown): AppConfig {
             }
 
             return [groupName, messages];
-        })
+        }),
     );
 
     const rawChannels = value.channels;
@@ -168,28 +175,42 @@ export function normalizeImportedConfig(value: unknown): AppConfig {
         const rawSchedule = channel.schedule;
         const schedule = isRecord(rawSchedule)
             ? (() => {
-                const maxSendsPerDay = readOptionalNumber(rawSchedule.maxSendsPerDay, `channels[${index}].schedule.maxSendsPerDay`);
-                const cooldownWindowSize = readOptionalNumber(rawSchedule.cooldownWindowSize, `channels[${index}].schedule.cooldownWindowSize`);
-                return {
-                    intervalSeconds: readRequiredNumber(rawSchedule.intervalSeconds, `channels[${index}].schedule.intervalSeconds`),
-                    randomMarginSeconds: readRequiredNumber(rawSchedule.randomMarginSeconds, `channels[${index}].schedule.randomMarginSeconds`),
-                ...(typeof rawSchedule.timezone === 'string' ? { timezone: rawSchedule.timezone } : {}),
-                ...(maxSendsPerDay !== null
-                    ? { maxSendsPerDay }
-                    : {}),
-                ...(cooldownWindowSize !== null
-                    ? { cooldownWindowSize: cooldownWindowSize ?? undefined }
-                    : {}),
-                ...(isRecord(rawSchedule.quietHours)
-                    ? {
-                        quietHours: {
-                            start: readRequiredString(rawSchedule.quietHours.start, `channels[${index}].schedule.quietHours.start`),
-                            end: readRequiredString(rawSchedule.quietHours.end, `channels[${index}].schedule.quietHours.end`)
-                        }
-                    }
-                    : {})
-                };
-            })()
+                  const maxSendsPerDay = readOptionalNumber(
+                      rawSchedule.maxSendsPerDay,
+                      `channels[${index}].schedule.maxSendsPerDay`,
+                  );
+                  const cooldownWindowSize = readOptionalNumber(
+                      rawSchedule.cooldownWindowSize,
+                      `channels[${index}].schedule.cooldownWindowSize`,
+                  );
+                  return {
+                      intervalSeconds: readRequiredNumber(
+                          rawSchedule.intervalSeconds,
+                          `channels[${index}].schedule.intervalSeconds`,
+                      ),
+                      randomMarginSeconds: readRequiredNumber(
+                          rawSchedule.randomMarginSeconds,
+                          `channels[${index}].schedule.randomMarginSeconds`,
+                      ),
+                      ...(typeof rawSchedule.timezone === 'string' ? { timezone: rawSchedule.timezone } : {}),
+                      ...(maxSendsPerDay !== null ? { maxSendsPerDay } : {}),
+                      ...(cooldownWindowSize !== null ? { cooldownWindowSize: cooldownWindowSize ?? undefined } : {}),
+                      ...(isRecord(rawSchedule.quietHours)
+                          ? {
+                                quietHours: {
+                                    start: readRequiredString(
+                                        rawSchedule.quietHours.start,
+                                        `channels[${index}].schedule.quietHours.start`,
+                                    ),
+                                    end: readRequiredString(
+                                        rawSchedule.quietHours.end,
+                                        `channels[${index}].schedule.quietHours.end`,
+                                    ),
+                                },
+                            }
+                          : {}),
+                  };
+              })()
             : undefined;
 
         return {
@@ -197,27 +218,29 @@ export function normalizeImportedConfig(value: unknown): AppConfig {
             id: readRequiredString(channel.id, `channels[${index}].id`),
             referrer: readRequiredString(channel.referrer, `channels[${index}].referrer`),
             messageGroup: readRequiredString(channel.messageGroup, `channels[${index}].messageGroup`),
-            ...(schedule ? { schedule } : {})
+            ...(schedule ? { schedule } : {}),
         };
     });
 
     return parseAppConfig({
         userAgent: readRequiredString(value.userAgent, 'userAgent'),
         channels,
-        messageGroups
+        messageGroups,
     });
 }
 
-export function tryNormalizeImportedConfig(value: unknown): { ok: true; config: AppConfig } | { ok: false; error: string } {
+export function tryNormalizeImportedConfig(
+    value: unknown,
+): { ok: true; config: AppConfig } | { ok: false; error: string } {
     try {
         return {
             ok: true,
-            config: normalizeImportedConfig(value)
+            config: normalizeImportedConfig(value),
         };
     } catch (error) {
         return {
             ok: false,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
         };
     }
 }

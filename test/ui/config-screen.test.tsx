@@ -20,8 +20,8 @@ const baseConfig: AppConfig = {
                 randomMarginSeconds: 2,
                 timezone: 'UTC',
                 maxSendsPerDay: null,
-                cooldownWindowSize: 3
-            }
+                cooldownWindowSize: 3,
+            },
         },
         {
             name: 'Black Market',
@@ -33,13 +33,13 @@ const baseConfig: AppConfig = {
                 randomMarginSeconds: 2,
                 timezone: 'UTC',
                 maxSendsPerDay: null,
-                cooldownWindowSize: 3
-            }
-        }
+                cooldownWindowSize: 3,
+            },
+        },
     ],
     messageGroups: {
-        default: ['Hello from config test']
-    }
+        default: ['Hello from config test'],
+    },
 };
 
 const setup: DesktopSetupState = {
@@ -50,31 +50,32 @@ const setup: DesktopSetupState = {
     envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
     configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
     statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-    logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+    logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
 };
 
 const runtime: RuntimeOptions = {
     numMessages: 1,
     baseWaitSeconds: 1800,
-    marginSeconds: 2
+    marginSeconds: 2,
 };
 
 const tokenStatus: TokenReadiness = {
     status: 'secure',
     label: 'secure',
     detail: 'Stored securely for this Windows user.',
-    blocking: false
+    blocking: false,
 };
 
 const setupChecklist: SetupChecklist = {
     items: [],
     completedCount: 5,
     totalCount: 5,
-    complete: true
+    complete: true,
 };
 
 function createDraft(overrides: Partial<ConfigDraftController> = {}): ConfigDraftController {
-    const selectedChannel = overrides.selectedChannel === undefined ? baseConfig.channels[0] : overrides.selectedChannel;
+    const selectedChannel =
+        overrides.selectedChannel === undefined ? baseConfig.channels[0] : overrides.selectedChannel;
 
     return {
         state: {
@@ -84,7 +85,7 @@ function createDraft(overrides: Partial<ConfigDraftController> = {}): ConfigDraf
             newGroupName: '',
             cloneGroupName: '',
             importDraft: '',
-            importPreview: null
+            importPreview: null,
         },
         validationErrors: [],
         selectedChannel,
@@ -115,7 +116,7 @@ function createDraft(overrides: Partial<ConfigDraftController> = {}): ConfigDraf
         previewImport: vi.fn(),
         applyImport: vi.fn(),
         loadCurrentConfigIntoImport: vi.fn(),
-        ...overrides
+        ...overrides,
     };
 }
 
@@ -137,7 +138,7 @@ function renderConfigScreen(draft: ConfigDraftController, environmentDraft: stri
             onOpenSession={() => undefined}
             onSaveConfig={() => undefined}
             onPreviewDryRun={() => undefined}
-        />
+        />,
     );
 }
 
@@ -163,7 +164,9 @@ test('ConfigScreen keeps runtime paths and import tools collapsed by default, th
 test('ConfigScreen shows an explicit empty state when no channel is selected', () => {
     renderConfigScreen(createDraft({ selectedChannel: null }));
 
-    expect(screen.getByText('Select a channel from the left rail or add a new one to start editing send behavior.')).toBeTruthy();
+    expect(
+        screen.getByText('Select a channel from the left rail or add a new one to start editing send behavior.'),
+    ).toBeTruthy();
 });
 
 test('ConfigScreen keeps the selected channel highlighted in the left rail', () => {

@@ -2,7 +2,10 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 beforeEach(() => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
+    vi.stubGlobal(
+        'confirm',
+        vi.fn(() => true),
+    );
     if (!Element.prototype.hasPointerCapture) {
         Element.prototype.hasPointerCapture = () => false;
     }

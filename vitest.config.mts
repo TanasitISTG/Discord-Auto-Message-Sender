@@ -6,13 +6,13 @@ export default defineConfig({
     plugins: [react()],
     resolve: {
         alias: {
-            '@': path.resolve(__dirname, 'app/src')
-        }
+            '@': path.resolve(__dirname, 'app/src'),
+        },
     },
     test: {
         environment: 'jsdom',
         include: ['test/ui/**/*.test.tsx'],
         globals: true,
-        setupFiles: ['test/ui/setup.ts']
-    }
+        setupFiles: ['test/ui/setup.ts'],
+    },
 });

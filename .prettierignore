@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.omx/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/sidecar/
+bun.lock
+src/desktop/contracts.ts

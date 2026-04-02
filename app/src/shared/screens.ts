@@ -15,5 +15,5 @@ export const navigation: NavigationItem[] = [
     { id: 'preview', label: 'Dry Run', icon: Shuffle },
     { id: 'session', label: 'Session', icon: Play },
     { id: 'logs', label: 'Logs', icon: Logs },
-    { id: 'support', label: 'Support', icon: Info }
+    { id: 'support', label: 'Support', icon: Info },
 ];
