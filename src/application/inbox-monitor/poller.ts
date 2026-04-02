@@ -31,6 +31,10 @@ async function fetchWithTimeout(
     abortSignal: AbortSignal,
 ): Promise<Response> {
     const controller = new AbortController();
+    if (abortSignal.aborted) {
+        controller.abort(abortSignal.reason);
+        throw abortSignal.reason instanceof Error ? abortSignal.reason : new DOMException('Aborted', 'AbortError');
+    }
     const abortListener = () => {
         controller.abort(abortSignal.reason);
     };

@@ -1,4 +1,4 @@
-import { AppConfig, ChannelPreflightResult, EnvironmentConfig, PreflightResult } from '../../types';
+import type { AppConfig, ChannelPreflightResult, EnvironmentConfig, PreflightResult } from '../../types';
 import { parseAppConfig } from '../../config/schema';
 
 const API_BASE = 'https://discord.com/api/v10';

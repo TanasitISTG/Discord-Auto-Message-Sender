@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInboxMonitorService } from '../../src/services/inbox-monitor';
+import { pollInboxSnapshot } from '../../src/application/inbox-monitor/poller';
 import { getDefaultInboxMonitorSnapshot } from '../../src/services/state-store';
 import { AppEvent } from '../../src/types';
 
@@ -396,4 +397,27 @@ test('inbox monitor aborts a hung poll before restarting with a new token', asyn
     await secondTokenSeen.promise;
 
     assert.equal(monitor.getState().lastError, undefined);
+});
+
+test('pollInboxSnapshot aborts immediately when the incoming signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException('Aborted', 'AbortError'));
+
+    let fetchCalls = 0;
+
+    await assert.rejects(
+        pollInboxSnapshot({
+            snapshot: getDefaultInboxMonitorSnapshot(),
+            token: 'token',
+            fetchImpl: createFetch(async () => {
+                fetchCalls += 1;
+                return createResponse(200, {});
+            }),
+            now: () => new Date('2026-03-24T10:00:00.000Z'),
+            abortSignal: controller.signal,
+        }),
+        /Aborted/,
+    );
+
+    assert.equal(fetchCalls, 0);
 });
