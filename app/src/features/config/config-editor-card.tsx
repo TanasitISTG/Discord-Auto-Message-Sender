@@ -36,7 +36,7 @@ export function ConfigEditorCard({ draft, runtime, onSaveConfig, onPreviewDryRun
                 </label>
 
                 {selectedChannel ? (
-                    <div className="space-y-4 rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                    <div className="space-y-4 rounded-md border border-border bg-transparent p-5">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                             <div>
                                 <div className="text-sm font-semibold tracking-tight text-foreground">
@@ -175,7 +175,7 @@ export function ConfigEditorCard({ draft, runtime, onSaveConfig, onPreviewDryRun
                         </div>
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-6 text-sm text-muted-foreground text-center">
+                    <div className="rounded-md border border-dashed border-border bg-transparent p-6 text-sm text-muted-foreground text-center">
                         Select a channel from the left rail or add a new one to start editing send behavior.
                     </div>
                 )}

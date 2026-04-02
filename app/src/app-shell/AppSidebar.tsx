@@ -11,9 +11,9 @@ interface AppSidebarProps {
 
 export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarProps) {
     return (
-        <aside className="grid-sheen flex flex-col border-r border-border/50 bg-card/40">
+        <aside className="static flex flex-col border-r border-border bg-background lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
             <div className="p-5 pb-6">
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-foreground">
                     <Send className="h-4 w-4" />
                     <span>Desktop Sender</span>
                 </div>
@@ -29,15 +29,15 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                     return (
                         <button
                             key={item.id}
-                            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${
+                            className={`relative flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                                 isActive
-                                    ? 'bg-primary/10 text-cyan-50 shadow-inner-glow'
-                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                                    ? 'bg-zinc-800 text-foreground'
+                                    : 'text-muted-foreground hover:bg-zinc-900 hover:text-foreground'
                             }`}
                             onClick={() => onSelectScreen(item.id)}
                         >
                             {isActive ? (
-                                <div className="absolute inset-y-1/4 left-0 w-1 rounded-r-full bg-primary shadow-glow-sm" />
+                                <div className="absolute inset-y-1/4 left-0 w-1 rounded-r-full bg-foreground" />
                             ) : null}
                             <Icon className="h-4 w-4" />
                             {item.label}
@@ -46,7 +46,7 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                 })}
             </nav>
 
-            <div className="border-t border-border/50 p-4">
+            <div className="border-t border-border p-4">
                 <div className="flex flex-col gap-2.5">
                     {controller.releaseDiagnostics ? (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -72,7 +72,7 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                             </Badge>
                         </div>
                     ) : null}
-                    <div className="mt-1 flex items-center justify-between border-t border-border/30 pt-3">
+                    <div className="mt-1 flex items-center justify-between border-t border-border pt-3">
                         <span className="text-xs text-muted-foreground">Sidecar runtime</span>
                         <div className="flex items-center gap-2">
                             {controller.sidecarStatus === 'ready' ? (

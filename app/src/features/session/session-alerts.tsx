@@ -34,7 +34,7 @@ export function SessionAlerts({
             {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
 
             {recoveryState ? (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-xs backdrop-blur-xs">
+                <div className="rounded-md border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
                     <div className="font-semibold tracking-tight">Runtime interrupted</div>
                     <div className="mt-1 leading-relaxed text-red-50/80">{recoveryState.message}</div>
                     <div className="mt-3 text-[11px] font-semibold tracking-tight text-red-50/70">
@@ -44,7 +44,7 @@ export function SessionAlerts({
             ) : null}
 
             {suppressedCount > 0 ? (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-xs backdrop-blur-xs">
+                <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
                     <div className="font-semibold tracking-tight">Waiting on cooldown</div>
                     <div className="mt-1 leading-relaxed text-amber-50/80">
                         {suppressedCount} channel{suppressedCount === 1 ? '' : 's'} currently suppressed and waiting for
@@ -54,11 +54,11 @@ export function SessionAlerts({
             ) : null}
 
             {appReadiness.blockingIssues.length > 0 || runtimeMessage ? (
-                <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm shadow-xs backdrop-blur-xs">
+                <div className="space-y-3 rounded-md border border-border bg-transparent p-4 text-sm">
                     {appReadiness.blockingIssues.map((issue) => (
                         <div
                             key={issue}
-                            className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-xs"
+                            className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100"
                         >
                             <div className="leading-relaxed">{describeBlockingIssue(issue)}</div>
                             {issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid' ? (
@@ -69,7 +69,7 @@ export function SessionAlerts({
                         </div>
                     ))}
                     {runtimeMessage ? (
-                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 leading-relaxed text-red-100 shadow-xs">
+                        <div className="rounded-md border border-red-500/20 bg-red-500/10 p-4 leading-relaxed text-red-100">
                             {runtimeMessage}
                         </div>
                     ) : null}
@@ -77,7 +77,7 @@ export function SessionAlerts({
             ) : null}
 
             {checkpoint ? (
-                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50 shadow-xs backdrop-blur-xs">
+                <div className="rounded-md border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
                     <div className="font-semibold tracking-tight">Interrupted session available</div>
                     <div className="mt-1 text-[11px] font-semibold tracking-tight text-cyan-50/70">
                         Last checkpoint: {new Date(checkpoint.updatedAt).toLocaleString()}

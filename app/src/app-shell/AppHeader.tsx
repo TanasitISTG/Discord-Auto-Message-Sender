@@ -12,13 +12,13 @@ interface AppHeaderProps {
 
 export function AppHeader({ screen, controller, onSelectScreen }: AppHeaderProps) {
     return (
-        <header className="sticky top-0 z-10 flex min-h-[56px] items-center justify-between border-b border-border/50 bg-background/80 px-5 py-3 backdrop-blur-md lg:px-8">
+        <header className="sticky top-0 z-10 flex min-h-[56px] items-center justify-between border-b border-border bg-background px-5 py-3 lg:px-8">
             <div className="flex items-center gap-3 sm:gap-4">
                 <h2 className="text-sm font-semibold tracking-wide text-foreground">
                     {navigation.find((item) => item.id === screen)?.label ?? 'Dashboard'}
                 </h2>
 
-                <div className="hidden h-4 w-px bg-border/60 sm:block" />
+                <div className="hidden h-4 w-px bg-border sm:block" />
 
                 <div className="hidden items-center gap-2 sm:flex">
                     <Badge tone={toneFromStatus(controller.session?.status)}>

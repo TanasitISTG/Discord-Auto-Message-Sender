@@ -27,17 +27,17 @@ export function ChannelsCard({ channels, selectedChannelId, onAddChannel, onSele
 
                 <div className="space-y-2 xl:max-h-[420px] xl:overflow-auto xl:pr-1">
                     {channels.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                        <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
                             No channels configured yet.
                         </div>
                     ) : (
                         channels.map((channel) => (
                             <button
                                 key={channel.id}
-                                className={`w-full rounded-xl border p-3 text-left transition-all ${
+                                className={`w-full rounded-md border p-3 text-left transition-colors ${
                                     selectedChannelId === channel.id
-                                        ? 'border-primary/50 bg-primary/10 shadow-glow-sm'
-                                        : 'border-border/50 bg-background/50 hover:border-border/80 hover:bg-accent/50'
+                                        ? 'border-zinc-600 bg-zinc-800'
+                                        : 'border-border bg-transparent hover:border-zinc-700 hover:bg-zinc-900'
                                 }`}
                                 onClick={() => onSelectChannel(channel.id)}
                             >

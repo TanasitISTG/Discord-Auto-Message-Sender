@@ -42,10 +42,10 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                             {groupEntries.map(([groupName, messages]) => (
                                 <button
                                     key={groupName}
-                                    className={`rounded-xl border p-3 text-left transition-all ${
+                                    className={`rounded-md border p-3 text-left transition-colors ${
                                         draft.state.selectedGroupName === groupName
-                                            ? 'border-primary/50 bg-primary/10 shadow-glow-sm'
-                                            : 'border-border/50 bg-background/50 hover:border-border/80 hover:bg-accent/50'
+                                            ? 'border-zinc-600 bg-zinc-800'
+                                            : 'border-border bg-transparent hover:border-zinc-700 hover:bg-zinc-900'
                                     }`}
                                     onClick={() => draft.setSelectedGroup(groupName)}
                                 >
@@ -57,7 +57,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                             ))}
                         </div>
 
-                        <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs">
+                        <div className="space-y-3 rounded-md border border-border bg-transparent p-4">
                             <Field label="Selected group name">
                                 <Input
                                     value={draft.state.selectedGroupName}
@@ -88,7 +88,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                             {draft.selectedGroupMessages.map((message, index) => (
                                 <div
                                     key={`${draft.state.selectedGroupName}-${index}`}
-                                    className="rounded-xl border border-border/50 bg-background/50 p-3 shadow-xs transition-colors hover:bg-card/60"
+                                    className="rounded-md border border-border bg-transparent p-3 transition-colors hover:bg-zinc-900"
                                 >
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
@@ -138,7 +138,7 @@ export function MessageGroupsCard({ draft }: MessageGroupsCardProps) {
                         </div>
                     </>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-6 text-sm text-center text-muted-foreground">
+                    <div className="rounded-md border border-dashed border-border bg-transparent p-6 text-sm text-center text-muted-foreground">
                         Create a message group before editing reusable message sets.
                     </div>
                 )}

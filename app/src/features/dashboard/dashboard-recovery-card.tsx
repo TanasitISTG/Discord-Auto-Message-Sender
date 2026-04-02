@@ -36,7 +36,7 @@ export function DashboardRecoveryCard({
             </CardHeader>
             <CardContent className="space-y-3">
                 {recoveryState ? (
-                    <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-xs backdrop-blur-xs">
+                    <div className="rounded-md border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
                         <div className="font-medium text-red-50">Runtime interrupted during an active session</div>
                         <div className="mt-1 leading-relaxed text-red-50/80">{recoveryState.message}</div>
                         <div className="mt-2 text-[11px] text-red-50/70">
@@ -45,9 +45,9 @@ export function DashboardRecoveryCard({
                     </div>
                 ) : null}
                 {senderState.resumeSession ? (
-                    <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm shadow-xs backdrop-blur-xs">
+                    <div className="rounded-md border border-zinc-700 bg-zinc-800 p-4 text-sm">
                         <div className="font-semibold tracking-tight text-cyan-100">Resume checkpoint available</div>
-                        <div className="mt-1 text-xs text-primary/80">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             Updated {new Date(senderState.resumeSession.updatedAt).toLocaleString()}
                         </div>
                         <div className="mt-3 text-cyan-50/90">Next start: Resumed from checkpoint</div>
@@ -90,7 +90,7 @@ export function DashboardRecoveryCard({
                     healthEntries.map((entry) => (
                         <div
                             key={entry.channelId}
-                            className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm transition-colors hover:bg-card/80"
+                            className="rounded-md border border-border bg-transparent p-4 text-sm transition-colors hover:bg-zinc-900"
                         >
                             <div className="flex items-center justify-between gap-3">
                                 <div className="font-medium text-foreground">{entry.channelName}</div>

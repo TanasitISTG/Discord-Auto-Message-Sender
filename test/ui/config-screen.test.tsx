@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { ConfigScreen } from '../../app/src/features/config/config-screen';
 import type { AppConfig, DesktopSetupState, RuntimeOptions } from '../../app/src/lib/desktop';
 import type { ConfigDraftController } from '../../app/src/features/config/use-config-draft';
@@ -175,7 +175,7 @@ test('ConfigScreen keeps the selected channel highlighted in the left rail', () 
     const selectedButton = screen.getByText('General').closest('button');
     const secondaryButton = screen.getByText('Black Market').closest('button');
 
-    expect(selectedButton?.className).toContain('border-primary/50');
+    expect(selectedButton?.className).toContain('border-zinc-600');
     expect(secondaryButton?.className).toContain('border-border');
 });
 

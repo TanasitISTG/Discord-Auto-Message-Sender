@@ -11,7 +11,7 @@ export function SessionPreflightResult({ preflight }: SessionPreflightResultProp
     }
 
     return (
-        <div className="space-y-4 rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs backdrop-blur-xs">
+        <div className="space-y-4 rounded-md border border-border bg-transparent p-5">
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-sm font-semibold tracking-tight">Preflight Result</div>
@@ -36,7 +36,7 @@ export function SessionPreflightResult({ preflight }: SessionPreflightResultProp
                 {preflight.channels.map((channel) => (
                     <div
                         key={channel.channelId}
-                        className="flex items-center justify-between rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-sm shadow-inner-glow"
+                        className="flex items-center justify-between rounded-md border border-border bg-transparent px-4 py-3 text-sm"
                     >
                         <div>
                             <div className="font-medium text-foreground">{channel.channelName}</div>

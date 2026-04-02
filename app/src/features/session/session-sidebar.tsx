@@ -32,7 +32,7 @@ export function SessionSidebar({ session, healthEntries }: SessionSidebarProps) 
                     />
                     <StateRow label="Rate-limit count" value={String(session?.pacing?.recentRateLimitCount ?? 0)} />
                     {session?.summary ? (
-                        <div className="mt-2 rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs">
+                        <div className="mt-2 rounded-md border border-border bg-transparent p-4">
                             <div className="mb-2 text-sm font-semibold tracking-tight">Final Summary</div>
                             <div className="space-y-2 leading-relaxed text-muted-foreground">
                                 <div>
@@ -45,7 +45,7 @@ export function SessionSidebar({ session, healthEntries }: SessionSidebarProps) 
                         </div>
                     ) : null}
                     {session?.stopReason ? (
-                        <div className="mt-2 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-200 shadow-xs">
+                        <div className="mt-2 rounded-md border border-red-500/20 bg-red-500/10 p-4 text-red-200">
                             <div className="mb-2 flex items-center gap-2 font-medium tracking-tight">
                                 <AlertCircle className="h-4 w-4" />
                                 Stop reason
@@ -70,7 +70,7 @@ export function SessionSidebar({ session, healthEntries }: SessionSidebarProps) 
                         healthEntries.map((entry) => (
                             <div
                                 key={entry.channelId}
-                                className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm shadow-xs transition-colors hover:bg-card/60"
+                                className="rounded-md border border-border bg-transparent p-4 text-sm transition-colors hover:bg-zinc-900"
                             >
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="font-medium text-foreground">{entry.channelName}</div>

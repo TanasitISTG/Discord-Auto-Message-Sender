@@ -50,7 +50,7 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                     </div>
 
                     {!dryRun ? (
-                        <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-6 text-sm text-center text-muted-foreground">
+                        <div className="rounded-md border border-dashed border-border bg-transparent p-6 text-sm text-center text-muted-foreground">
                             Run a dry run to generate a send preview.
                         </div>
                     ) : (
@@ -58,7 +58,7 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                             {dryRun.channels.map((channel) => (
                                 <div
                                     key={channel.channelId}
-                                    className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs"
+                                    className="rounded-md border border-border bg-transparent p-5"
                                 >
                                     <div className="mb-2 flex items-center justify-between gap-3">
                                         <div>
@@ -90,7 +90,7 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                                             channel.sampleMessages.map((message, index) => (
                                                 <div
                                                     key={`${channel.channelId}-${index}`}
-                                                    className="rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-sm text-foreground/90 shadow-inner-glow"
+                                                    className="rounded-md border border-border bg-transparent px-4 py-3 text-sm text-foreground/90"
                                                 >
                                                     {message}
                                                 </div>
@@ -111,22 +111,24 @@ export function PreviewScreen({ runtime, setRuntime, dryRun, onRefreshPreview, o
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Preview Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    <StateRow label="Will send messages" value={dryRun?.willSendMessages ? 'Yes' : 'No'} />
-                    <StateRow label="Selected channels" value={String(dryRun?.summary.selectedChannels ?? 0)} />
-                    <StateRow label="Skipped channels" value={String(dryRun?.summary.skippedChannels ?? 0)} />
-                    <StateRow label="Sample messages" value={String(dryRun?.summary.totalSampleMessages ?? 0)} />
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm leading-relaxed text-muted-foreground shadow-xs">
-                        {dryRun?.willSendMessages
-                            ? 'Dry run confirms the current config can resolve at least one sendable channel.'
-                            : 'Visible no-send state: fix skipped channels before starting a live session.'}
-                    </div>
-                </CardContent>
-            </Card>
+            <div className="xl:sticky xl:top-8 self-start">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Preview Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                        <StateRow label="Will send messages" value={dryRun?.willSendMessages ? 'Yes' : 'No'} />
+                        <StateRow label="Selected channels" value={String(dryRun?.summary.selectedChannels ?? 0)} />
+                        <StateRow label="Skipped channels" value={String(dryRun?.summary.skippedChannels ?? 0)} />
+                        <StateRow label="Sample messages" value={String(dryRun?.summary.totalSampleMessages ?? 0)} />
+                        <div className="rounded-md border border-border bg-transparent p-4 text-sm leading-relaxed text-muted-foreground">
+                            {dryRun?.willSendMessages
+                                ? 'Dry run confirms the current config can resolve at least one sendable channel.'
+                                : 'Visible no-send state: fix skipped channels before starting a live session.'}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </section>
     );
 }

@@ -167,7 +167,9 @@ export function SessionScreen({
                 </CardContent>
             </Card>
 
-            <SessionSidebar session={session} healthEntries={healthEntries} />
+            <div className="xl:sticky xl:top-8 self-start">
+                <SessionSidebar session={session} healthEntries={healthEntries} />
+            </div>
         </section>
     );
 }

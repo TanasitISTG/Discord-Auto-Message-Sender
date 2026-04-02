@@ -19,7 +19,7 @@ export function DashboardSessionHistoryCard({ senderState }: DashboardSessionHis
                     senderState.summaries.map((summary) => (
                         <div
                             key={`${summary.startedAt}-${summary.finishedAt ?? 'running'}`}
-                            className="grid gap-3 rounded-xl border border-border/50 bg-background/50 p-4 transition-colors hover:bg-card/80 md:grid-cols-[1.3fr_1fr_1fr_1fr]"
+                            className="grid gap-3 rounded-md border border-border bg-transparent p-4 transition-colors hover:bg-zinc-900 md:grid-cols-[1.3fr_1fr_1fr_1fr]"
                         >
                             <div>
                                 <div className="font-medium text-foreground">

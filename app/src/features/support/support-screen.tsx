@@ -14,7 +14,7 @@ import { TelegramNotificationsCard } from './telegram-notifications-card';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs hover:bg-card/60 transition-colors">
+        <div className="rounded-md border border-border bg-transparent p-4 transition-colors hover:bg-zinc-900">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
             <div className="mt-2 break-all font-mono text-xs text-foreground/90">{value}</div>
         </div>
@@ -111,14 +111,14 @@ export function SupportScreen({
                         >
                             Reset Runtime State
                         </Button>
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5 text-sm leading-relaxed text-muted-foreground">
                             {hasActiveSession
                                 ? 'Stop the active session before resetting runtime state.'
                                 : 'Reset Runtime State removes .sender-state.json and session logs without touching config.json or the secure token stores.'}
                         </div>
 
                         {supportBundle ? (
-                            <div className="space-y-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+                            <div className="space-y-3 rounded-md border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
                                 <div className="font-medium">Latest support bundle</div>
                                 <div className="break-all font-mono text-xs text-cyan-50/90">{supportBundle.path}</div>
                                 <div className="text-cyan-50/80">
@@ -133,7 +133,7 @@ export function SupportScreen({
                             </div>
                         ) : null}
 
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5 text-sm leading-relaxed text-muted-foreground">
                             {notice}
                         </div>
                     </CardContent>
@@ -145,7 +145,7 @@ export function SupportScreen({
                         <CardDescription>Release constraints for the current Windows beta.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">
                                 Unsigned Windows Public Beta
                             </div>
@@ -153,13 +153,13 @@ export function SupportScreen({
                                 This build is Windows-only, uses manual MSI updates, and does not ship an auto-updater.
                             </div>
                         </div>
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">Manual updates</div>
                             <div className="leading-relaxed">
                                 Install the newer MSI over the existing version. Downgrades are blocked.
                             </div>
                         </div>
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">
                                 Support export safety
                             </div>
@@ -173,7 +173,7 @@ export function SupportScreen({
                 </Card>
             </div>
 
-            <div className="min-w-0 flex-1 space-y-4">
+            <div className="min-w-0 flex-1 space-y-4 xl:sticky xl:top-8 self-start">
                 <Card>
                     <CardHeader>
                         <CardTitle>Release Diagnostics</CardTitle>
@@ -192,7 +192,7 @@ export function SupportScreen({
                                 <DetailRow label="Secure token path" value={diagnostics.secureStorePath} />
                             </>
                         ) : (
-                            <div className="rounded-xl border border-dashed border-border/50 bg-background/50 p-6 text-center text-sm text-muted-foreground">
+                            <div className="rounded-md border border-dashed border-border bg-transparent p-6 text-center text-sm text-muted-foreground">
                                 Loading release diagnostics...
                             </div>
                         )}
@@ -205,7 +205,7 @@ export function SupportScreen({
                         <CardDescription>What to send when a public-beta issue needs investigation.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="font-semibold tracking-tight text-foreground">
                                 1. Export a support bundle
                             </div>
@@ -213,7 +213,7 @@ export function SupportScreen({
                                 Use the support bundle action after reproducing the issue if possible.
                             </div>
                         </div>
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="font-semibold tracking-tight text-foreground">
                                 2. Describe the exact action
                             </div>
@@ -221,7 +221,7 @@ export function SupportScreen({
                                 Include what screen you were on, what you clicked, and what you expected to happen.
                             </div>
                         </div>
-                        <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
+                        <div className="rounded-md border border-border bg-transparent p-5">
                             <div className="font-semibold tracking-tight text-foreground">
                                 3. Attach the exported ZIP
                             </div>
@@ -231,7 +231,7 @@ export function SupportScreen({
                             </div>
                         </div>
                         {setup?.warning ? (
-                            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-xs backdrop-blur-xs">
+                            <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100">
                                 <span className="font-semibold tracking-tight">Setup warning:</span>{' '}
                                 <span className="leading-relaxed">{setup.warning}</span>
                             </div>

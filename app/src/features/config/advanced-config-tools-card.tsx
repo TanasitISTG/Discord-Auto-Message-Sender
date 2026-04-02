@@ -26,7 +26,12 @@ export function AdvancedConfigToolsCard({
                         Import and export stay tucked away until you need to review or replace a large config draft.
                     </CardDescription>
                 </div>
-                <Button variant="secondary" size="sm" onClick={onToggleAdvancedTools}>
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={onToggleAdvancedTools}
+                    className="whitespace-nowrap flex-shrink-0"
+                >
                     {showAdvancedTools ? (
                         <>
                             <ChevronUp className="mr-2 h-4 w-4" />
@@ -66,11 +71,11 @@ export function AdvancedConfigToolsCard({
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-border bg-background/20 p-4">
+                        <div className="rounded-md border border-border bg-transparent p-4">
                             <div className="mb-3 text-sm font-semibold">Import Review</div>
                             <div className="space-y-3 text-sm">
                                 {!draft.state.importPreview ? (
-                                    <div className="rounded-xl border border-dashed border-border p-4 text-muted-foreground">
+                                    <div className="rounded-md border border-dashed border-border p-4 text-muted-foreground">
                                         Preview an import to inspect channel and group counts before it replaces the
                                         current local draft.
                                     </div>
@@ -102,13 +107,13 @@ export function AdvancedConfigToolsCard({
                                             }
                                         />
                                         {draft.importPreviewErrors.length > 0 ? (
-                                            <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-amber-200">
+                                            <div className="space-y-2 rounded-md border border-amber-500/20 bg-amber-500/10 p-3 text-amber-200">
                                                 {draft.importPreviewErrors.map((error) => (
                                                     <div key={error}>{error}</div>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-200">
+                                            <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-200">
                                                 Import preview is valid. Apply it locally, then use Save Config to
                                                 persist it through Tauri.
                                             </div>

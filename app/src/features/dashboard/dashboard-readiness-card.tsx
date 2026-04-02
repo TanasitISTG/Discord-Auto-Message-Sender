@@ -26,7 +26,7 @@ export function DashboardReadinessCard({ appReadiness, runtimeMessage, onOpenCon
                 {appReadiness.blockingIssues.map((issue) => (
                     <div
                         key={issue}
-                        className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-xs backdrop-blur-xs"
+                        className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100"
                     >
                         <div className="font-medium">{describeBlockingIssue(issue)}</div>
                         {issue === 'token_missing' || issue === 'config_missing' || issue === 'config_invalid' ? (
@@ -37,7 +37,7 @@ export function DashboardReadinessCard({ appReadiness, runtimeMessage, onOpenCon
                     </div>
                 ))}
                 {runtimeMessage ? (
-                    <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100 shadow-xs backdrop-blur-xs">
+                    <div className="rounded-md border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
                         {runtimeMessage}
                     </div>
                 ) : null}
@@ -46,7 +46,7 @@ export function DashboardReadinessCard({ appReadiness, runtimeMessage, onOpenCon
                     .map((warning) => (
                         <div
                             key={warning}
-                            className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground"
+                            className="rounded-md border border-border bg-transparent p-4 text-sm text-muted-foreground"
                         >
                             {warning}
                         </div>

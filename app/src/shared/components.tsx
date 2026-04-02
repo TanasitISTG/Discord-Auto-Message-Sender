@@ -6,7 +6,7 @@ export function MetricCard({ label, value, detail }: { label: string; value: str
     return (
         <Card className="flex flex-col justify-between">
             <CardHeader className="pb-2">
-                <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+                <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {label}
                 </CardDescription>
                 <CardTitle className="text-3xl font-bold tracking-tight text-foreground">{value}</CardTitle>
@@ -29,16 +29,13 @@ export function ActionTile({
 }) {
     return (
         <button
-            className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/60 p-5 text-left transition-all hover:border-primary/30 hover:bg-accent/50 hover:shadow-glow-sm active:scale-[0.98]"
+            className="group rounded-md border border-border bg-transparent p-5 text-left transition-colors hover:bg-zinc-900"
             onClick={() => void onClick()}
         >
-            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-            <div className="relative z-10">
-                <div className="mb-1.5 text-sm font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">
-                    {title}
-                </div>
-                <div className="text-xs leading-relaxed text-muted-foreground">{detail}</div>
+            <div className="mb-1.5 text-sm font-semibold tracking-tight text-foreground transition-colors group-hover:text-foreground">
+                {title}
             </div>
+            <div className="text-xs leading-relaxed text-muted-foreground">{detail}</div>
         </button>
     );
 }
@@ -66,7 +63,7 @@ export function NumberField({
 
 export function StateRow({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-3 py-2.5 transition-colors hover:bg-card/80">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-transparent px-3 py-2.5 transition-colors hover:bg-zinc-900">
             <span className="min-w-0 text-xs font-medium text-muted-foreground">{label}</span>
             <span className="min-w-0 wrap-break-word text-right text-sm font-semibold text-foreground">{value}</span>
         </div>
@@ -75,7 +72,7 @@ export function StateRow({ label, value }: { label: string; value: string }) {
 
 export function DetailBlock({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 shadow-xs transition-colors hover:bg-card/60">
+        <div className="rounded-md border border-border bg-transparent p-4 transition-colors hover:bg-zinc-900">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
             <div className="mt-2 break-all font-mono text-xs leading-relaxed text-foreground/90">{value}</div>
         </div>
@@ -99,11 +96,11 @@ export function InlineNotice({
     message: string;
 }) {
     const toneClass = {
-        neutral: 'border-border/50 bg-background/40 text-foreground/80 shadow-xs',
-        success: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100 shadow-xs',
-        warning: 'border-amber-500/20 bg-amber-500/10 text-amber-100 shadow-xs',
-        danger: 'border-red-500/20 bg-red-500/10 text-red-100 shadow-xs',
+        neutral: 'border-border bg-transparent text-foreground/80',
+        success: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100',
+        warning: 'border-amber-500/20 bg-amber-500/10 text-amber-100',
+        danger: 'border-red-500/20 bg-red-500/10 text-red-100',
     }[tone];
 
-    return <div className={`rounded-xl border px-4 py-3 text-sm backdrop-blur-xs ${toneClass}`}>{message}</div>;
+    return <div className={`rounded-md border px-4 py-3 text-sm ${toneClass}`}>{message}</div>;
 }

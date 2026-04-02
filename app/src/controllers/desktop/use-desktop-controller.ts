@@ -165,6 +165,7 @@ export function useDesktopController() {
         setNotice: state.setNotice,
         setRuntime: state.setRuntime,
         setEnvironmentDraft: state.setEnvironmentDraft,
+        setPreferredScreen: state.setPreferredScreen,
         ...configActions,
         ...sessionActions,
         ...supportActions,

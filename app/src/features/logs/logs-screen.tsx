@@ -108,49 +108,51 @@ export function LogsScreen({ logs, sessionId, notice, onRefresh, onOpenLogFile }
 
     return (
         <section aria-label="Logs workspace" className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Log Controls</CardTitle>
-                    <CardDescription>
-                        Filter the current session log and open the underlying JSONL file.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
+            <div className="xl:sticky xl:top-8 self-start">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Log Controls</CardTitle>
+                        <CardDescription>
+                            Filter the current session log and open the underlying JSONL file.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
 
-                    <div className="space-y-2">
-                        <label className="block text-sm text-muted-foreground" htmlFor="logs-event-filter">
-                            Filter by event
-                        </label>
-                        <Select value={eventFilter} onValueChange={setEventFilter}>
-                            <SelectTrigger aria-label="Filter by event" id="logs-event-filter">
-                                <SelectValue placeholder="All events" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All events</SelectItem>
-                                {eventOptions.map((option) => (
-                                    <SelectItem key={option.key} value={option.key}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                        <div className="space-y-2">
+                            <label className="block text-sm text-muted-foreground" htmlFor="logs-event-filter">
+                                Filter by event
+                            </label>
+                            <Select value={eventFilter} onValueChange={setEventFilter}>
+                                <SelectTrigger aria-label="Filter by event" id="logs-event-filter">
+                                    <SelectValue placeholder="All events" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All events</SelectItem>
+                                    {eventOptions.map((option) => (
+                                        <SelectItem key={option.key} value={option.key}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div className="grid gap-2">
-                        <Button variant="secondary" onClick={() => void onRefresh()}>
-                            Refresh From Disk
-                        </Button>
-                        <Button onClick={() => void onOpenLogFile()} disabled={!sessionId}>
-                            Open Log File
-                        </Button>
-                    </div>
+                        <div className="grid gap-2">
+                            <Button variant="secondary" onClick={() => void onRefresh()}>
+                                Refresh From Disk
+                            </Button>
+                            <Button onClick={() => void onOpenLogFile()} disabled={!sessionId}>
+                                Open Log File
+                            </Button>
+                        </div>
 
-                    <div className="rounded-lg border border-border/50 bg-background/50 px-3 py-2 text-sm text-muted-foreground">
-                        {sessionId ? `Session ${sessionId}` : 'No session log selected yet.'}
-                    </div>
-                </CardContent>
-            </Card>
+                        <div className="rounded-lg border border-border/50 bg-background/50 px-3 py-2 text-sm text-muted-foreground">
+                            {sessionId ? `Session ${sessionId}` : 'No session log selected yet.'}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             <Card>
                 <CardHeader>

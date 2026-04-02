@@ -109,10 +109,10 @@ export function SetupChecklistCard({
                 {checklist.items.map((item) => (
                     <div
                         key={item.id}
-                        className={`rounded-xl border p-5 shadow-xs backdrop-blur-xs transition-colors ${
+                        className={`rounded-md border p-5 transition-colors ${
                             item.done
                                 ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15'
-                                : 'border-border/50 bg-background/50 hover:bg-card/60'
+                                : 'border-border bg-transparent hover:bg-zinc-900'
                         }`}
                     >
                         <div className="flex flex-wrap items-start justify-between gap-3">

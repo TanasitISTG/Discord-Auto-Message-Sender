@@ -67,7 +67,7 @@ export function TelegramNotificationsCard({
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
+                <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-transparent p-4 text-sm text-foreground">
                     <span className="font-medium">Windows desktop notifications</span>
                     <Checkbox
                         checked={draft.windowsDesktopEnabled}
@@ -80,7 +80,7 @@ export function TelegramNotificationsCard({
                     />
                 </label>
 
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
+                <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-transparent p-4 text-sm text-foreground">
                     <span className="font-medium">Telegram notifications</span>
                     <Checkbox
                         checked={draft.telegram.enabled}
@@ -207,7 +207,7 @@ export function TelegramNotificationsCard({
                 </Button>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
+                    <div className="rounded-md border border-border bg-transparent p-4 text-sm">
                         <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                             Telegram status
                         </div>
@@ -215,7 +215,7 @@ export function TelegramNotificationsCard({
                             {statusLabel(delivery.telegramState.status)}
                         </div>
                     </div>
-                    <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
+                    <div className="rounded-md border border-border bg-transparent p-4 text-sm">
                         <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                             Bot token readiness
                         </div>
@@ -225,14 +225,14 @@ export function TelegramNotificationsCard({
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
+                <div className="rounded-md border border-border bg-transparent p-4 text-sm text-muted-foreground">
                     Last Telegram delivery:{' '}
                     <span className="font-mono text-xs text-foreground/90">
                         {formatLocalTimestamp(delivery.telegramState.lastDeliveredAt)}
                     </span>
                 </div>
 
-                <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
+                <div className="rounded-md border border-border bg-transparent p-4 text-sm text-muted-foreground">
                     Last Telegram test:{' '}
                     <span className="font-mono text-xs text-foreground/90">
                         {formatLocalTimestamp(delivery.telegramState.lastTestedAt)}
@@ -240,12 +240,12 @@ export function TelegramNotificationsCard({
                 </div>
 
                 {delivery.telegramState.lastError ? (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
                         {delivery.telegramState.lastError}
                     </div>
                 ) : null}
 
-                <div className="rounded-xl border border-border/50 bg-background/50 p-5 text-sm leading-relaxed text-muted-foreground shadow-xs">
+                <div className="rounded-md border border-border bg-transparent p-5 text-sm leading-relaxed text-muted-foreground">
                     <div className="font-semibold tracking-tight text-foreground">Setup</div>
                     <div className="mt-2">1. Create a bot in Telegram with `@BotFather` and `/newbot`.</div>
                     <div>2. Open the bot and send `/start` from your personal Telegram account.</div>

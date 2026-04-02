@@ -16,22 +16,27 @@ export function AppShell({ controller }: AppShellProps) {
     const [selectedScreen, setSelectedScreen] = useState<Screen | null>(null);
     const screen = controller.preferredScreen ?? selectedScreen ?? 'dashboard';
 
+    const handleSelectScreen = (s: Screen) => {
+        controller.setPreferredScreen(null);
+        setSelectedScreen(s);
+    };
+
     return (
-        <div className="grid min-h-screen grid-cols-1 bg-background text-foreground lg:grid-cols-[240px_minmax(0,1fr)]">
-            <AppSidebar controller={controller} screen={screen} onSelectScreen={setSelectedScreen} />
+        <div className="grid min-h-screen grid-cols-1 text-foreground lg:grid-cols-[240px_minmax(0,1fr)]">
+            <AppSidebar controller={controller} screen={screen} onSelectScreen={handleSelectScreen} />
 
             <main className="flex flex-col">
-                <AppHeader controller={controller} screen={screen} onSelectScreen={setSelectedScreen} />
+                <AppHeader controller={controller} screen={screen} onSelectScreen={handleSelectScreen} />
 
-                <div className="flex-1 p-5 lg:p-8">
+                <div className="flex-1 p-6 lg:p-8">
                     {controller.appReadiness.blockingIssues.length > 0 ||
                     controller.sidecarMessage ||
                     controller.draft.validationErrors.length > 0 ? (
-                        <div className="mb-6 flex flex-col gap-2">
+                        <div className="mb-6 flex flex-col gap-3">
                             {controller.appReadiness.blockingIssues.map((issue) => (
                                 <div
                                     key={issue}
-                                    className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+                                    className="flex items-center gap-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
                                 >
                                     <span className="font-semibold uppercase tracking-widest text-amber-400">
                                         Readiness
@@ -40,7 +45,7 @@ export function AppShell({ controller }: AppShellProps) {
                                 </div>
                             ))}
                             {controller.sidecarMessage ? (
-                                <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                                <div className="flex items-center gap-3 rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                                     <span className="font-semibold uppercase tracking-widest text-red-400">
                                         Runtime
                                     </span>
@@ -48,7 +53,7 @@ export function AppShell({ controller }: AppShellProps) {
                                 </div>
                             ) : null}
                             {controller.draft.validationErrors.length > 0 ? (
-                                <div className="flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                                <div className="flex items-center gap-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                                     <span className="font-semibold uppercase tracking-widest text-amber-400">
                                         Config
                                     </span>
@@ -61,7 +66,7 @@ export function AppShell({ controller }: AppShellProps) {
                         </div>
                     ) : null}
 
-                    <ScreenRouter controller={controller} screen={screen} onSelectScreen={setSelectedScreen} />
+                    <ScreenRouter controller={controller} screen={screen} onSelectScreen={handleSelectScreen} />
                 </div>
             </main>
 
@@ -78,7 +83,7 @@ export function AppShell({ controller }: AppShellProps) {
                 theme="dark"
                 toastOptions={{
                     classNames: {
-                        toast: 'border border-border/60 bg-card/95 text-foreground shadow-[0_18px_48px_rgba(0,0,0,0.4)]',
+                        toast: 'border border-border bg-card text-foreground',
                         title: 'text-sm font-medium',
                         description: 'text-xs text-muted-foreground',
                     },
