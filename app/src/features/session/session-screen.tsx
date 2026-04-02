@@ -47,11 +47,15 @@ export function SessionScreen({
 }: SessionScreenProps) {
     const healthEntries = Object.values(session?.channelHealth ?? senderState.channelHealth ?? {}).filter((entry) => entry.status !== 'healthy');
     const resumeSession = senderState.resumeSession;
+    const canResumeCheckpoint = Boolean(resumeSession && !hasActiveSession);
+    const checkpoint = canResumeCheckpoint ? resumeSession : null;
     const suppressedEntries = Object.values(session?.channelProgress ?? {}).filter((entry) => entry.status === 'suppressed');
     const runModeLabel = recoveryState
         ? 'Runtime interrupted'
         : session?.status === 'stopping'
             ? 'Stopping after current send'
+            : session?.status === 'stopped'
+                ? 'Stopped with checkpoint ready'
             : suppressedEntries.length > 0
                 ? 'Waiting on cooldown'
                 : session?.resumedFromCheckpoint
@@ -63,7 +67,7 @@ export function SessionScreen({
                             : 'Fresh run';
 
     return (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section aria-label="Session workspace" className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <Card>
                 <CardHeader>
                     <CardTitle>Preflight And Live Session</CardTitle>
@@ -109,7 +113,7 @@ export function SessionScreen({
                     <div className="flex flex-wrap gap-3">
                         <Button onClick={onStart} disabled={hasActiveSession || !appReadiness.canStartSession}>
                             <Play className="mr-2 h-4 w-4" />
-                            {resumeSession && !session ? 'Resume' : 'Start'}
+                            {canResumeCheckpoint ? 'Resume' : 'Start'}
                         </Button>
                         <Button variant="secondary" onClick={onRunPreflight}>
                             Run Preflight
@@ -117,7 +121,7 @@ export function SessionScreen({
                         <Button variant="secondary" onClick={onPauseResume} disabled={appReadiness.sidecar !== 'ready' || !session || !['running', 'paused'].includes(session.status)}>
                             {session?.status === 'paused' ? 'Resume' : 'Pause'}
                         </Button>
-                        <Button variant="danger" onClick={onStop} disabled={appReadiness.sidecar !== 'ready' || !session || ['completed', 'failed', 'stopping'].includes(session.status)}>
+                        <Button variant="danger" onClick={onStop} disabled={appReadiness.sidecar !== 'ready' || !session || ['completed', 'failed', 'stopping', 'stopped'].includes(session.status)}>
                             <Square className="mr-2 h-4 w-4" />
                             {session?.status === 'stopping' ? 'Stopping...' : 'Stop'}
                         </Button>
@@ -177,14 +181,14 @@ export function SessionScreen({
                         </div>
                     ) : null}
 
-                    {resumeSession && !session ? (
+                    {checkpoint ? (
                         <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50 shadow-xs backdrop-blur-xs">
                             <div className="font-semibold tracking-tight">Interrupted session available</div>
                             <div className="mt-1 text-[11px] font-semibold tracking-tight text-cyan-50/70">
-                                Last checkpoint: {new Date(resumeSession.updatedAt).toLocaleString()}
+                                Last checkpoint: {new Date(checkpoint.updatedAt).toLocaleString()}
                             </div>
                             <div className="mt-3 text-cyan-50/80 leading-relaxed">
-                                Start will continue with {resumeSession.runtime.numMessages === 0 ? 'infinite' : resumeSession.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
+                                Start will continue with {checkpoint.runtime.numMessages === 0 ? 'infinite' : checkpoint.runtime.numMessages} messages per channel and the saved pacing/recent-history state.
                             </div>
                             <div className="mt-5 flex flex-wrap gap-3">
                                 <Button size="sm" onClick={onStart} disabled={!appReadiness.canStartSession}>

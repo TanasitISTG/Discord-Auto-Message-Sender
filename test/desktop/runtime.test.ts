@@ -10,6 +10,14 @@ import { SessionServiceOptions } from '../../src/services/session';
 import { getDefaultInboxMonitorSnapshot, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 import { SessionState } from '../../src/types';
 
+type SessionController = {
+    start(): Promise<SessionState>;
+    pause(): SessionState;
+    resume(): SessionState;
+    stop(reason?: string): SessionState;
+    getState(): SessionState;
+};
+
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-runtime-'));
 }
@@ -186,6 +194,106 @@ test('DesktopRuntime uses a single in-process session controller for lifecycle c
     assert.ok(events.includes('session_paused'));
     assert.ok(events.includes('session_resumed'));
     assert.ok(events.includes('session_stopping'));
+});
+
+test('DesktopRuntime keeps the newer session controller when an older completed session settles later', async () => {
+    const tempDir = createTempDir();
+    writeDesktopFiles(tempDir);
+
+    const controllers: Array<SessionController & {
+        markCompleted(): void;
+        resolveCompleted(): void;
+    }> = [];
+
+    const runtime = new DesktopRuntime({
+        baseDir: tempDir,
+        sessionFactory: (options) => {
+            const state: SessionState = {
+                id: `session-${controllers.length + 1}`,
+                status: 'idle',
+                updatedAt: new Date().toISOString(),
+                activeChannels: [],
+                completedChannels: [],
+                failedChannels: [],
+                sentMessages: 0
+            };
+            let resolveStart: ((value: SessionState) => void) | undefined;
+
+            const controller: SessionController & {
+                markCompleted(): void;
+                resolveCompleted(): void;
+            } = {
+                getState() {
+                    return { ...state };
+                },
+                pause() {
+                    state.status = 'paused';
+                    return { ...state };
+                },
+                resume() {
+                    state.status = 'running';
+                    return { ...state };
+                },
+                stop() {
+                    state.status = 'stopping';
+                    return { ...state };
+                },
+                markCompleted() {
+                    state.status = 'completed';
+                    state.updatedAt = new Date().toISOString();
+                },
+                resolveCompleted() {
+                    const finishedAt = new Date().toISOString();
+                    resolveStart?.({
+                        ...state,
+                        status: 'completed',
+                        updatedAt: finishedAt,
+                        summary: {
+                            totalChannels: 1,
+                            completedChannels: 1,
+                            failedChannels: 0,
+                            sentMessages: 0,
+                            startedAt: state.updatedAt,
+                            finishedAt
+                        }
+                    });
+                },
+                async start() {
+                    state.status = 'running';
+                    options.emitEvent?.({ type: 'session_started', state: { ...state } });
+                    return await new Promise<SessionState>((resolve) => {
+                        resolveStart = resolve;
+                    });
+                }
+            };
+
+            controllers.push(controller);
+            return controller;
+        }
+    });
+
+    await runtime.startSession({
+        numMessages: 1,
+        baseWaitSeconds: 1,
+        marginSeconds: 0,
+        token: 'test-token'
+    });
+    controllers[0]?.markCompleted();
+
+    const restarted = await runtime.startSession({
+        numMessages: 2,
+        baseWaitSeconds: 1,
+        marginSeconds: 0,
+        token: 'test-token'
+    });
+    assert.equal(restarted.id, 'session-2');
+    assert.equal(runtime.getSessionState()?.id, 'session-2');
+
+    controllers[0]?.resolveCompleted();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(runtime.getSessionState()?.id, 'session-2');
+    assert.equal(runtime.getSessionState()?.status, 'running');
 });
 
 test('DesktopRuntime restores a resumable checkpoint when config and runtime still match', async () => {

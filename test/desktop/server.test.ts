@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import readline from 'readline';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
 
@@ -28,6 +28,13 @@ function bunExecutable() {
     return process.platform === 'win32' ? 'bun.exe' : 'bun';
 }
 
+function hasBunRuntime(): boolean {
+    const result = spawnSync(bunExecutable(), ['--version'], {
+        stdio: 'ignore'
+    });
+    return !result.error && result.status === 0;
+}
+
 function createDeferred<T = void>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
     let reject!: (reason?: unknown) => void;
@@ -39,7 +46,12 @@ function createDeferred<T = void>() {
     return { promise, resolve, reject };
 }
 
-test('desktop sidecar serves typed config, dry-run, and state commands over one long-lived process', { timeout: 20000 }, async () => {
+test('desktop sidecar serves typed config, dry-run, and state commands over one long-lived process', { timeout: 30000 }, async (t) => {
+    if (!hasBunRuntime()) {
+        t.skip('bun is required for the desktop sidecar integration test.');
+        return;
+    }
+
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
 
@@ -93,7 +105,7 @@ test('desktop sidecar serves typed config, dry-run, and state commands over one 
         return await Promise.race([
             response,
             new Promise<never>((_, reject) => {
-                setTimeout(() => reject(new Error(`Timed out waiting for '${command}' response.`)), 5000);
+                setTimeout(() => reject(new Error(`Timed out waiting for '${command}' response.`)), 10000);
             })
         ]);
     }

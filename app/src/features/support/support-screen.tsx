@@ -154,7 +154,7 @@ export function SupportScreen({
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">Support export safety</div>
-                            <div className="leading-relaxed">The support bundle excludes secure token stores, `.env`, and any plaintext Discord or Telegram token value.</div>
+                            <div className="leading-relaxed">The support bundle excludes secure token stores and `.env`, and it redacts plaintext token values, message templates, recent message history, and Telegram error details before export.</div>
                         </div>
                     </CardContent>
                 </Card>

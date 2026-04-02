@@ -359,6 +359,14 @@ function resetDesktopState() {
     }
 }
 
+function headerActions() {
+    return within(screen.getByRole('banner'));
+}
+
+function sessionWorkspace() {
+    return within(screen.getByRole('region', { name: 'Session workspace' }));
+}
+
 test('App flips the header CTA to stop and disables the session start button after starting', async () => {
     resetDesktopState();
     const user = userEvent.setup();
@@ -366,23 +374,20 @@ test('App flips the header CTA to stop and disables the session start button aft
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
     });
-    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
 
     await waitFor(() => {
         expect(desktopMock.mocks.startSession).toHaveBeenCalledTimes(1);
     });
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
     });
 
     await user.click(screen.getByRole('button', { name: 'Session' }));
 
-    await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Start' }).length).toBeGreaterThan(0);
-    });
-    const startButton = screen.getAllByRole('button', { name: 'Start' })[0];
+    const startButton = await waitFor(() => sessionWorkspace().getByRole('button', { name: 'Start' }));
     expect((startButton as HTMLButtonElement).disabled).toBe(true);
 });
 
@@ -464,11 +469,11 @@ test('App keeps an active session running after the secure token is removed', as
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
     });
-    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
     });
 
     await user.click(screen.getByRole('button', { name: 'Config' }));
@@ -563,11 +568,11 @@ test('App disables runtime reset while a session is active', async () => {
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
     });
-    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
     });
 
     await user.click(screen.getByRole('button', { name: 'Support' }));
@@ -635,11 +640,11 @@ test('App keeps a recovery card visible after runtime interruption during an act
     render(<App />);
 
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Resume' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Resume' })).toBeTruthy();
     });
-    await user.click(screen.getAllByRole('button', { name: 'Resume' })[0]!);
+    await user.click(headerActions().getByRole('button', { name: 'Resume' }));
     await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+        expect(headerActions().getByRole('button', { name: 'Stop' })).toBeTruthy();
     });
 
     await act(async () => {

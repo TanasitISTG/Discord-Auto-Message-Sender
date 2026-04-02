@@ -89,6 +89,7 @@ export type SessionStatus =
     | 'running'
     | 'paused'
     | 'stopping'
+    | 'stopped'
     | 'completed'
     | 'failed';
 

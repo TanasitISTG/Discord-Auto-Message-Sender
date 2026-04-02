@@ -369,8 +369,8 @@ export class InboxMonitorService implements InboxMonitorController {
                     backoffUntil
                 });
 
-                await this.sleepImpl(backoffMs);
-                if (!this.isCurrentRun(runId)) {
+                const completedBackoff = await this.sleepWithAbort(backoffMs, abortSignal);
+                if (!completedBackoff || !this.isCurrentRun(runId)) {
                     break;
                 }
                 continue;
@@ -378,7 +378,10 @@ export class InboxMonitorService implements InboxMonitorController {
 
             const waitMs = this.snapshot.settings.pollIntervalSeconds * 1000
                 + Math.round(this.random() * 2_500);
-            await this.sleepImpl(waitMs);
+            const completedWait = await this.sleepWithAbort(waitMs, abortSignal);
+            if (!completedWait) {
+                break;
+            }
         }
     }
 
@@ -404,6 +407,31 @@ export class InboxMonitorService implements InboxMonitorController {
         } catch {
             // The loop already emitted its state transition; callers only need shutdown ordering here.
         }
+    }
+
+    private async sleepWithAbort(ms: number, abortSignal: AbortSignal): Promise<boolean> {
+        if (abortSignal.aborted) {
+            return false;
+        }
+
+        return await new Promise<boolean>((resolve) => {
+            let settled = false;
+            const finish = (completed: boolean) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                abortSignal.removeEventListener('abort', onAbort);
+                resolve(completed);
+            };
+            const onAbort = () => finish(false);
+
+            abortSignal.addEventListener('abort', onAbort, { once: true });
+            void this.sleepImpl(ms).then(
+                () => finish(true),
+                () => finish(false)
+            );
+        });
     }
 
     private async poll(token: string, abortSignal: AbortSignal): Promise<MonitorPollResult> {

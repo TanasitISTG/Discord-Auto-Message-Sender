@@ -15,7 +15,7 @@ import {
 import { createSenderCoordinator, runChannel } from '../core/sender';
 import { createBufferedFileWriter, createStructuredLogger, StructuredLogger } from '../utils/logger';
 import { validateSessionId } from '../utils/session-id';
-import { loadSenderState, saveSenderState } from './state-store';
+import { loadSenderState, updateSenderState } from './state-store';
 
 const SESSION_LOG_DIR = 'logs';
 const RESUME_POLL_INTERVAL_MS = 150;
@@ -191,7 +191,7 @@ export function canResumeSession(
         return false;
     }
 
-    if (!['running', 'paused'].includes(resumeSession.state.status)) {
+    if (!['running', 'paused', 'stopped'].includes(resumeSession.state.status)) {
         return false;
     }
 
@@ -320,7 +320,7 @@ export class SessionService {
     }
 
     stop(reason: string = 'Stop requested from desktop UI.') {
-        if (this.stopping || this.state.status === 'completed' || this.state.status === 'failed') {
+        if (this.stopping || ['completed', 'failed', 'stopped'].includes(this.state.status)) {
             return this.getState();
         }
 
@@ -534,9 +534,11 @@ export class SessionService {
                 }
             })));
 
-            const status: SessionStatus = !this.stopping && this.coordinator.isAborted()
-                ? 'failed'
-                : 'completed';
+            const status: SessionStatus = this.stopping
+                ? 'stopped'
+                : (this.coordinator.isAborted() || this.state.failedChannels.length > 0)
+                    ? 'failed'
+                    : 'completed';
             this.state.status = status;
             this.state.summary = this.buildSummary();
             this.bumpState();
@@ -676,7 +678,7 @@ export class SessionService {
                     configSignature: createSessionConfigSignature(this.config),
                     state: {
                         ...this.getState(),
-                        status: 'paused',
+                        status: 'stopped',
                         summary: undefined,
                         stopReason: undefined
                     },
@@ -745,18 +747,15 @@ export class SessionService {
 
         this.stateFlushPending = false;
         this.stateFlushInFlight = (async () => {
-            const latestState = loadSenderState(this.baseDir);
-            const nextState = {
-                ...latestState,
-                lastSession: this.senderStateRecord.lastSession,
-                summaries: this.senderStateRecord.summaries,
-                recentFailures: this.senderStateRecord.recentFailures,
-                recentMessageHistory: this.senderStateRecord.recentMessageHistory,
-                channelHealth: this.senderStateRecord.channelHealth,
-                resumeSession: this.senderStateRecord.resumeSession,
-                warning: undefined
-            };
-            saveSenderState(this.baseDir, nextState);
+            const nextState = updateSenderState(this.baseDir, (state) => {
+                state.lastSession = this.senderStateRecord.lastSession;
+                state.summaries = this.senderStateRecord.summaries;
+                state.recentFailures = this.senderStateRecord.recentFailures;
+                state.recentMessageHistory = this.senderStateRecord.recentMessageHistory;
+                state.channelHealth = this.senderStateRecord.channelHealth;
+                state.resumeSession = this.senderStateRecord.resumeSession;
+                state.warning = undefined;
+            });
             this.senderStateRecord.lastSession = nextState.lastSession;
             this.senderStateRecord.summaries = nextState.summaries;
             this.senderStateRecord.recentFailures = nextState.recentFailures;

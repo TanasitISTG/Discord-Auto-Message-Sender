@@ -92,7 +92,7 @@ Notes:
 
 - Packaged Windows builds store `DISCORD_TOKEN` in a DPAPI-protected local secure store.
 - The frontend never receives the plaintext token back after save.
-- Support exports exclude the secure token store, `.env`, and plaintext token values.
+- Support exports exclude the secure token store and `.env`, and they redact plaintext token values, message templates, recent message history, and Telegram error details.
 - Desktop session and preflight flows now require the secure token store instead of `.env` or shell-environment fallbacks.
 
 ## Local Runtime Files
@@ -147,6 +147,8 @@ The export does not include:
 - `discord-token.secure`
 - `.env`
 - plaintext Discord tokens
+- plaintext Telegram bot tokens
+- unredacted message templates or recent session history
 - process environment dumps
 
 ## Reset Runtime State

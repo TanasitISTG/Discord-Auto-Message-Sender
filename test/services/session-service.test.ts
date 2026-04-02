@@ -209,8 +209,8 @@ test('SessionService keeps a resumable checkpoint after a user-requested stop', 
     const finalState = await startPromise;
     const persistedState = loadSenderState(tempDir);
 
-    assert.equal(finalState.status, 'completed');
+    assert.equal(finalState.status, 'stopped');
     assert.equal(finalState.failedChannels.length, 0);
     assert.equal(persistedState.resumeSession?.sessionId, finalState.id);
-    assert.equal(persistedState.resumeSession?.state.status, 'paused');
+    assert.equal(persistedState.resumeSession?.state.status, 'stopped');
 });

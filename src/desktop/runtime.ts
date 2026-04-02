@@ -178,7 +178,7 @@ export class DesktopRuntime {
 
         this.session = session;
         this.sessionState = session.getState();
-        this.sessionPromise = session.start()
+        const sessionPromise = session.start()
             .catch((error) => {
                 this.publish({
                     type: 'sidecar_error',
@@ -188,9 +188,14 @@ export class DesktopRuntime {
                 throw error;
             })
             .finally(() => {
-                this.session = null;
-                this.sessionPromise = null;
+                if (this.session === session) {
+                    this.session = null;
+                }
+                if (this.sessionPromise === sessionPromise) {
+                    this.sessionPromise = null;
+                }
             });
+        this.sessionPromise = sessionPromise;
 
         return session.getState();
     }

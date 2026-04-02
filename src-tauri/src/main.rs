@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(test, allow(dead_code))]
 
 use std::{
     collections::HashMap,
@@ -11,7 +12,7 @@ use std::{
         mpsc::{self, Sender},
         Mutex,
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use chrono::Utc;
@@ -34,7 +35,11 @@ const SUPPORT_BUNDLE_DIR: &str = "support";
 const SIDECAR_RESOURCE_DIR: &str = "sidecar";
 const SECURE_TOKEN_FILE: &str = "discord-token.secure";
 const TELEGRAM_BOT_TOKEN_FILE: &str = "telegram-bot-token.secure";
+const SENDER_STATE_LOCK_FILE: &str = ".sender-state.lock";
 const APPDATA_OVERRIDE_ENV: &str = "DISCORD_AUTO_MESSAGE_SENDER_APPDATA_DIR";
+const SENDER_STATE_LOCK_RETRY_MS: u64 = 25;
+const SENDER_STATE_LOCK_TIMEOUT_MS: u64 = 10_000;
+const SENDER_STATE_LOCK_STALE_MS: u64 = 30_000;
 const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
     "desktop-sidecar.exe"
 } else {
@@ -627,6 +632,100 @@ fn sender_state_path(paths: &RuntimePaths) -> PathBuf {
     paths.data_dir.join(".sender-state.json")
 }
 
+fn sender_state_lock_path(paths: &RuntimePaths) -> PathBuf {
+    paths.data_dir.join(SENDER_STATE_LOCK_FILE)
+}
+
+struct SenderStateLockGuard {
+    path: PathBuf,
+    _file: fs::File,
+}
+
+impl Drop for SenderStateLockGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn remove_stale_sender_state_lock(lock_path: &Path) {
+    let Ok(metadata) = fs::metadata(lock_path) else {
+        return;
+    };
+    let Ok(modified_at) = metadata.modified() else {
+        return;
+    };
+    if SystemTime::now()
+        .duration_since(modified_at)
+        .unwrap_or_default()
+        >= Duration::from_millis(SENDER_STATE_LOCK_STALE_MS)
+    {
+        let _ = fs::remove_file(lock_path);
+    }
+}
+
+fn acquire_sender_state_lock(paths: &RuntimePaths) -> Result<SenderStateLockGuard, String> {
+    let lock_path = sender_state_lock_path(paths);
+    fs::create_dir_all(&paths.data_dir)
+        .map_err(|error| format!("Failed to prepare sender state directory '{}': {error}", paths.data_dir.display()))?;
+
+    let started_at = Instant::now();
+    loop {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&lock_path)
+        {
+            Ok(mut file) => {
+                let contents = format!("pid={}\nacquiredAt={}\n", std::process::id(), current_timestamp());
+                file.write_all(contents.as_bytes())
+                    .map_err(|error| format!("Failed to write sender state lock '{}': {error}", lock_path.display()))?;
+                return Ok(SenderStateLockGuard {
+                    path: lock_path,
+                    _file: file,
+                });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                remove_stale_sender_state_lock(&lock_path);
+                if started_at.elapsed() >= Duration::from_millis(SENDER_STATE_LOCK_TIMEOUT_MS) {
+                    return Err(format!("Timed out waiting for exclusive access to '{}'.", sender_state_path(paths).display()));
+                }
+                std::thread::sleep(Duration::from_millis(SENDER_STATE_LOCK_RETRY_MS));
+            }
+            Err(error) => {
+                return Err(format!("Failed to create sender state lock '{}': {error}", lock_path.display()));
+            }
+        }
+    }
+}
+
+fn write_text_file_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
+    let temp_path = path.with_extension(format!(
+        "tmp-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    ));
+    fs::write(&temp_path, contents)
+        .map_err(|error| format!("Failed to write temporary file '{}': {error}", temp_path.display()))?;
+
+    if let Err(error) = fs::rename(&temp_path, path) {
+        if path.exists() {
+            let _ = fs::remove_file(path);
+        }
+        fs::rename(&temp_path, path).map_err(|rename_error| {
+            format!(
+                "Failed to replace '{}' after temporary write error '{}': {rename_error}",
+                path.display(),
+                error
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
 fn default_notification_delivery_settings() -> NotificationDeliverySettings {
     NotificationDeliverySettings {
         windows_desktop_enabled: true,
@@ -681,12 +780,25 @@ fn load_sender_state_record(paths: &RuntimePaths) -> Result<SenderStateRecord, S
 }
 
 fn save_sender_state_record(paths: &RuntimePaths, state: &SenderStateRecord) -> Result<(), String> {
-    fs::write(
-        sender_state_path(paths),
-        serde_json::to_string_pretty(state)
-            .map_err(|error| format!("Failed to serialize sender state: {error}"))?,
-    )
-    .map_err(|error| format!("Failed to write sender state file: {error}"))
+    let _guard = acquire_sender_state_lock(paths)?;
+    save_sender_state_record_unlocked(paths, state)
+}
+
+fn save_sender_state_record_unlocked(paths: &RuntimePaths, state: &SenderStateRecord) -> Result<(), String> {
+    let contents = serde_json::to_string_pretty(state)
+        .map_err(|error| format!("Failed to serialize sender state: {error}"))?;
+    write_text_file_atomically(&sender_state_path(paths), contents.as_bytes())
+}
+
+fn update_sender_state_record<F>(paths: &RuntimePaths, updater: F) -> Result<SenderStateRecord, String>
+where
+    F: FnOnce(&mut SenderStateRecord),
+{
+    let _guard = acquire_sender_state_lock(paths)?;
+    let mut state = load_sender_state_record(paths)?;
+    updater(&mut state);
+    save_sender_state_record_unlocked(paths, &state)?;
+    load_sender_state_record(paths)
 }
 
 fn validate_session_id(session_id: &str) -> Result<&str, String> {
@@ -1026,9 +1138,11 @@ fn persist_notification_delivery_snapshot(
     snapshot.settings = normalize_notification_delivery_settings(&snapshot.settings, bot_token_stored);
     snapshot.telegram_state = resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
 
-    let mut state = load_sender_state_record(&paths)?;
-    state.notification_delivery = Some(snapshot.clone());
-    save_sender_state_record(&paths, &state)?;
+    let snapshot = update_sender_state_record(&paths, |state| {
+        state.notification_delivery = Some(snapshot.clone());
+    })?
+    .notification_delivery
+    .unwrap_or(snapshot);
     app.emit(
         "app-event",
         json!({
@@ -1221,6 +1335,132 @@ fn add_zip_file_entry(
     add_zip_text_entry(archive, entry_name, &contents)
 }
 
+fn redact_string_list_map(value: &mut Value, label: &str) {
+    let Some(entries) = value.as_object_mut() else {
+        return;
+    };
+
+    for messages in entries.values_mut() {
+        let Some(array) = messages.as_array_mut() else {
+            continue;
+        };
+        let count = array.len();
+        array.clear();
+        if count > 0 {
+            array.push(Value::String(format!("[REDACTED {count} {label}]")));
+        }
+    }
+}
+
+fn redact_channel_progress_messages(value: &mut Value) {
+    let Some(entries) = value.as_object_mut() else {
+        return;
+    };
+
+    for entry in entries.values_mut() {
+        let Some(record) = entry.as_object_mut() else {
+            continue;
+        };
+        if record.contains_key("lastMessage") {
+            record.insert("lastMessage".to_string(), Value::String("[REDACTED]".to_string()));
+        }
+    }
+}
+
+fn redact_session_snapshot_value(value: &mut Value) {
+    let Some(session) = value.as_object_mut() else {
+        return;
+    };
+
+    if let Some(channel_progress) = session.get_mut("channelProgress") {
+        redact_channel_progress_messages(channel_progress);
+    }
+}
+
+fn sanitize_telegram_error(message: String, token: Option<&str>) -> String {
+    let Some(token) = token.filter(|value| !value.is_empty()) else {
+        return message;
+    };
+
+    message.replace(token, "[REDACTED]")
+}
+
+fn sanitize_notification_delivery_value(value: &mut Value, token: Option<&str>) {
+    let Some(notification_delivery) = value.as_object_mut() else {
+        return;
+    };
+    let Some(telegram_state) = notification_delivery
+        .get_mut("telegramState")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let Some(last_error) = telegram_state.get_mut("lastError") else {
+        return;
+    };
+    let Some(error) = last_error.as_str() else {
+        return;
+    };
+
+    *last_error = Value::String(sanitize_telegram_error(error.to_string(), token));
+}
+
+fn sanitize_sender_state_value_for_support_bundle(value: &mut Value, telegram_bot_token: Option<&str>) {
+    let Some(state) = value.as_object_mut() else {
+        return;
+    };
+
+    if let Some(last_session) = state.get_mut("lastSession") {
+        redact_session_snapshot_value(last_session);
+    }
+    if let Some(recent_message_history) = state.get_mut("recentMessageHistory") {
+        redact_string_list_map(recent_message_history, "recent message(s)");
+    }
+    if let Some(resume_session) = state.get_mut("resumeSession").and_then(Value::as_object_mut) {
+        if let Some(session_state) = resume_session.get_mut("state") {
+            redact_session_snapshot_value(session_state);
+        }
+        if let Some(recent_message_history) = resume_session.get_mut("recentMessageHistory") {
+            redact_string_list_map(recent_message_history, "recent message(s)");
+        }
+    }
+    if let Some(notification_delivery) = state.get_mut("notificationDelivery") {
+        sanitize_notification_delivery_value(notification_delivery, telegram_bot_token);
+    }
+}
+
+fn sanitize_config_value_for_support_bundle(value: &mut Value) {
+    let Some(config) = value.as_object_mut() else {
+        return;
+    };
+    if let Some(message_groups) = config.get_mut("messageGroups") {
+        redact_string_list_map(message_groups, "message template(s)");
+    }
+}
+
+fn read_redacted_json_for_support_bundle(
+    source_path: &Path,
+    redact: impl FnOnce(&mut Value),
+) -> Result<Vec<u8>, String> {
+    let contents = fs::read_to_string(source_path)
+        .map_err(|error| format!("Failed to read '{}' for the support bundle: {error}", source_path.display()))?;
+
+    let mut value = match serde_json::from_str::<Value>(&contents) {
+        Ok(value) => value,
+        Err(error) => {
+            return serde_json::to_vec_pretty(&json!({
+                "redacted": true,
+                "warning": format!("Could not parse '{}' while preparing the support bundle: {error}", source_path.display())
+            }))
+            .map_err(|serialize_error| format!("Failed to serialize a redacted support-bundle placeholder: {serialize_error}"));
+        }
+    };
+
+    redact(&mut value);
+    serde_json::to_vec_pretty(&value)
+        .map_err(|error| format!("Failed to serialize '{}' for the support bundle: {error}", source_path.display()))
+}
+
 fn export_support_bundle_at_paths(
     paths: &RuntimePaths,
     diagnostics: &ReleaseDiagnostics,
@@ -1247,9 +1487,12 @@ fn export_support_bundle_at_paths(
     add_zip_text_entry(&mut archive, "setup.json", &setup_json)?;
     included_files.push("setup.json".to_string());
 
+    let telegram_bot_token = read_telegram_bot_token(paths).ok().flatten();
+
     let config_file = config_path(paths);
     if config_file.exists() {
-        add_zip_file_entry(&mut archive, &config_file, "config.json")?;
+        let redacted_config = read_redacted_json_for_support_bundle(&config_file, sanitize_config_value_for_support_bundle)?;
+        add_zip_text_entry(&mut archive, "config.json", &redacted_config)?;
         included_files.push("config.json".to_string());
     } else {
         missing_files.push("config.json".to_string());
@@ -1257,7 +1500,10 @@ fn export_support_bundle_at_paths(
 
     let state_file = sender_state_path(paths);
     if state_file.exists() {
-        add_zip_file_entry(&mut archive, &state_file, ".sender-state.json")?;
+        let redacted_state = read_redacted_json_for_support_bundle(&state_file, |value| {
+            sanitize_sender_state_value_for_support_bundle(value, telegram_bot_token.as_deref());
+        })?;
+        add_zip_text_entry(&mut archive, ".sender-state.json", &redacted_state)?;
         included_files.push(".sender-state.json".to_string());
     } else {
         missing_files.push(".sender-state.json".to_string());
@@ -1832,9 +2078,9 @@ fn detect_telegram_chat_with_token(token: &str) -> Result<TelegramChatDetectionR
     let payload: Value = telegram_http_client()?
         .get(telegram_api_url(token, "getUpdates"))
         .send()
-        .map_err(|error| format!("Failed to call Telegram getUpdates: {error}"))?
+        .map_err(|error| sanitize_telegram_error(format!("Failed to call Telegram getUpdates: {error}"), Some(token)))?
         .error_for_status()
-        .map_err(|error| format!("Telegram getUpdates failed: {error}"))?
+        .map_err(|error| sanitize_telegram_error(format!("Telegram getUpdates failed: {error}"), Some(token)))?
         .json()
         .map_err(|error| format!("Failed to decode Telegram getUpdates response: {error}"))?;
 
@@ -1880,7 +2126,7 @@ fn send_telegram_message(token: &str, chat_id: &str, text: &str) -> Result<(), S
             "disable_notification": false
         }))
         .send()
-        .map_err(|error| format!("Failed to call Telegram sendMessage: {error}"))?
+        .map_err(|error| sanitize_telegram_error(format!("Failed to call Telegram sendMessage: {error}"), Some(token)))?
         .json()
         .map_err(|error| format!("Failed to decode Telegram sendMessage response: {error}"))?;
 
@@ -2004,9 +2250,16 @@ where
         }
     }
 
-    let response = rx
-        .recv_timeout(Duration::from_secs(60))
-        .map_err(|_| format!("Timed out waiting for desktop sidecar response for '{command}'."))?;
+    let response = match rx.recv_timeout(Duration::from_secs(60)) {
+        Ok(response) => response,
+        Err(_) => {
+            let state = app.state::<AppRuntime>();
+            if let Ok(mut sidecar) = state.sidecar.lock() {
+                sidecar.pending.remove(&request_id);
+            }
+            return Err(format!("Timed out waiting for desktop sidecar response for '{command}'."));
+        }
+    };
 
     if !response.ok {
         return Err(response
@@ -2381,6 +2634,7 @@ fn handle_cli_command(app: &AppHandle, command: CliCommand) -> Result<(), String
     }
 }
 
+#[cfg(not(test))]
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -2455,12 +2709,25 @@ fn main() {
 }
 
 #[cfg(test)]
+fn main() {}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{fs, sync::OnceLock};
+
+    static ENV_TEST_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn env_test_mutex() -> &'static Mutex<()> {
+        ENV_TEST_MUTEX.get_or_init(|| Mutex::new(()))
+    }
 
     fn temp_runtime_paths(prefix: &str) -> RuntimePaths {
-        let root = std::env::temp_dir().join(format!("{prefix}-{}", std::process::id()));
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let data_dir = root.join("data");
         let logs_dir = data_dir.join(RUNTIME_LOG_DIR);
@@ -2489,6 +2756,7 @@ mod tests {
 
     #[test]
     fn runtime_data_dir_override_reads_the_override_environment_variable() {
+        let _guard = env_test_mutex().lock().expect("lock env test mutex");
         let override_path = std::env::temp_dir().join(format!("discord-runtime-override-{}", std::process::id()));
         std::env::set_var(APPDATA_OVERRIDE_ENV, &override_path);
 
@@ -2557,15 +2825,78 @@ mod tests {
     #[test]
     fn export_support_bundle_excludes_secure_token_and_env_but_includes_generated_json() {
         let paths = temp_runtime_paths("discord-support-bundle");
-        fs::write(config_path(&paths), "{\"userAgent\":\"UA\"}").expect("write config");
-        fs::write(sender_state_path(&paths), "{\"schemaVersion\":1}").expect("write sender state");
+        fs::write(
+            config_path(&paths),
+            serde_json::to_string_pretty(&json!({
+                "userAgent": "UA",
+                "channels": [{
+                    "name": "general",
+                    "id": "123",
+                    "referrer": "https://discord.com/channels/@me/123",
+                    "messageGroup": "default"
+                }],
+                "messageGroups": {
+                    "default": ["secret template"]
+                }
+            }))
+            .expect("serialize config"),
+        )
+        .expect("write config");
+        fs::write(
+            sender_state_path(&paths),
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": 1,
+                "summaries": [],
+                "recentFailures": [],
+                "recentMessageHistory": {
+                    "123": ["secret history"]
+                },
+                "lastSession": {
+                    "id": "session-1",
+                    "status": "completed",
+                    "updatedAt": "2026-03-21T10:00:00.000Z",
+                    "activeChannels": [],
+                    "completedChannels": ["123"],
+                    "failedChannels": [],
+                    "sentMessages": 1,
+                    "channelProgress": {
+                        "123": {
+                            "channelId": "123",
+                            "channelName": "general",
+                            "status": "completed",
+                            "sentMessages": 1,
+                            "sentToday": 1,
+                            "consecutiveRateLimits": 0,
+                            "lastMessage": "rendered secret"
+                        }
+                    }
+                },
+                "notificationDelivery": {
+                    "settings": {
+                        "windowsDesktopEnabled": true,
+                        "telegram": {
+                            "enabled": true,
+                            "botTokenStored": true,
+                            "chatId": "1",
+                            "previewMode": "full"
+                        }
+                    },
+                    "telegramState": {
+                        "status": "failed",
+                        "lastError": "Failed to call Telegram sendMessage: https://api.telegram.org/botsecret-telegram-token/sendMessage"
+                    }
+                }
+            }))
+            .expect("serialize sender state"),
+        )
+        .expect("write sender state");
         fs::write(environment_path(&paths), "DISCORD_TOKEN=plaintext-token\n").expect("write env");
         write_secure_token(&paths, "secret-token").expect("write secure token");
+        write_telegram_bot_token(&paths, "secret-telegram-token").expect("write telegram token");
 
         for index in 0..6 {
             let log_path = paths.logs_dir.join(format!("session-{index}.jsonl"));
             fs::write(&log_path, format!("{{\"index\":{index}}}\n")).expect("write log");
-            std::thread::sleep(Duration::from_millis(15));
         }
 
         let setup = read_desktop_setup_state(&paths).expect("load setup");
@@ -2587,6 +2918,27 @@ mod tests {
         assert_eq!(names.iter().filter(|name| name.starts_with("logs/")).count(), 5);
         assert!(!names.iter().any(|name| name.contains("discord-token.secure")));
         assert!(!names.iter().any(|name| name.ends_with(".env")));
+
+        let config_contents = {
+            let mut config_entry = archive.by_name("config.json").expect("read config entry");
+            let mut contents = String::new();
+            std::io::Read::read_to_string(&mut config_entry, &mut contents).expect("read config contents");
+            contents
+        };
+        assert!(!config_contents.contains("secret template"));
+        assert!(config_contents.contains("[REDACTED 1 message template(s)]"));
+
+        let state_contents = {
+            let mut state_entry = archive.by_name(".sender-state.json").expect("read state entry");
+            let mut contents = String::new();
+            std::io::Read::read_to_string(&mut state_entry, &mut contents).expect("read state contents");
+            contents
+        };
+        assert!(!state_contents.contains("secret history"));
+        assert!(!state_contents.contains("rendered secret"));
+        assert!(!state_contents.contains("secret-telegram-token"));
+        assert!(state_contents.contains("[REDACTED 1 recent message(s)]"));
+        assert!(state_contents.contains("[REDACTED]"));
     }
 
     #[cfg(target_os = "windows")]

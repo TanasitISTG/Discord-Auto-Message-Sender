@@ -20,7 +20,17 @@ import {
 } from '../types';
 
 export const STATE_FILE = '.sender-state.json';
+export const STATE_LOCK_FILE = '.sender-state.lock';
 export const STATE_SCHEMA_VERSION = 1;
+const STATE_LOCK_RETRY_MS = 25;
+const STATE_LOCK_TIMEOUT_MS = 10_000;
+const STATE_LOCK_STALE_MS = 30_000;
+const LOCK_WAIT_BUFFER = typeof SharedArrayBuffer === 'function'
+    ? new SharedArrayBuffer(4)
+    : null;
+const LOCK_WAIT_VIEW = LOCK_WAIT_BUFFER
+    ? new Int32Array(LOCK_WAIT_BUFFER)
+    : null;
 
 export function getDefaultInboxMonitorSettings(): InboxMonitorSettings {
     return {
@@ -91,50 +101,41 @@ export function resolveStateFile(baseDir: string): string {
     return path.join(baseDir, STATE_FILE);
 }
 
+export function resolveStateLockFile(baseDir: string): string {
+    return path.join(baseDir, STATE_LOCK_FILE);
+}
+
 export function loadSenderState(baseDir: string): SenderStateRecord {
-    const filePath = resolveStateFile(baseDir);
-    if (!fs.existsSync(filePath)) {
-        return getDefaultSenderState();
+    const loaded = readSenderState(baseDir);
+
+    if (loaded.shouldWriteBack) {
+        saveSenderState(baseDir, loaded.state);
+        return loaded.warning
+            ? { ...loaded.state, warning: loaded.warning }
+            : loaded.state;
     }
 
-    try {
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as RawSenderState;
-        const { state, shouldWriteBack, warning } = normalizeSenderState(raw);
-
-        if (shouldWriteBack) {
-            saveSenderState(baseDir, state);
-            return {
-                ...state,
-                warning
-            };
-        }
-
-        return warning
-            ? { ...state, warning }
-            : state;
-    } catch {
-        return {
-            ...getDefaultSenderState(),
-            warning: 'Local sender state was corrupted and has been reset.'
-        };
-    }
+    return loaded.warning
+        ? { ...loaded.state, warning: loaded.warning }
+        : loaded.state;
 }
 
 export function saveSenderState(baseDir: string, state: SenderStateRecord) {
-    const filePath = resolveStateFile(baseDir);
-    const nextState: SenderStateRecord = {
-        ...state,
-        schemaVersion: STATE_SCHEMA_VERSION,
-        warning: undefined
-    };
-    fs.writeFileSync(filePath, JSON.stringify(nextState, null, 2), 'utf8');
+    withStateLock(baseDir, () => {
+        writeSenderStateUnlocked(resolveStateFile(baseDir), state);
+    });
 }
 
 export function updateSenderState(baseDir: string, updater: (state: SenderStateRecord) => void): SenderStateRecord {
-    const state = loadSenderState(baseDir);
-    updater(state);
-    saveSenderState(baseDir, state);
-    return loadSenderState(baseDir);
+    return withStateLock(baseDir, () => {
+        const loaded = readSenderState(baseDir);
+        const state = loaded.warning
+            ? { ...loaded.state, warning: loaded.warning }
+            : loaded.state;
+        updater(state);
+        writeSenderStateUnlocked(resolveStateFile(baseDir), state);
+        return readSenderState(baseDir).state;
+    });
 }
 
 export function clearResumeSession(baseDir: string): SenderStateRecord {
@@ -143,9 +144,131 @@ export function clearResumeSession(baseDir: string): SenderStateRecord {
     });
 }
 
+function readSenderState(baseDir: string): {
+    state: SenderStateRecord;
+    shouldWriteBack: boolean;
+    warning?: string;
+} {
+    const filePath = resolveStateFile(baseDir);
+    if (!fs.existsSync(filePath)) {
+        return {
+            state: getDefaultSenderState(),
+            shouldWriteBack: false
+        };
+    }
+
+    try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as RawSenderState;
+        return normalizeSenderState(raw);
+    } catch {
+        return {
+            state: getDefaultSenderState(),
+            shouldWriteBack: false,
+            warning: 'Local sender state was corrupted and has been reset.'
+        };
+    }
+}
+
+function writeSenderStateUnlocked(filePath: string, state: SenderStateRecord) {
+    const nextState: SenderStateRecord = {
+        ...state,
+        schemaVersion: STATE_SCHEMA_VERSION,
+        warning: undefined
+    };
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    const tempFilePath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempFilePath, JSON.stringify(nextState, null, 2), 'utf8');
+
+    try {
+        fs.renameSync(tempFilePath, filePath);
+    } catch (error) {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.rmSync(filePath, { force: true });
+            }
+            fs.renameSync(tempFilePath, filePath);
+        } catch (renameError) {
+            throw renameError instanceof Error
+                ? renameError
+                : error;
+        } finally {
+            if (fs.existsSync(tempFilePath)) {
+                fs.rmSync(tempFilePath, { force: true });
+            }
+        }
+    }
+}
+
+function withStateLock<T>(baseDir: string, action: () => T): T {
+    const lockPath = resolveStateLockFile(baseDir);
+    fs.mkdirSync(baseDir, { recursive: true });
+    const startedAt = Date.now();
+
+    while (true) {
+        try {
+            const lockHandle = fs.openSync(lockPath, 'wx');
+            try {
+                fs.writeFileSync(lockHandle, JSON.stringify({
+                    pid: process.pid,
+                    acquiredAt: new Date().toISOString()
+                }), 'utf8');
+                return action();
+            } finally {
+                try {
+                    fs.closeSync(lockHandle);
+                } catch {
+                    // Best effort cleanup only.
+                }
+                try {
+                    fs.rmSync(lockPath, { force: true });
+                } catch {
+                    // Best effort cleanup only.
+                }
+            }
+        } catch (error) {
+            const code = error instanceof Error && 'code' in error
+                ? (error as NodeJS.ErrnoException).code
+                : undefined;
+            if (code !== 'EEXIST') {
+                throw error;
+            }
+
+            removeStaleStateLock(lockPath);
+            if ((Date.now() - startedAt) >= STATE_LOCK_TIMEOUT_MS) {
+                throw new Error(`Timed out waiting for exclusive access to '${STATE_FILE}'.`);
+            }
+            sleepBlocking(STATE_LOCK_RETRY_MS);
+        }
+    }
+}
+
+function removeStaleStateLock(lockPath: string) {
+    try {
+        const stats = fs.statSync(lockPath);
+        if ((Date.now() - stats.mtimeMs) >= STATE_LOCK_STALE_MS) {
+            fs.rmSync(lockPath, { force: true });
+        }
+    } catch {
+        // Lock may have been released between retries.
+    }
+}
+
+function sleepBlocking(ms: number) {
+    if (LOCK_WAIT_VIEW && typeof Atomics.wait === 'function') {
+        Atomics.wait(LOCK_WAIT_VIEW, 0, 0, ms);
+        return;
+    }
+
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+        // Busy wait only as a fallback if Atomics.wait is unavailable.
+    }
+}
+
 const CHANNEL_HEALTH_STATUSES = new Set<ChannelHealthStatus>(['healthy', 'degraded', 'suppressed', 'recovering', 'failed']);
 const CHANNEL_PROGRESS_STATUSES = new Set<ChannelProgressStatus>(['pending', 'running', 'suppressed', 'stopped', 'completed', 'failed']);
-const SESSION_STATUSES = new Set<SessionStatus>(['idle', 'running', 'paused', 'stopping', 'completed', 'failed']);
+const SESSION_STATUSES = new Set<SessionStatus>(['idle', 'running', 'paused', 'stopping', 'stopped', 'completed', 'failed']);
 const INBOX_MONITOR_STATUSES = new Set<InboxMonitorStatus>(['stopped', 'starting', 'running', 'blocked', 'degraded', 'failed']);
 
 function normalizeSenderState(raw: RawSenderState): {

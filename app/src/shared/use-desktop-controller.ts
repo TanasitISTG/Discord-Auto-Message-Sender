@@ -163,6 +163,7 @@ export function toneFromStatus(status?: SessionSnapshot['status']) {
         case 'running':
             return 'success';
         case 'paused':
+        case 'stopped':
             return 'warning';
         case 'failed':
             return 'danger';
@@ -607,7 +608,7 @@ export function useDesktopController() {
             }
         },
         async stopCurrentSession() {
-            if (!session || ['completed', 'failed'].includes(session.status)) {
+            if (!session || ['completed', 'failed', 'stopped'].includes(session.status)) {
                 showInfoToast('No active session to stop.');
                 return null;
             }
@@ -619,7 +620,7 @@ export function useDesktopController() {
                 pendingLabel: 'Stopping...',
                 tone: 'warning',
                 onConfirm: async () => {
-                    if (!sessionRef.current || ['completed', 'failed'].includes(sessionRef.current.status)) {
+                    if (!sessionRef.current || ['completed', 'failed', 'stopped'].includes(sessionRef.current.status)) {
                         setSurfaceNotice('session', 'warning', 'No active session to stop.');
                         showInfoToast('No active session to stop.');
                         return;
