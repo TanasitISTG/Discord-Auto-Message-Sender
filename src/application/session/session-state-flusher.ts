@@ -39,7 +39,7 @@ export class SessionStateFlusher {
             }
 
             this.stateFlushPending = false;
-            this.stateFlushInFlight = Promise.resolve(this.flush());
+            this.stateFlushInFlight = Promise.resolve().then(() => this.flush());
 
             try {
                 await this.stateFlushInFlight;

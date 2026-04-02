@@ -2,11 +2,12 @@ use super::*;
 
 struct SenderStateLockGuard {
     path: PathBuf,
-    _file: fs::File,
+    file: Option<fs::File>,
 }
 
 impl Drop for SenderStateLockGuard {
     fn drop(&mut self) {
+        drop(self.file.take());
         let _ = fs::remove_file(&self.path);
     }
 }
@@ -57,7 +58,7 @@ fn acquire_sender_state_lock(paths: &RuntimePaths) -> Result<SenderStateLockGuar
                 })?;
                 return Ok(SenderStateLockGuard {
                     path: lock_path,
-                    _file: file,
+                    file: Some(file),
                 });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {

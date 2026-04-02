@@ -2,6 +2,7 @@ import { AppConfig, ChannelPreflightResult, EnvironmentConfig, PreflightResult }
 import { parseAppConfig } from '../../config/schema';
 
 const API_BASE = 'https://discord.com/api/v10';
+export const PREFLIGHT_ACCESS_CONCURRENCY = 4;
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export interface PreflightOptions {
@@ -28,44 +29,59 @@ async function verifyChannelAccess(
     env: Pick<EnvironmentConfig, 'DISCORD_TOKEN'>,
     fetchImpl: FetchImpl,
 ): Promise<ChannelPreflightResult[]> {
-    return Promise.all(
-        config.channels.map(async (channel) => {
-            try {
-                const response = await fetchImpl(`${API_BASE}/channels/${channel.id}`, {
-                    method: 'GET',
-                    headers: {
-                        Authorization: env.DISCORD_TOKEN,
-                        'User-Agent': config.userAgent,
-                        Referer: channel.referrer,
-                    },
-                });
+    const results: ChannelPreflightResult[] = new Array(config.channels.length);
+    let nextIndex = 0;
 
-                if (response.ok) {
-                    return {
-                        channelId: channel.id,
-                        channelName: channel.name,
-                        ok: true,
-                        status: response.status,
-                    };
-                }
+    async function verifyChannel(channel: AppConfig['channels'][number]): Promise<ChannelPreflightResult> {
+        try {
+            const response = await fetchImpl(`${API_BASE}/channels/${channel.id}`, {
+                method: 'GET',
+                headers: {
+                    Authorization: env.DISCORD_TOKEN,
+                    'User-Agent': config.userAgent,
+                    Referer: channel.referrer,
+                },
+            });
 
+            if (response.ok) {
                 return {
                     channelId: channel.id,
                     channelName: channel.name,
-                    ok: false,
-                    reason: summarizeChannelError(response.status),
+                    ok: true,
                     status: response.status,
                 };
-            } catch (error) {
-                return {
-                    channelId: channel.id,
-                    channelName: channel.name,
-                    ok: false,
-                    reason: error instanceof Error ? error.message : String(error),
-                };
             }
-        }),
-    );
+
+            return {
+                channelId: channel.id,
+                channelName: channel.name,
+                ok: false,
+                reason: summarizeChannelError(response.status),
+                status: response.status,
+            };
+        } catch (error) {
+            return {
+                channelId: channel.id,
+                channelName: channel.name,
+                ok: false,
+                reason: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    const workers = Array.from({ length: Math.min(PREFLIGHT_ACCESS_CONCURRENCY, config.channels.length) }, async () => {
+        while (true) {
+            const channelIndex = nextIndex;
+            if (channelIndex >= config.channels.length) {
+                return;
+            }
+            nextIndex += 1;
+            results[channelIndex] = await verifyChannel(config.channels[channelIndex]!);
+        }
+    });
+
+    await Promise.all(workers);
+    return results;
 }
 
 export async function runPreflight(config: AppConfig, options: PreflightOptions = {}): Promise<PreflightResult> {

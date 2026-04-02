@@ -93,6 +93,19 @@ fn open_logs_directory_helper_resolves_the_logs_path() {
     assert!(path_to_string(&paths.logs_dir).ends_with(RUNTIME_LOG_DIR));
 }
 
+#[test]
+fn update_sender_state_record_releases_the_lock_file_after_write() {
+    let paths = temp_runtime_paths("discord-sender-state-lock");
+
+    let state = update_sender_state_record(&paths, |state| {
+        state.schema_version = 1;
+    })
+    .expect("update sender state");
+
+    assert_eq!(state.schema_version, 1);
+    assert!(!sender_state_lock_path(&paths).exists());
+}
+
 #[cfg(target_os = "windows")]
 #[test]
 fn clear_secure_token_files_removes_secure_store_and_scrubs_env() {
