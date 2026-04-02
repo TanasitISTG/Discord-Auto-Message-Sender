@@ -1,7 +1,1 @@
-export {
-    createConsoleSink,
-    createFileSink,
-    createStructuredLogger,
-    defaultLogger,
-    emitLog
-} from '../utils/logger';
+export { createConsoleSink, createFileSink, createStructuredLogger, defaultLogger, emitLog } from '../utils/logger';

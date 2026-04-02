@@ -7,7 +7,7 @@ import {
     DesktopRpcRequest,
     DesktopRpcResponse,
     DesktopRpcSuccessResponse,
-    SidecarCommandName
+    SidecarCommandName,
 } from './contracts';
 import { DesktopRuntime } from './runtime';
 
@@ -23,14 +23,14 @@ function writeMessage(message: DesktopRpcResponse | DesktopEventMessage) {
 function emitEvent(event: DesktopEvent) {
     writeMessage({
         type: 'event',
-        event
+        event,
     });
 }
 
 async function main() {
     const runtime = new DesktopRuntime({
         baseDir: getArg('--base-dir') ?? process.cwd(),
-        emitEvent
+        emitEvent,
     });
     const handlers = createDesktopHandlers();
 
@@ -38,7 +38,7 @@ async function main() {
 
     const reader = readline.createInterface({
         input: process.stdin,
-        crlfDelay: Infinity
+        crlfDelay: Infinity,
     });
 
     let requestQueue = Promise.resolve();
@@ -57,7 +57,7 @@ async function main() {
                 type: 'response',
                 id: 'invalid',
                 ok: false,
-                error: error instanceof Error ? error.message : String(error)
+                error: error instanceof Error ? error.message : String(error),
             };
             writeMessage(response);
             return;
@@ -73,22 +73,22 @@ async function main() {
                 throw new Error(`Unsupported desktop command '${request.command}'.`);
             }
 
-            const result = await (handler as (
-                runtime: DesktopRuntime,
-                payload: unknown
-            ) => Promise<unknown>)(runtime, request.payload);
+            const result = await (handler as (runtime: DesktopRuntime, payload: unknown) => Promise<unknown>)(
+                runtime,
+                request.payload,
+            );
             writeMessage({
                 type: 'response',
                 id: request.id,
                 ok: true,
-                result
+                result,
             } as DesktopRpcSuccessResponse);
         } catch (error) {
             writeMessage({
                 type: 'response',
                 id: request.id,
                 ok: false,
-                error: error instanceof Error ? error.message : String(error)
+                error: error instanceof Error ? error.message : String(error),
             });
         }
     };
@@ -100,7 +100,7 @@ async function main() {
                 emitEvent({
                     type: 'sidecar_error',
                     status: 'failed',
-                    message: error instanceof Error ? error.message : String(error)
+                    message: error instanceof Error ? error.message : String(error),
                 });
             });
     });
@@ -110,7 +110,7 @@ main().catch((error) => {
     emitEvent({
         type: 'sidecar_error',
         status: 'failed',
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
     });
     process.exitCode = 1;
 });

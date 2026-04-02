@@ -1,25 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSenderCoordinator, getQuietHoursDelayMs, getSuppressionDelayMs, pickNextMessage, runChannel, sendDiscordMessage } from '../../src/core/sender';
+import {
+    createSenderCoordinator,
+    getQuietHoursDelayMs,
+    getSuppressionDelayMs,
+    pickNextMessage,
+    runChannel,
+    sendDiscordMessage,
+} from '../../src/core/sender';
 import { AppChannel } from '../../src/types';
 
 const channel: AppChannel = {
     name: 'general',
     id: '123456789012345678',
     referrer: 'https://discord.com/channels/@me/123456789012345678',
-    messageGroup: 'default'
+    messageGroup: 'default',
 };
 
 function createResponse(status: number, body: unknown): Response {
     return new Response(body === undefined ? undefined : JSON.stringify(body), {
         status,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }
 
 test('sendDiscordMessage returns wait outcome for 429 responses', async () => {
     const result = await sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
-        fetchImpl: async () => createResponse(429, { retry_after: 1.25 })
+        fetchImpl: async () => createResponse(429, { retry_after: 1.25 }),
     });
 
     assert.deepEqual(result, { type: 'wait', waitSeconds: 1.25 });
@@ -29,12 +36,12 @@ test('sendDiscordMessage stops immediately on fatal HTTP status codes', async ()
     const expectedReasons = new Map([
         [401, 'unauthorized'],
         [403, 'forbidden'],
-        [404, 'not_found']
+        [404, 'not_found'],
     ]);
 
     for (const status of [401, 403, 404] as const) {
         const result = await sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
-            fetchImpl: async () => createResponse(status, { code: status })
+            fetchImpl: async () => createResponse(status, { code: status }),
         });
 
         assert.deepEqual(result, { type: 'fatal', reason: expectedReasons.get(status) });
@@ -53,7 +60,7 @@ test('sendDiscordMessage retries transient network failures up to the attempt li
         sleep: async (ms) => {
             sleepCalls.push(ms);
         },
-        random: () => 0
+        random: () => 0,
     });
 
     assert.deepEqual(result, { type: 'fatal', reason: 'exhausted' });
@@ -70,20 +77,26 @@ test('sendDiscordMessage aborts later sends after a shared 401 response', async 
         fetchImpl: async () => {
             attempts += 1;
             return createResponse(401, { code: 401 });
-        }
+        },
     });
 
-    const abortedResult = await sendDiscordMessage({
-        ...channel,
-        id: '223456789012345678',
-        referrer: 'https://discord.com/channels/@me/223456789012345678'
-    }, 'Hello again!', 'token', 'UA', {
-        coordinator,
-        fetchImpl: async () => {
-            attempts += 1;
-            return createResponse(200, {});
-        }
-    });
+    const abortedResult = await sendDiscordMessage(
+        {
+            ...channel,
+            id: '223456789012345678',
+            referrer: 'https://discord.com/channels/@me/223456789012345678',
+        },
+        'Hello again!',
+        'token',
+        'UA',
+        {
+            coordinator,
+            fetchImpl: async () => {
+                attempts += 1;
+                return createResponse(200, {});
+            },
+        },
+    );
 
     assert.deepEqual(unauthorizedResult, { type: 'fatal', reason: 'unauthorized' });
     assert.deepEqual(abortedResult, { type: 'fatal', reason: 'aborted' });
@@ -118,11 +131,17 @@ test('shared sender coordinator serializes concurrent requests across channels',
 
     await Promise.all([
         sendDiscordMessage(channel, 'Hello!', 'token', 'UA', { coordinator, fetchImpl }),
-        sendDiscordMessage({
-            ...channel,
-            id: '323456789012345678',
-            referrer: 'https://discord.com/channels/@me/323456789012345678'
-        }, 'Hello again!', 'token', 'UA', { coordinator, fetchImpl })
+        sendDiscordMessage(
+            {
+                ...channel,
+                id: '323456789012345678',
+                referrer: 'https://discord.com/channels/@me/323456789012345678',
+            },
+            'Hello again!',
+            'token',
+            'UA',
+            { coordinator, fetchImpl },
+        ),
     ]);
 
     assert.equal(maxConcurrentRequests, 1);
@@ -150,69 +169,86 @@ test('shared sender coordinator preserves the minimum interval even when request
 
         await Promise.allSettled([
             coordinator.scheduleRequest(sleep, failingTask),
-            coordinator.scheduleRequest(sleep, failingTask)
+            coordinator.scheduleRequest(sleep, failingTask),
         ]);
     } finally {
         Date.now = originalDateNow;
     }
 
     assert.deepEqual(sleepCalls, [250, 250, 250, 250]);
-    assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1000);
+    assert.equal(
+        sleepCalls.reduce((total, value) => total + value, 0),
+        1000,
+    );
     assert.deepEqual(startTimes, [0, 1000]);
 });
 
-test('sendDiscordMessage times out hung requests so the shared coordinator queue can keep moving', { timeout: 2000 }, async () => {
-    const coordinator = createSenderCoordinator(0);
-    const callOrder: string[] = [];
+test(
+    'sendDiscordMessage times out hung requests so the shared coordinator queue can keep moving',
+    { timeout: 2000 },
+    async () => {
+        const coordinator = createSenderCoordinator(0);
+        const callOrder: string[] = [];
 
-    const firstSend = sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
-        coordinator,
-        requestTimeoutMs: 5,
-        sleep: async () => {},
-        random: () => 0,
-        fetchImpl: async (url, init) => {
-            const signal = init?.signal;
-            if (String(url).includes(channel.id)) {
-                callOrder.push('first');
-                return await new Promise<Response>((resolve, reject) => {
-                    signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), { once: true });
-                });
-            }
+        const firstSend = sendDiscordMessage(channel, 'Hello!', 'token', 'UA', {
+            coordinator,
+            requestTimeoutMs: 5,
+            sleep: async () => {},
+            random: () => 0,
+            fetchImpl: async (url, init) => {
+                const signal = init?.signal;
+                if (String(url).includes(channel.id)) {
+                    callOrder.push('first');
+                    return await new Promise<Response>((resolve, reject) => {
+                        signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), {
+                            once: true,
+                        });
+                    });
+                }
 
-            callOrder.push('second');
-            return createResponse(200, {});
-        }
-    });
+                callOrder.push('second');
+                return createResponse(200, {});
+            },
+        });
 
-    const secondSend = sendDiscordMessage({
-        ...channel,
-        id: '423456789012345678',
-        referrer: 'https://discord.com/channels/@me/423456789012345678'
-    }, 'Hello again!', 'token', 'UA', {
-        coordinator,
-        requestTimeoutMs: 5,
-        sleep: async () => {},
-        random: () => 0,
-        fetchImpl: async (url, init) => {
-            const signal = init?.signal;
-            if (String(url).includes(channel.id)) {
-                callOrder.push('first');
-                return await new Promise<Response>((resolve, reject) => {
-                    signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), { once: true });
-                });
-            }
+        const secondSend = sendDiscordMessage(
+            {
+                ...channel,
+                id: '423456789012345678',
+                referrer: 'https://discord.com/channels/@me/423456789012345678',
+            },
+            'Hello again!',
+            'token',
+            'UA',
+            {
+                coordinator,
+                requestTimeoutMs: 5,
+                sleep: async () => {},
+                random: () => 0,
+                fetchImpl: async (url, init) => {
+                    const signal = init?.signal;
+                    if (String(url).includes(channel.id)) {
+                        callOrder.push('first');
+                        return await new Promise<Response>((resolve, reject) => {
+                            signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), {
+                                once: true,
+                            });
+                        });
+                    }
 
-            callOrder.push('second');
-            return createResponse(200, {});
-        }
-    });
+                    callOrder.push('second');
+                    return createResponse(200, {});
+                },
+            },
+        );
 
-    const [firstResult, secondResult] = await Promise.all([firstSend, secondSend]);
+        const [firstResult, secondResult] = await Promise.all([firstSend, secondSend]);
 
-    assert.deepEqual(firstResult, { type: 'fatal', reason: 'exhausted' });
-    assert.deepEqual(secondResult, { type: 'success' });
-    assert.ok(callOrder.includes('second'));
-});
+        assert.deepEqual(firstResult, { type: 'fatal', reason: 'exhausted' });
+        assert.deepEqual(secondResult, { type: 'success' });
+        assert.ok(callOrder.includes('second'));
+    },
+);
 
 test('sendDiscordMessage aborts an in-flight request when the shared coordinator stops', async () => {
     const coordinator = createSenderCoordinator(0);
@@ -225,9 +261,11 @@ test('sendDiscordMessage aborts an in-flight request when the shared coordinator
         fetchImpl: async (_url, init) => {
             started = true;
             return await new Promise<Response>((_, reject) => {
-                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+                init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+                    once: true,
+                });
             });
-        }
+        },
     });
 
     while (!started) {
@@ -251,7 +289,7 @@ test('runChannel resets the daily cap after the configured timezone crosses midn
         sentToday: 1,
         sentTodayDayKey: '2026-03-21',
         consecutiveRateLimits: 0,
-        lastSentAt: '2026-03-21T23:59:00.000Z'
+        lastSentAt: '2026-03-21T23:59:00.000Z',
     };
 
     await runChannel({
@@ -261,8 +299,8 @@ test('runChannel resets the daily cap after the configured timezone crosses midn
                 intervalSeconds: 2,
                 randomMarginSeconds: 0,
                 timezone: 'UTC',
-                maxSendsPerDay: 1
-            }
+                maxSendsPerDay: 1,
+            },
         },
         numMessages: 2,
         baseWaitSeconds: 2,
@@ -270,7 +308,7 @@ test('runChannel resets the daily cap after the configured timezone crosses midn
         token: 'token',
         userAgent: 'UA',
         messageGroups: {
-            default: ['Hello!']
+            default: ['Hello!'],
         },
         resumeProgress,
         fetchImpl: async () => {
@@ -281,7 +319,7 @@ test('runChannel resets the daily cap after the configured timezone crosses midn
             now += ms;
         },
         now: () => new Date(now),
-        random: () => 0
+        random: () => 0,
     });
 
     assert.equal(sends, 1);
@@ -301,8 +339,8 @@ test('runChannel counts a post-midnight retry against the new day before enforci
                 intervalSeconds: 1,
                 randomMarginSeconds: 0,
                 timezone: 'UTC',
-                maxSendsPerDay: 1
-            }
+                maxSendsPerDay: 1,
+            },
         },
         numMessages: 2,
         baseWaitSeconds: 1,
@@ -310,7 +348,7 @@ test('runChannel counts a post-midnight retry against the new day before enforci
         token: 'token',
         userAgent: 'UA',
         messageGroups: {
-            default: ['Hello!']
+            default: ['Hello!'],
         },
         fetchImpl: async () => {
             attempts += 1;
@@ -325,7 +363,7 @@ test('runChannel counts a post-midnight retry against the new day before enforci
             now += ms;
         },
         now: () => new Date(now),
-        random: () => 0
+        random: () => 0,
     });
 
     assert.equal(successfulSends, 1);
@@ -385,46 +423,47 @@ test('pickNextMessage preserves duplicate weighting among remaining unsent messa
 test('pickNextMessage filters recent history using raw template keys', () => {
     const sentCache = new Set<string>();
 
-    const next = pickNextMessage(
-        ['Hello {channel}', 'Backup'],
-        sentCache,
-        () => 0,
-        ['Hello {channel}']
-    );
+    const next = pickNextMessage(['Hello {channel}', 'Backup'], sentCache, () => 0, ['Hello {channel}']);
 
     assert.equal(next, 'Backup');
 });
 
 test('getQuietHoursDelayMs returns remaining quiet-time for same-day windows', () => {
-    const delayMs = getQuietHoursDelayMs({
-        ...channel,
-        schedule: {
-            intervalSeconds: 5,
-            randomMarginSeconds: 0,
-            timezone: 'UTC',
-            quietHours: {
-                start: '09:00',
-                end: '17:00'
-            }
-        }
-    }, new Date('2026-03-21T10:15:00.000Z'));
+    const delayMs = getQuietHoursDelayMs(
+        {
+            ...channel,
+            schedule: {
+                intervalSeconds: 5,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                quietHours: {
+                    start: '09:00',
+                    end: '17:00',
+                },
+            },
+        },
+        new Date('2026-03-21T10:15:00.000Z'),
+    );
 
     assert.equal(delayMs, 24_300_000);
 });
 
 test('getQuietHoursDelayMs returns remaining quiet-time for overnight windows', () => {
-    const delayMs = getQuietHoursDelayMs({
-        ...channel,
-        schedule: {
-            intervalSeconds: 5,
-            randomMarginSeconds: 0,
-            timezone: 'UTC',
-            quietHours: {
-                start: '22:00',
-                end: '06:00'
-            }
-        }
-    }, new Date('2026-03-21T23:30:00.000Z'));
+    const delayMs = getQuietHoursDelayMs(
+        {
+            ...channel,
+            schedule: {
+                intervalSeconds: 5,
+                randomMarginSeconds: 0,
+                timezone: 'UTC',
+                quietHours: {
+                    start: '22:00',
+                    end: '06:00',
+                },
+            },
+        },
+        new Date('2026-03-21T23:30:00.000Z'),
+    );
 
     assert.equal(delayMs, 23_400_000);
 });
@@ -443,9 +482,9 @@ test('runChannel waits out quiet hours before sending', async () => {
                 timezone: 'UTC',
                 quietHours: {
                     start: '09:00',
-                    end: '17:00'
-                }
-            }
+                    end: '17:00',
+                },
+            },
         },
         numMessages: 1,
         baseWaitSeconds: 0,
@@ -453,7 +492,7 @@ test('runChannel waits out quiet hours before sending', async () => {
         token: 'token',
         userAgent: 'UA',
         messageGroups: {
-            default: ['Hello!']
+            default: ['Hello!'],
         },
         fetchImpl: async () => {
             sends += 1;
@@ -464,7 +503,7 @@ test('runChannel waits out quiet hours before sending', async () => {
             now += ms;
         },
         now: () => new Date(now),
-        random: () => 0
+        random: () => 0,
     });
 
     assert.equal(sends, 1);
@@ -483,7 +522,7 @@ test('runChannel stops exactly at the finite message count without an extra wait
         token: 'token',
         userAgent: 'UA',
         messageGroups: {
-            default: ['Hello!']
+            default: ['Hello!'],
         },
         fetchImpl: async () => {
             sends += 1;
@@ -492,7 +531,7 @@ test('runChannel stops exactly at the finite message count without an extra wait
         sleep: async (ms) => {
             sleepCalls.push(ms);
         },
-        random: () => 0
+        random: () => 0,
     });
 
     assert.equal(sends, 1);
@@ -513,7 +552,7 @@ test('runChannel suppresses a channel after repeated consecutive rate limits and
         token: 'token',
         userAgent: 'UA',
         messageGroups: {
-            default: ['Hello!']
+            default: ['Hello!'],
         },
         maxRateLimitWaits: 2,
         fetchImpl: async () => {
@@ -538,12 +577,15 @@ test('runChannel suppresses a channel after repeated consecutive rate limits and
             },
             onChannelRecovered: () => {
                 recovered += 1;
-            }
-        }
+            },
+        },
     });
 
     assert.equal(sends, 4);
     assert.equal(suppressed.length, 1);
     assert.equal(recovered, 1);
-    assert.equal(sleepCalls.reduce((total, value) => total + value, 0), 1500 + 1500 + getSuppressionDelayMs(1, 3));
+    assert.equal(
+        sleepCalls.reduce((total, value) => total + value, 0),
+        1500 + 1500 + getSuppressionDelayMs(1, 3),
+    );
 });

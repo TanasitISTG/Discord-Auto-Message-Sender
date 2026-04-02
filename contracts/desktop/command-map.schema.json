@@ -9,23 +9,17 @@
         {
             "kind": "interface",
             "name": "RunPreflightRequest",
-            "fields": [
-                { "name": "token", "type": "string", "optional": true }
-            ]
+            "fields": [{ "name": "token", "type": "string", "optional": true }]
         },
         {
             "kind": "interface",
             "name": "SaveConfigRequest",
-            "fields": [
-                { "name": "config", "type": "AppConfig" }
-            ]
+            "fields": [{ "name": "config", "type": "AppConfig" }]
         },
         {
             "kind": "interface",
             "name": "RunDryRunRequest",
-            "fields": [
-                { "name": "runtime", "type": "RuntimeOptions" }
-            ]
+            "fields": [{ "name": "runtime", "type": "RuntimeOptions" }]
         },
         {
             "kind": "interface",
@@ -49,51 +43,37 @@
         {
             "kind": "interface",
             "name": "LoadLogsRequest",
-            "fields": [
-                { "name": "sessionId", "type": "string" }
-            ]
+            "fields": [{ "name": "sessionId", "type": "string" }]
         },
         {
             "kind": "interface",
             "name": "OpenLogFileRequest",
-            "fields": [
-                { "name": "sessionId", "type": "string" }
-            ]
+            "fields": [{ "name": "sessionId", "type": "string" }]
         },
         {
             "kind": "interface",
             "name": "SaveEnvironmentRequest",
-            "fields": [
-                { "name": "discordToken", "type": "string" }
-            ]
+            "fields": [{ "name": "discordToken", "type": "string" }]
         },
         {
             "kind": "interface",
             "name": "SaveInboxMonitorSettingsRequest",
-            "fields": [
-                { "name": "settings", "type": "InboxMonitorSettings" }
-            ]
+            "fields": [{ "name": "settings", "type": "InboxMonitorSettings" }]
         },
         {
             "kind": "interface",
             "name": "StartInboxMonitorRequest",
-            "fields": [
-                { "name": "token", "type": "string", "optional": true }
-            ]
+            "fields": [{ "name": "token", "type": "string", "optional": true }]
         },
         {
             "kind": "interface",
             "name": "SaveNotificationDeliverySettingsRequest",
-            "fields": [
-                { "name": "settings", "type": "NotificationDeliverySettings" }
-            ]
+            "fields": [{ "name": "settings", "type": "NotificationDeliverySettings" }]
         },
         {
             "kind": "interface",
             "name": "SaveTelegramBotTokenRequest",
-            "fields": [
-                { "name": "botToken", "type": "string" }
-            ]
+            "fields": [{ "name": "botToken", "type": "string" }]
         }
     ],
     "commands": [
@@ -112,14 +92,34 @@
         { "name": "save_environment", "request": "SaveEnvironmentRequest", "response": "DesktopSetupState" },
         { "name": "clear_secure_token", "request": "EmptyRequest", "response": "DesktopSetupState" },
         { "name": "load_inbox_monitor_settings", "request": "EmptyRequest", "response": "InboxMonitorSettings" },
-        { "name": "save_inbox_monitor_settings", "request": "SaveInboxMonitorSettingsRequest", "response": "InboxMonitorSnapshot" },
+        {
+            "name": "save_inbox_monitor_settings",
+            "request": "SaveInboxMonitorSettingsRequest",
+            "response": "InboxMonitorSnapshot"
+        },
         { "name": "get_inbox_monitor_state", "request": "EmptyRequest", "response": "InboxMonitorState" },
         { "name": "start_inbox_monitor", "request": "StartInboxMonitorRequest", "response": "InboxMonitorState" },
         { "name": "stop_inbox_monitor", "request": "EmptyRequest", "response": "InboxMonitorState" },
-        { "name": "load_notification_delivery_settings", "request": "EmptyRequest", "response": "NotificationDeliverySettings" },
-        { "name": "save_notification_delivery_settings", "request": "SaveNotificationDeliverySettingsRequest", "response": "NotificationDeliverySnapshot" },
-        { "name": "get_notification_delivery_state", "request": "EmptyRequest", "response": "NotificationDeliverySnapshot" },
-        { "name": "save_telegram_bot_token", "request": "SaveTelegramBotTokenRequest", "response": "NotificationDeliverySnapshot" },
+        {
+            "name": "load_notification_delivery_settings",
+            "request": "EmptyRequest",
+            "response": "NotificationDeliverySettings"
+        },
+        {
+            "name": "save_notification_delivery_settings",
+            "request": "SaveNotificationDeliverySettingsRequest",
+            "response": "NotificationDeliverySnapshot"
+        },
+        {
+            "name": "get_notification_delivery_state",
+            "request": "EmptyRequest",
+            "response": "NotificationDeliverySnapshot"
+        },
+        {
+            "name": "save_telegram_bot_token",
+            "request": "SaveTelegramBotTokenRequest",
+            "response": "NotificationDeliverySnapshot"
+        },
         { "name": "clear_telegram_bot_token", "request": "EmptyRequest", "response": "NotificationDeliverySnapshot" },
         { "name": "detect_telegram_chat", "request": "EmptyRequest", "response": "TelegramChatDetectionResult" },
         { "name": "send_test_telegram_notification", "request": "EmptyRequest", "response": "TelegramTestResult" },

@@ -2,7 +2,7 @@ export function pickNextMessage(
     messages: string[],
     sentCache: Set<string>,
     random: () => number = Math.random,
-    recentHistory: string[] = []
+    recentHistory: string[] = [],
 ): string {
     if (messages.length === 0) {
         throw new Error('Cannot pick a message from an empty group.');

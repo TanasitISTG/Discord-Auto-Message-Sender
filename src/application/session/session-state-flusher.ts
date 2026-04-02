@@ -5,7 +5,7 @@ export class SessionStateFlusher {
 
     constructor(
         private readonly debounceMs: number,
-        private readonly flush: () => void | Promise<void>
+        private readonly flush: () => void | Promise<void>,
     ) {}
 
     schedule() {

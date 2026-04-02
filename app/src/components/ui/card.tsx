@@ -2,7 +2,15 @@ import * as React from 'react';
 import { cn } from '@/lib/cn';
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-    return <div className={cn('relative min-w-0 rounded-2xl border border-border/50 bg-card/80 shadow-glow-lg backdrop-blur-md before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:shadow-inner-glow', className)} {...props} />;
+    return (
+        <div
+            className={cn(
+                'relative min-w-0 rounded-2xl border border-border/50 bg-card/80 shadow-glow-lg backdrop-blur-md before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:shadow-inner-glow',
+                className,
+            )}
+            {...props}
+        />
+    );
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -10,7 +18,12 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-    return <h3 className={cn('text-xs font-semibold uppercase tracking-[0.1em] text-foreground/90', className)} {...props} />;
+    return (
+        <h3
+            className={cn('text-xs font-semibold uppercase tracking-[0.1em] text-foreground/90', className)}
+            {...props}
+        />
+    );
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {

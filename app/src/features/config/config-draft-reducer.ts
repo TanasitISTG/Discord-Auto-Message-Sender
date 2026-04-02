@@ -24,20 +24,30 @@ function syncSelection(
     state: Omit<ConfigDraftState, 'config'>,
     config: AppConfig,
     selectedChannelId?: string | null,
-    selectedGroupName?: string
+    selectedGroupName?: string,
 ): ConfigDraftState {
-    const nextChannelId = selectedChannelId === undefined
-        ? (config.channels.find((channel) => channel.id === state.selectedChannelId)?.id ?? config.channels[0]?.id ?? null)
-        : (config.channels.find((channel) => channel.id === selectedChannelId)?.id ?? config.channels[0]?.id ?? null);
-    const nextGroupName = selectedGroupName === undefined
-        ? (config.messageGroups[state.selectedGroupName] ? state.selectedGroupName : Object.keys(config.messageGroups)[0] ?? 'default')
-        : (config.messageGroups[selectedGroupName] ? selectedGroupName : Object.keys(config.messageGroups)[0] ?? 'default');
+    const nextChannelId =
+        selectedChannelId === undefined
+            ? (config.channels.find((channel) => channel.id === state.selectedChannelId)?.id ??
+              config.channels[0]?.id ??
+              null)
+            : (config.channels.find((channel) => channel.id === selectedChannelId)?.id ??
+              config.channels[0]?.id ??
+              null);
+    const nextGroupName =
+        selectedGroupName === undefined
+            ? config.messageGroups[state.selectedGroupName]
+                ? state.selectedGroupName
+                : (Object.keys(config.messageGroups)[0] ?? 'default')
+            : config.messageGroups[selectedGroupName]
+              ? selectedGroupName
+              : (Object.keys(config.messageGroups)[0] ?? 'default');
 
     return {
         ...state,
         config,
         selectedChannelId: nextChannelId,
-        selectedGroupName: nextGroupName
+        selectedGroupName: nextGroupName,
     };
 }
 
@@ -49,7 +59,7 @@ export function createInitialConfigDraftState(config: AppConfig): ConfigDraftSta
         newGroupName: '',
         cloneGroupName: '',
         importDraft: '',
-        importPreview: null
+        importPreview: null,
     };
 }
 
@@ -58,47 +68,47 @@ export function configDraftReducer(state: ConfigDraftState, action: ConfigDraftA
         case 'hydrate':
             return {
                 ...createInitialConfigDraftState(action.config),
-                importDraft: state.importDraft
+                importDraft: state.importDraft,
             };
         case 'replace_config':
             return syncSelection(
                 {
                     ...state,
-                    importPreview: null
+                    importPreview: null,
                 },
                 action.config,
                 action.selectedChannelId,
-                action.selectedGroupName
+                action.selectedGroupName,
             );
         case 'set_selected_channel':
             return {
                 ...state,
-                selectedChannelId: action.channelId
+                selectedChannelId: action.channelId,
             };
         case 'set_selected_group':
             return {
                 ...state,
-                selectedGroupName: action.groupName
+                selectedGroupName: action.groupName,
             };
         case 'set_new_group_name':
             return {
                 ...state,
-                newGroupName: action.value
+                newGroupName: action.value,
             };
         case 'set_clone_group_name':
             return {
                 ...state,
-                cloneGroupName: action.value
+                cloneGroupName: action.value,
             };
         case 'set_import_draft':
             return {
                 ...state,
-                importDraft: action.value
+                importDraft: action.value,
             };
         case 'set_import_preview':
             return {
                 ...state,
-                importPreview: action.value
+                importPreview: action.value,
             };
         default:
             return state;

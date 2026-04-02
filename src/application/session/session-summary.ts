@@ -23,7 +23,7 @@ export function buildSessionSummary(config: AppConfig, state: SessionState): Ses
                 status: createOutcomeStatus(record),
                 sentMessages: record.sentMessages,
                 lastError: record.lastError,
-                suppressedUntil: record.suppressedUntil
-            }))
+                suppressedUntil: record.suppressedUntil,
+            })),
     };
 }

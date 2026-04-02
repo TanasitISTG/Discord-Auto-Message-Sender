@@ -5,6 +5,6 @@ import type { SessionActionOptions } from './session-action-types';
 export function useSessionActions(options: SessionActionOptions) {
     return {
         ...createSessionLifecycleActions(options),
-        ...createSessionLogActions(options)
+        ...createSessionLogActions(options),
     };
 }

@@ -5,7 +5,7 @@ import type {
     NotificationDeliverySnapshot,
     InboxMonitorState,
     InboxNotificationItem,
-    TelegramState
+    TelegramState,
 } from '../notifications/types';
 
 export interface AdaptivePacingState {
@@ -49,14 +49,7 @@ export interface ChannelProgressRecord {
     suppressedUntil?: string;
 }
 
-export type SessionStatus =
-    | 'idle'
-    | 'running'
-    | 'paused'
-    | 'stopping'
-    | 'stopped'
-    | 'completed'
-    | 'failed';
+export type SessionStatus = 'idle' | 'running' | 'paused' | 'stopping' | 'stopped' | 'completed' | 'failed';
 
 export interface SessionChannelOutcome {
     channelId: string;
@@ -177,8 +170,17 @@ export type AppEvent =
     | { type: 'session_paused'; state: SessionState }
     | { type: 'session_resumed'; state: SessionState }
     | { type: 'session_stopping'; state: SessionState }
-    | { type: 'channel_state_changed'; state: SessionState; channelId: string; phase: 'started' | 'stopped' | 'completed' | 'failed' }
-    | { type: 'session_state_updated'; state: SessionState; reason: 'message_sent' | 'pacing_changed' | 'health_changed' | 'checkpoint_restored' }
+    | {
+          type: 'channel_state_changed';
+          state: SessionState;
+          channelId: string;
+          phase: 'started' | 'stopped' | 'completed' | 'failed';
+      }
+    | {
+          type: 'session_state_updated';
+          state: SessionState;
+          reason: 'message_sent' | 'pacing_changed' | 'health_changed' | 'checkpoint_restored';
+      }
     | { type: 'log_event_emitted'; entry: LogEntry }
     | { type: 'summary_ready'; summary: SessionSummary; state: SessionState }
     | { type: 'preflight_result_emitted'; result: PreflightResult }

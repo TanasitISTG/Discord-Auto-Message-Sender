@@ -32,24 +32,39 @@ fn copy_file_if_missing(source: &Path, destination: &Path) -> Result<(), String>
             .map_err(|error| format!("Failed to prepare migrated file destination: {error}"))?;
     }
 
-    fs::copy(source, destination)
-        .map_err(|error| format!("Failed to migrate '{}' to '{}': {error}", source.display(), destination.display()))?;
+    fs::copy(source, destination).map_err(|error| {
+        format!(
+            "Failed to migrate '{}' to '{}': {error}",
+            source.display(),
+            destination.display()
+        )
+    })?;
     Ok(())
 }
 
-fn copy_directory_contents_if_missing(source_dir: &Path, destination_dir: &Path) -> Result<(), String> {
+fn copy_directory_contents_if_missing(
+    source_dir: &Path,
+    destination_dir: &Path,
+) -> Result<(), String> {
     if !source_dir.exists() {
         return Ok(());
     }
 
-    fs::create_dir_all(destination_dir)
-        .map_err(|error| format!("Failed to prepare migrated directory '{}': {error}", destination_dir.display()))?;
+    fs::create_dir_all(destination_dir).map_err(|error| {
+        format!(
+            "Failed to prepare migrated directory '{}': {error}",
+            destination_dir.display()
+        )
+    })?;
 
-    for entry in fs::read_dir(source_dir)
-        .map_err(|error| format!("Failed to read legacy directory '{}': {error}", source_dir.display()))?
-    {
-        let entry = entry
-            .map_err(|error| format!("Failed to read a legacy directory entry: {error}"))?;
+    for entry in fs::read_dir(source_dir).map_err(|error| {
+        format!(
+            "Failed to read legacy directory '{}': {error}",
+            source_dir.display()
+        )
+    })? {
+        let entry =
+            entry.map_err(|error| format!("Failed to read a legacy directory entry: {error}"))?;
         let source_path = entry.path();
         let destination_path = destination_dir.join(entry.file_name());
 
@@ -89,7 +104,10 @@ pub(crate) fn migrate_plaintext_token_to_secure_store(app: &AppHandle) -> Result
     migrate_plaintext_token_to_secure_store_at_paths(&paths, &legacy_runtime_roots())
 }
 
-pub(crate) fn migrate_plaintext_token_to_secure_store_at_paths(paths: &RuntimePaths, legacy_roots: &[PathBuf]) -> Result<(), String> {
+pub(crate) fn migrate_plaintext_token_to_secure_store_at_paths(
+    paths: &RuntimePaths,
+    legacy_roots: &[PathBuf],
+) -> Result<(), String> {
     let data_env_path = environment_path(&paths);
     let secure_token = read_secure_token(&paths).ok().flatten();
 

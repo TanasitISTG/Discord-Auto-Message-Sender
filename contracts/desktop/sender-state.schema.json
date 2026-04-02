@@ -119,7 +119,12 @@
             "fields": [
                 { "name": "channelId", "type": "string" },
                 { "name": "channelName", "type": "string" },
-                { "name": "status", "type": "string", "tsType": "'completed' | 'failed' | 'suppressed'", "rustType": "String" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "tsType": "'completed' | 'failed' | 'suppressed'",
+                    "rustType": "String"
+                },
                 { "name": "sentMessages", "type": "integer" },
                 { "name": "lastError", "type": "string", "optional": true },
                 { "name": "suppressedUntil", "type": "string", "optional": true }

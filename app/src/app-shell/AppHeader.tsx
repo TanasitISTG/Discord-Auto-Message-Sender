@@ -21,34 +21,52 @@ export function AppHeader({ screen, controller, onSelectScreen }: AppHeaderProps
                 <div className="hidden h-4 w-px bg-border/60 sm:block" />
 
                 <div className="hidden items-center gap-2 sm:flex">
-                    <Badge tone={toneFromStatus(controller.session?.status)}>{controller.session?.status ?? 'idle'}</Badge>
+                    <Badge tone={toneFromStatus(controller.session?.status)}>
+                        {controller.session?.status ?? 'idle'}
+                    </Badge>
                     <Badge
                         tone={
-                            controller.appReadiness.token.status === 'missing' || controller.appReadiness.token.status === 'corrupted'
+                            controller.appReadiness.token.status === 'missing' ||
+                            controller.appReadiness.token.status === 'corrupted'
                                 ? 'danger'
                                 : 'success'
                         }
                     >
                         token {controller.appReadiness.token.label}
                     </Badge>
-                    <Badge tone={controller.appReadiness.config.status === 'invalid' || controller.appReadiness.config.status === 'missing' ? 'warning' : 'success'}>
+                    <Badge
+                        tone={
+                            controller.appReadiness.config.status === 'invalid' ||
+                            controller.appReadiness.config.status === 'missing'
+                                ? 'warning'
+                                : 'success'
+                        }
+                    >
                         config {controller.appReadiness.config.status}
                     </Badge>
                 </div>
             </div>
 
             <div className="flex items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={async () => {
-                    await controller.runDryRunCommand();
-                    onSelectScreen('preview');
-                }}>
+                <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                        await controller.runDryRunCommand();
+                        onSelectScreen('preview');
+                    }}
+                >
                     <Shuffle className="mr-2 h-3.5 w-3.5" />
                     Dry Run
                 </Button>
-                <Button size="sm" variant="secondary" onClick={async () => {
-                    await controller.runPreflightCommand();
-                    onSelectScreen('session');
-                }}>
+                <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                        await controller.runPreflightCommand();
+                        onSelectScreen('session');
+                    }}
+                >
                     <TimerReset className="mr-2 h-3.5 w-3.5" />
                     Preflight
                 </Button>

@@ -46,7 +46,7 @@ export function ConfigScreen({
     onRunPreflight,
     onOpenSession,
     onSaveConfig,
-    onPreviewDryRun
+    onPreviewDryRun,
 }: ConfigScreenProps) {
     const [showToken, setShowToken] = useState(false);
     const [showRuntimePaths, setShowRuntimePaths] = useState(false);
@@ -66,36 +66,36 @@ export function ConfigScreen({
 
             <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
                 <div className="space-y-4">
-                <DesktopSetupCard
-                    setup={setup}
-                    tokenStatus={tokenStatus}
-                    environmentDraft={environmentDraft}
-                    showToken={showToken}
-                    showRuntimePaths={showRuntimePaths}
-                    onToggleToken={() => setShowToken((current) => !current)}
-                    onToggleRuntimePaths={() => setShowRuntimePaths((current) => !current)}
-                    onEnvironmentDraftChange={onEnvironmentDraftChange}
-                    onSaveEnvironment={onSaveEnvironment}
-                    onClearSecureToken={onClearSecureToken}
-                    onOpenDataDirectory={onOpenDataDirectory}
-                />
+                    <DesktopSetupCard
+                        setup={setup}
+                        tokenStatus={tokenStatus}
+                        environmentDraft={environmentDraft}
+                        showToken={showToken}
+                        showRuntimePaths={showRuntimePaths}
+                        onToggleToken={() => setShowToken((current) => !current)}
+                        onToggleRuntimePaths={() => setShowRuntimePaths((current) => !current)}
+                        onEnvironmentDraftChange={onEnvironmentDraftChange}
+                        onSaveEnvironment={onSaveEnvironment}
+                        onClearSecureToken={onClearSecureToken}
+                        onOpenDataDirectory={onOpenDataDirectory}
+                    />
 
-                <ChannelsCard
-                    channels={draft.state.config.channels}
-                    selectedChannelId={draft.selectedChannel?.id ?? draft.state.selectedChannelId}
-                    onAddChannel={() => draft.addChannel()}
-                    onSelectChannel={(channelId) => draft.setSelectedChannel(channelId)}
-                />
+                    <ChannelsCard
+                        channels={draft.state.config.channels}
+                        selectedChannelId={draft.selectedChannel?.id ?? draft.state.selectedChannelId}
+                        onAddChannel={() => draft.addChannel()}
+                        onSelectChannel={(channelId) => draft.setSelectedChannel(channelId)}
+                    />
                 </div>
 
                 <div className="space-y-4">
                     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-                    <ConfigEditorCard
-                        draft={draft}
-                        runtime={runtime}
-                        onSaveConfig={onSaveConfig}
-                        onPreviewDryRun={onPreviewDryRun}
-                    />
+                        <ConfigEditorCard
+                            draft={draft}
+                            runtime={runtime}
+                            onSaveConfig={onSaveConfig}
+                            onPreviewDryRun={onPreviewDryRun}
+                        />
 
                         <MessageGroupsCard draft={draft} />
                     </div>

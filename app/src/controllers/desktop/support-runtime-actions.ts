@@ -4,7 +4,7 @@ import {
     loadState,
     openDataDirectory,
     openLogsDirectory as openLogsDirectoryCommand,
-    resetRuntimeState as resetRuntimeStateCommand
+    resetRuntimeState as resetRuntimeStateCommand,
 } from '@/lib/desktop';
 import { showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from '@/shared/toast';
 import { copyTextToClipboard } from './helpers';
@@ -21,7 +21,7 @@ export function createSupportRuntimeActions({
     setLogs,
     setPreferredScreen,
     setNotice,
-    requestConfirmation
+    requestConfirmation,
 }: SupportActionOptions) {
     return {
         async copyReleaseDiagnostics() {
@@ -84,7 +84,8 @@ export function createSupportRuntimeActions({
 
             requestConfirmation({
                 title: 'Reset runtime state?',
-                description: 'This deletes local session logs and .sender-state.json, but keeps config.json and the secure token store.',
+                description:
+                    'This deletes local session logs and .sender-state.json, but keeps config.json and the secure token store.',
                 confirmLabel: 'Reset Runtime State',
                 cancelLabel: 'Cancel',
                 pendingLabel: 'Resetting...',
@@ -93,7 +94,7 @@ export function createSupportRuntimeActions({
                     const result = await resetRuntimeStateCommand();
                     const [nextState, diagnostics] = await Promise.all([
                         loadState(),
-                        loadReleaseDiagnostics().catch(() => null)
+                        loadReleaseDiagnostics().catch(() => null),
                     ]);
                     setSenderState(nextState);
                     setReleaseDiagnostics(diagnostics);
@@ -107,9 +108,9 @@ export function createSupportRuntimeActions({
                     const message = `Runtime state reset. Deleted ${result.deletedLogFiles} log file${result.deletedLogFiles === 1 ? '' : 's'}.`;
                     setNotice(message);
                     showSuccessToast(message);
-                }
+                },
             });
             return null;
-        }
+        },
     };
 }

@@ -15,32 +15,36 @@ interface ConfigEditorCardProps {
     onPreviewDryRun(): void | Promise<void>;
 }
 
-export function ConfigEditorCard({
-    draft,
-    runtime,
-    onSaveConfig,
-    onPreviewDryRun
-}: ConfigEditorCardProps) {
+export function ConfigEditorCard({ draft, runtime, onSaveConfig, onPreviewDryRun }: ConfigEditorCardProps) {
     const selectedChannel = draft.selectedChannel;
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Config Editor</CardTitle>
-                <CardDescription>Keep the main authoring flow focused on the selected channel instead of fighting the page layout.</CardDescription>
+                <CardDescription>
+                    Keep the main authoring flow focused on the selected channel instead of fighting the page layout.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <label className="block space-y-2">
                     <span className="text-sm text-muted-foreground">User-Agent</span>
-                    <Input value={draft.state.config.userAgent} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.patchUserAgent(event.target.value)} />
+                    <Input
+                        value={draft.state.config.userAgent}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) => draft.patchUserAgent(event.target.value)}
+                    />
                 </label>
 
                 {selectedChannel ? (
                     <div className="space-y-4 rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                             <div>
-                                <div className="text-sm font-semibold tracking-tight text-foreground">Selected Channel</div>
-                                <div className="text-xs leading-relaxed text-muted-foreground mt-0.5">Edit identity, referrer, and group mapping from the main canvas.</div>
+                                <div className="text-sm font-semibold tracking-tight text-foreground">
+                                    Selected Channel
+                                </div>
+                                <div className="text-xs leading-relaxed text-muted-foreground mt-0.5">
+                                    Edit identity, referrer, and group mapping from the main canvas.
+                                </div>
                             </div>
                             <Button variant="ghost" onClick={() => draft.removeChannel(selectedChannel.id)}>
                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -50,28 +54,47 @@ export function ConfigEditorCard({
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <Field label="Channel name">
-                                <Input value={selectedChannel.name} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannel(selectedChannel.id, 'name', event.target.value)} />
+                                <Input
+                                    value={selectedChannel.name}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannel(selectedChannel.id, 'name', event.target.value)
+                                    }
+                                />
                             </Field>
                             <Field label="Channel ID">
-                                <Input value={selectedChannel.id} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannel(selectedChannel.id, 'id', event.target.value)} />
+                                <Input
+                                    value={selectedChannel.id}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannel(selectedChannel.id, 'id', event.target.value)
+                                    }
+                                />
                             </Field>
                         </div>
 
                         <Field label="Referrer URL">
-                            <Input value={selectedChannel.referrer} onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannel(selectedChannel.id, 'referrer', event.target.value)} />
+                            <Input
+                                value={selectedChannel.referrer}
+                                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                    draft.updateChannel(selectedChannel.id, 'referrer', event.target.value)
+                                }
+                            />
                         </Field>
 
                         <Field label="Message group">
                             <Select
                                 value={selectedChannel.messageGroup}
-                                onValueChange={(value) => draft.updateChannel(selectedChannel.id, 'messageGroup', value)}
+                                onValueChange={(value) =>
+                                    draft.updateChannel(selectedChannel.id, 'messageGroup', value)
+                                }
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select a message group" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {Object.keys(draft.state.config.messageGroups).map((groupName) => (
-                                        <SelectItem key={groupName} value={groupName}>{groupName}</SelectItem>
+                                        <SelectItem key={groupName} value={groupName}>
+                                            {groupName}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -82,51 +105,71 @@ export function ConfigEditorCard({
                                 <Input
                                     type="number"
                                     value={selectedChannel.schedule?.intervalSeconds ?? runtime.baseWaitSeconds}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, { intervalSeconds: Number(event.target.value) })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            intervalSeconds: Number(event.target.value),
+                                        })
+                                    }
                                 />
                             </Field>
                             <Field label="Random margin (sec)">
                                 <Input
                                     type="number"
                                     value={selectedChannel.schedule?.randomMarginSeconds ?? runtime.marginSeconds}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, { randomMarginSeconds: Number(event.target.value) })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            randomMarginSeconds: Number(event.target.value),
+                                        })
+                                    }
                                 />
                             </Field>
                             <Field label="Timezone">
                                 <Input
                                     value={selectedChannel.schedule?.timezone ?? 'UTC'}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, { timezone: event.target.value })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            timezone: event.target.value,
+                                        })
+                                    }
                                 />
                             </Field>
                             <Field label="Max sends / day">
                                 <Input
                                     type="number"
                                     value={selectedChannel.schedule?.maxSendsPerDay ?? ''}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, { maxSendsPerDay: event.target.value ? Number(event.target.value) : null })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            maxSendsPerDay: event.target.value ? Number(event.target.value) : null,
+                                        })
+                                    }
                                 />
                             </Field>
                             <Field label="Quiet hours start">
                                 <Input
                                     placeholder="22:00"
                                     value={selectedChannel.schedule?.quietHours?.start ?? ''}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, {
-                                        quietHours: {
-                                            start: event.target.value,
-                                            end: selectedChannel.schedule?.quietHours?.end ?? '06:00'
-                                        }
-                                    })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            quietHours: {
+                                                start: event.target.value,
+                                                end: selectedChannel.schedule?.quietHours?.end ?? '06:00',
+                                            },
+                                        })
+                                    }
                                 />
                             </Field>
                             <Field label="Quiet hours end">
                                 <Input
                                     placeholder="06:00"
                                     value={selectedChannel.schedule?.quietHours?.end ?? ''}
-                                    onChange={(event: ChangeEvent<HTMLInputElement>) => draft.updateChannelSchedule(selectedChannel.id, {
-                                        quietHours: {
-                                            start: selectedChannel.schedule?.quietHours?.start ?? '22:00',
-                                            end: event.target.value
-                                        }
-                                    })}
+                                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                        draft.updateChannelSchedule(selectedChannel.id, {
+                                            quietHours: {
+                                                start: selectedChannel.schedule?.quietHours?.start ?? '22:00',
+                                                end: event.target.value,
+                                            },
+                                        })
+                                    }
                                 />
                             </Field>
                         </div>

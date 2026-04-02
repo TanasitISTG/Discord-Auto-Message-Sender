@@ -1,4 +1,4 @@
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useEffect, useEffectEvent, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import {
     type DesktopEvent,
     type DryRunResult,
@@ -8,7 +8,7 @@ import {
     type PreflightResult,
     type SessionSnapshot,
     type SidecarStatus,
-    subscribeToAppEvents
+    subscribeToAppEvents,
 } from '@/lib/desktop';
 import { mergeLogsById } from './helpers';
 import type { PreferredScreen, RecoveryState } from './types';
@@ -26,7 +26,11 @@ interface UseDesktopEventsOptions {
     setRecoveryState: Dispatch<SetStateAction<RecoveryState | null>>;
     setPreferredScreen: Dispatch<SetStateAction<PreferredScreen>>;
     setNotice: Dispatch<SetStateAction<string>>;
-    setSurfaceNotice(scope: 'config' | 'session' | 'logs', tone: 'neutral' | 'success' | 'warning' | 'danger', message: string): void;
+    setSurfaceNotice(
+        scope: 'config' | 'session' | 'logs',
+        tone: 'neutral' | 'success' | 'warning' | 'danger',
+        message: string,
+    ): void;
     refreshAll(): Promise<void>;
     refreshState(): Promise<void>;
 }
@@ -46,9 +50,9 @@ export function useDesktopEvents({
     setNotice,
     setSurfaceNotice,
     refreshAll,
-    refreshState
+    refreshState,
 }: UseDesktopEventsOptions) {
-    function handleDesktopEvent(event: DesktopEvent) {
+    const handleDesktopEvent = useEffectEvent((event: DesktopEvent) => {
         switch (event.type) {
             case 'session_started':
             case 'session_paused':
@@ -79,7 +83,9 @@ export function useDesktopEvents({
                 return;
             case 'inbox_notification_ready':
                 setInboxMonitorState(event.monitor);
-                setNotice(`New ${event.notification.kind === 'message_request' ? 'message request' : 'direct message'} from ${event.notification.authorName}.`);
+                setNotice(
+                    `New ${event.notification.kind === 'message_request' ? 'message request' : 'direct message'} from ${event.notification.authorName}.`,
+                );
                 return;
             case 'notification_delivery_state_changed':
                 setNotificationDelivery(event.delivery);
@@ -91,20 +97,20 @@ export function useDesktopEvents({
                         ...previous.settings,
                         telegram: {
                             ...previous.settings.telegram,
-                            chatId: event.chatId
-                        }
+                            chatId: event.chatId,
+                        },
                     },
                     telegramState: {
                         ...previous.telegramState,
-                        lastResolvedChatTitle: event.title
-                    }
+                        lastResolvedChatTitle: event.title,
+                    },
                 }));
                 setNotice(`Detected Telegram chat ${event.title ? `${event.title} ` : ''}(${event.chatId}).`);
                 return;
             case 'telegram_test_result':
                 setNotificationDelivery((previous) => ({
                     ...previous,
-                    telegramState: event.state
+                    telegramState: event.state,
                 }));
                 setNotice(event.message);
                 return;
@@ -119,12 +125,18 @@ export function useDesktopEvents({
                 if (sessionRef.current && ['running', 'paused', 'stopping'].includes(sessionRef.current.status)) {
                     setRecoveryState({
                         interruptedAt: new Date().toISOString(),
-                        message: event.message
+                        message: event.message,
                     });
                     setSession(null);
                     setPreferredScreen('session');
-                    setNotice('The desktop runtime was interrupted while a session was active. Review the saved checkpoint before resuming.');
-                    setSurfaceNotice('session', 'warning', 'Runtime interrupted while a session was active. Review the saved checkpoint before resuming.');
+                    setNotice(
+                        'The desktop runtime was interrupted while a session was active. Review the saved checkpoint before resuming.',
+                    );
+                    setSurfaceNotice(
+                        'session',
+                        'warning',
+                        'Runtime interrupted while a session was active. Review the saved checkpoint before resuming.',
+                    );
                     void refreshState();
                 } else {
                     setNotice(event.message);
@@ -139,10 +151,14 @@ export function useDesktopEvents({
             default:
                 return;
         }
-    }
+    });
+
+    const refreshAllOnMount = useEffectEvent(() => {
+        void refreshAll();
+    });
 
     useEffect(() => {
-        void refreshAll();
+        refreshAllOnMount();
 
         let active = true;
         let cleanup = () => {};

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { useConfigDraft } from '@/features/config/use-config-draft';
 import { emptyConfig, toneFromStatus } from './helpers';
 import { useBootstrap } from './use-bootstrap';
@@ -37,13 +37,17 @@ export function useDesktopController() {
         setEnvironmentDraft: state.setEnvironmentDraft,
         setPreferredScreen: state.setPreferredScreen,
         setRuntime: state.setRuntime,
-        setNotice: state.setNotice
+        setNotice: state.setNotice,
+    });
+
+    const handleDraftError = useEffectEvent((message: string) => {
+        state.setNotice(message);
+        draft.clearError();
     });
 
     useEffect(() => {
         if (draft.error) {
-            state.setNotice(draft.error);
-            draft.clearError();
+            handleDraftError(draft.error);
         }
     }, [draft.error]);
 
@@ -62,7 +66,7 @@ export function useDesktopController() {
         setNotice: state.setNotice,
         setSurfaceNotice,
         refreshAll: bootstrap.refreshAll,
-        refreshState: bootstrap.refreshState
+        refreshState: bootstrap.refreshState,
     });
 
     const derived = useDesktopControllerDerived({
@@ -73,7 +77,7 @@ export function useDesktopController() {
         configStatus: state.configStatus,
         configIssue: state.configIssue,
         sidecarStatus: state.sidecarStatus,
-        preflight: state.preflight
+        preflight: state.preflight,
     });
 
     const configActions = useConfigActions({
@@ -91,7 +95,7 @@ export function useDesktopController() {
         setConfigIssue: state.setConfigIssue,
         setSurfaceNotice,
         refreshState: bootstrap.refreshState,
-        requestConfirmation: confirmation.requestConfirmation
+        requestConfirmation: confirmation.requestConfirmation,
     });
 
     const sessionActions = useSessionActions({
@@ -110,7 +114,7 @@ export function useDesktopController() {
         setNotice: state.setNotice,
         setRecoveryState: state.setRecoveryState,
         setSurfaceNotice,
-        requestConfirmation: confirmation.requestConfirmation
+        requestConfirmation: confirmation.requestConfirmation,
     });
 
     const supportActions = useSupportActions({
@@ -127,7 +131,7 @@ export function useDesktopController() {
         setLogs: state.setLogs,
         setPreferredScreen: state.setPreferredScreen,
         setNotice: state.setNotice,
-        requestConfirmation: confirmation.requestConfirmation
+        requestConfirmation: confirmation.requestConfirmation,
     });
 
     return {
@@ -171,11 +175,11 @@ export function useDesktopController() {
             confirmLabel: confirmation.confirmDialog.confirmLabel,
             cancelLabel: confirmation.confirmDialog.cancelLabel,
             pendingLabel: confirmation.confirmDialog.pendingLabel,
-            tone: confirmation.confirmDialog.tone
+            tone: confirmation.confirmDialog.tone,
         },
         confirmDialogPending: confirmation.confirmDialogPending,
         closeConfirmation: confirmation.closeConfirmation,
-        confirmCurrentDialog: confirmation.confirmCurrentDialog
+        confirmCurrentDialog: confirmation.confirmCurrentDialog,
     };
 }
 

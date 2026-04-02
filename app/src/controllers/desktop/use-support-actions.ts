@@ -5,6 +5,6 @@ import type { SupportActionOptions } from './support-action-types';
 export function useSupportActions(options: SupportActionOptions) {
     return {
         ...createSupportNotificationActions(options),
-        ...createSupportRuntimeActions(options)
+        ...createSupportRuntimeActions(options),
     };
 }

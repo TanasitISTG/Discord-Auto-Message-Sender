@@ -7,7 +7,7 @@ import {
     saveTelegramBotToken,
     sendTestTelegramNotification as sendTestTelegramNotificationCommand,
     type InboxMonitorSettings,
-    type NotificationDeliverySettings
+    type NotificationDeliverySettings,
 } from '@/lib/desktop';
 import { showErrorToast, showInfoToast, showSuccessToast, showWarningToast } from '@/shared/toast';
 import type { SupportActionOptions } from './support-action-types';
@@ -17,7 +17,7 @@ export function createSupportNotificationActions({
     setInboxMonitorState,
     setNotificationDelivery,
     setNotice,
-    requestConfirmation
+    requestConfirmation,
 }: SupportActionOptions) {
     return {
         async saveInboxMonitorSettingsDraft(nextSettings: InboxMonitorSettings) {
@@ -87,7 +87,7 @@ export function createSupportNotificationActions({
                     setNotificationDelivery(snapshot);
                     setNotice('Telegram bot token removed from this Windows profile.');
                     showWarningToast('Telegram bot token removed.');
-                }
+                },
             });
             return null;
         },
@@ -100,13 +100,13 @@ export function createSupportNotificationActions({
                         ...previous.settings,
                         telegram: {
                             ...previous.settings.telegram,
-                            chatId: detected.chatId
-                        }
+                            chatId: detected.chatId,
+                        },
                     },
                     telegramState: {
                         ...previous.telegramState,
-                        lastResolvedChatTitle: detected.title
-                    }
+                        lastResolvedChatTitle: detected.title,
+                    },
                 }));
                 setNotice(`Detected Telegram chat ${detected.title ? `${detected.title} ` : ''}(${detected.chatId}).`);
                 showSuccessToast('Telegram chat detected.');
@@ -123,7 +123,7 @@ export function createSupportNotificationActions({
                 const result = await sendTestTelegramNotificationCommand();
                 setNotificationDelivery((previous) => ({
                     ...previous,
-                    telegramState: result.state
+                    telegramState: result.state,
                 }));
                 setNotice(result.message);
                 if (result.ok) {
@@ -138,6 +138,6 @@ export function createSupportNotificationActions({
                 showErrorToast('Telegram test notification failed.');
                 return null;
             }
-        }
+        },
     };
 }

@@ -7,7 +7,7 @@ import type {
     SenderStateRecord,
     SessionSnapshot,
     SidecarStatus,
-    SupportBundleResult
+    SupportBundleResult,
 } from '@/lib/desktop';
 import type { ConfirmDialogRequest, PreferredScreen } from './types';
 
@@ -16,7 +16,9 @@ export interface SupportActionOptions {
     releaseDiagnostics: ReleaseDiagnostics | null;
     setInboxMonitorSettings(next: InboxMonitorSettings): void;
     setInboxMonitorState(next: InboxMonitorState): void;
-    setNotificationDelivery(next: NotificationDeliverySnapshot | ((previous: NotificationDeliverySnapshot) => NotificationDeliverySnapshot)): void;
+    setNotificationDelivery(
+        next: NotificationDeliverySnapshot | ((previous: NotificationDeliverySnapshot) => NotificationDeliverySnapshot),
+    ): void;
     setSupportBundle(next: SupportBundleResult | null): void;
     setSenderState(next: SenderStateRecord): void;
     setReleaseDiagnostics(next: ReleaseDiagnostics | null): void;

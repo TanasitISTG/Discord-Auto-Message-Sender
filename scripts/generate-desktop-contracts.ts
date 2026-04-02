@@ -75,7 +75,8 @@ const tsOutputPath = path.join(rootDir, 'src', 'desktop', 'contracts.ts');
 const rustOutputPath = path.join(rootDir, 'src-tauri', 'src', 'contracts.rs');
 
 function loadSchemaFiles(): SchemaFile[] {
-    const files = fs.readdirSync(schemaDir)
+    const files = fs
+        .readdirSync(schemaDir)
         .filter((entry) => entry.endsWith('.schema.json'))
         .sort();
     return files.map((fileName) => {
@@ -136,7 +137,7 @@ function parseType(spec: string): TypeNode {
     if (unionParts.length > 1) {
         return {
             kind: 'union',
-            members: unionParts.map((part) => parseType(part))
+            members: unionParts.map((part) => parseType(part)),
         };
     }
 
@@ -144,14 +145,14 @@ function parseType(spec: string): TypeNode {
     if (recordMatch) {
         return {
             kind: 'record',
-            value: parseType(recordMatch[1])
+            value: parseType(recordMatch[1]),
         };
     }
 
     if (normalized.endsWith('[]')) {
         return {
             kind: 'array',
-            item: parseType(normalized.slice(0, -2))
+            item: parseType(normalized.slice(0, -2)),
         };
     }
 
@@ -188,7 +189,8 @@ function renderTsType(node: TypeNode): string {
 
 function renderRustType(node: TypeNode): string {
     switch (node.kind) {
-        case 'primitive':
+        case 'primitive': {
+            const primitiveName = String(node.name);
             switch (node.name) {
                 case 'string':
                     return 'String';
@@ -203,6 +205,8 @@ function renderRustType(node: TypeNode): string {
                 case 'unknown':
                     return 'Value';
             }
+            throw new Error(`Unsupported Rust primitive type '${primitiveName}'.`);
+        }
         case 'reference':
             return node.name;
         case 'array':
@@ -210,12 +214,16 @@ function renderRustType(node: TypeNode): string {
         case 'record':
             return `HashMap<String, ${renderRustType(node.value)}>`;
         case 'union': {
-            const nonNullMembers = node.members.filter((member) => !(member.kind === 'primitive' && member.name === 'null'));
+            const nonNullMembers = node.members.filter(
+                (member) => !(member.kind === 'primitive' && member.name === 'null'),
+            );
             if (nonNullMembers.length === 1 && nonNullMembers.length !== node.members.length) {
                 return `Option<${renderRustType(nonNullMembers[0])}>`;
             }
 
-            throw new Error(`Unsupported Rust union type '${renderTsType(node)}'. Use rustType overrides in the schema.`);
+            throw new Error(
+                `Unsupported Rust union type '${renderTsType(node)}'. Use rustType overrides in the schema.`,
+            );
         }
     }
 }
@@ -245,11 +253,7 @@ function renderTsInterface(definition: InterfaceDefinition): string {
         return `    ${field.name}${field.optional ? '?' : ''}: ${type};`;
     });
 
-    return [
-        `export interface ${definition.name} {`,
-        ...lines,
-        '}'
-    ].join('\n');
+    return [`export interface ${definition.name} {`, ...lines, '}'].join('\n');
 }
 
 function renderTsStringEnum(definition: StringEnumDefinition): string {
@@ -314,67 +318,71 @@ function renderTsOutput(schemaFiles: SchemaFile[]): string {
     blocks.push(commandMapLines.join('\n'));
     blocks.push('export type DesktopCommandName = keyof DesktopCommandMap;');
     if (sidecarCommandExclusions.length > 0) {
-        blocks.push([
-            'export type SidecarCommandName = Exclude<',
-            '    DesktopCommandName,',
-            ...sidecarCommandExclusions.map((name, index, values) => `    | '${name}'${index === values.length - 1 ? '' : ''}`),
-            '>;'
-        ].join('\n'));
+        blocks.push(
+            [
+                'export type SidecarCommandName = Exclude<',
+                '    DesktopCommandName,',
+                ...sidecarCommandExclusions.map(
+                    (name, index, values) => `    | '${name}'${index === values.length - 1 ? '' : ''}`,
+                ),
+                '>;',
+            ].join('\n'),
+        );
     } else {
         blocks.push('export type SidecarCommandName = DesktopCommandName;');
     }
-    blocks.push([
-        'export interface DesktopRpcRequest<K extends DesktopCommandName = DesktopCommandName> {',
-        '    id: string;',
-        '    command: K;',
-        '    payload: DesktopCommandMap[K][\'request\'];',
-        '}'
-    ].join('\n'));
-    blocks.push([
-        'export type DesktopRpcSuccessResponse<K extends DesktopCommandName = DesktopCommandName> = {',
-        '    type: \'response\';',
-        '    id: string;',
-        '    ok: true;',
-        '    result: DesktopCommandMap[K][\'response\'];',
-        '};'
-    ].join('\n'));
-    blocks.push([
-        'export interface DesktopRpcErrorResponse {',
-        '    type: \'response\';',
-        '    id: string;',
-        '    ok: false;',
-        '    error: string;',
-        '}'
-    ].join('\n'));
-    blocks.push([
-        'export type DesktopRpcResponse<K extends DesktopCommandName = DesktopCommandName> =',
-        '    | DesktopRpcSuccessResponse<K>',
-        '    | DesktopRpcErrorResponse;'
-    ].join('\n'));
-    blocks.push([
-        'export interface DesktopEventMessage {',
-        '    type: \'event\';',
-        '    event: DesktopEvent;',
-        '}'
-    ].join('\n'));
+    blocks.push(
+        [
+            'export interface DesktopRpcRequest<K extends DesktopCommandName = DesktopCommandName> {',
+            '    id: string;',
+            '    command: K;',
+            "    payload: DesktopCommandMap[K]['request'];",
+            '}',
+        ].join('\n'),
+    );
+    blocks.push(
+        [
+            'export type DesktopRpcSuccessResponse<K extends DesktopCommandName = DesktopCommandName> = {',
+            "    type: 'response';",
+            '    id: string;',
+            '    ok: true;',
+            "    result: DesktopCommandMap[K]['response'];",
+            '};',
+        ].join('\n'),
+    );
+    blocks.push(
+        [
+            'export interface DesktopRpcErrorResponse {',
+            "    type: 'response';",
+            '    id: string;',
+            '    ok: false;',
+            '    error: string;',
+            '}',
+        ].join('\n'),
+    );
+    blocks.push(
+        [
+            'export type DesktopRpcResponse<K extends DesktopCommandName = DesktopCommandName> =',
+            '    | DesktopRpcSuccessResponse<K>',
+            '    | DesktopRpcErrorResponse;',
+        ].join('\n'),
+    );
+    blocks.push(
+        ['export interface DesktopEventMessage {', "    type: 'event';", '    event: DesktopEvent;', '}'].join('\n'),
+    );
     blocks.push('export type DesktopSidecarMessage = DesktopRpcResponse | DesktopEventMessage;');
 
-    return [
-        '// Generated by scripts/generate-desktop-contracts.ts. Do not edit directly.',
-        '',
-        ...blocks
-    ].join('\n\n') + '\n';
+    return (
+        ['// Generated by scripts/generate-desktop-contracts.ts. Do not edit directly.', '', ...blocks].join('\n\n') +
+        '\n'
+    );
 }
 
 function renderRustField(field: FieldDefinition): string[] {
     const rustFieldName = toSnakeCase(field.name);
     const type = field.rustType ?? renderRustType(parseType(field.type ?? 'unknown'));
     const isOptional = field.optional || parseType(field.type ?? 'unknown').kind === 'union';
-    const renderedType = field.rustType
-        ? type
-        : isOptional && !type.startsWith('Option<')
-            ? `Option<${type}>`
-            : type;
+    const renderedType = field.rustType ? type : isOptional && !type.startsWith('Option<') ? `Option<${type}>` : type;
 
     return [`    pub ${rustFieldName}: ${renderedType},`];
 }
@@ -383,13 +391,18 @@ function renderRustVariantField(field: FieldDefinition): string[] {
     const rustFieldName = toSnakeCase(field.name);
     const type = field.rustType ?? renderRustType(parseType(field.type ?? 'unknown'));
     const isOptional = field.optional || parseType(field.type ?? 'unknown').kind === 'union';
-    const renderedType = field.rustType
-        ? type
-        : isOptional && !type.startsWith('Option<')
-            ? `Option<${type}>`
-            : type;
+    const renderedType = field.rustType ? type : isOptional && !type.startsWith('Option<') ? `Option<${type}>` : type;
 
     return [`        ${rustFieldName}: ${renderedType},`];
+}
+
+function renderRustVariantFieldInline(field: FieldDefinition): string {
+    const rustFieldName = toSnakeCase(field.name);
+    const type = field.rustType ?? renderRustType(parseType(field.type ?? 'unknown'));
+    const isOptional = field.optional || parseType(field.type ?? 'unknown').kind === 'union';
+    const renderedType = field.rustType ? type : isOptional && !type.startsWith('Option<') ? `Option<${type}>` : type;
+
+    return `${rustFieldName}: ${renderedType}`;
 }
 
 function renderRustInterface(definition: InterfaceDefinition): string {
@@ -399,7 +412,7 @@ function renderRustInterface(definition: InterfaceDefinition): string {
         '#[serde(rename_all = "camelCase")]',
         `pub struct ${definition.name} {`,
         ...lines,
-        '}'
+        '}',
     ].join('\n');
 }
 
@@ -412,7 +425,7 @@ function renderRustStringEnum(definition: StringEnumDefinition): string {
         '#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]',
         `pub enum ${definition.name} {`,
         ...variants,
-        '}'
+        '}',
     ].join('\n');
 }
 
@@ -428,14 +441,17 @@ function renderRustTaggedUnion(definition: TaggedUnionDefinition): string {
         if (fields.length === 0) {
             return `    #[serde(rename = "${variant.tagValue}")]\n    ${rustName},`;
         }
+        if (fields.length === 1) {
+            return [
+                `    #[serde(rename = "${variant.tagValue}")]`,
+                `    ${rustName} { ${renderRustVariantFieldInline(fields[0])} },`,
+            ].join('\n');
+        }
 
         const renderedFields = fields.flatMap((field) => renderRustVariantField(field));
-        return [
-            `    #[serde(rename = "${variant.tagValue}")]`,
-            `    ${rustName} {`,
-            ...renderedFields,
-            '    },'
-        ].join('\n');
+        return [`    #[serde(rename = "${variant.tagValue}")]`, `    ${rustName} {`, ...renderedFields, '    },'].join(
+            '\n',
+        );
     });
 
     return [
@@ -443,7 +459,7 @@ function renderRustTaggedUnion(definition: TaggedUnionDefinition): string {
         `#[serde(tag = "${definition.tag}")]`,
         `pub enum ${definition.name} {`,
         ...variants,
-        '}'
+        '}',
     ].join('\n');
 }
 
@@ -473,24 +489,26 @@ function renderRustOutput(schemaFiles: SchemaFile[]): string {
         }
     }
 
-    return [
+    return (
         [
-            '// Generated by scripts/generate-desktop-contracts.ts. Do not edit directly.',
-            '#![allow(dead_code)]',
-            '',
-            'use std::collections::HashMap;',
-            'use serde::{Deserialize, Serialize};',
-            'use serde_json::Value;'
-        ].join('\n'),
-        ...blocks
-    ].join('\n\n') + '\n';
+            [
+                '// Generated by scripts/generate-desktop-contracts.ts. Do not edit directly.',
+                '#![allow(dead_code)]',
+                '',
+                'use serde::{Deserialize, Serialize};',
+                'use serde_json::Value;',
+                'use std::collections::HashMap;',
+            ].join('\n'),
+            ...blocks,
+        ].join('\n\n') + '\n'
+    );
 }
 
 export function generateDesktopContracts() {
     const schemaFiles = loadSchemaFiles();
     return {
         ts: renderTsOutput(schemaFiles),
-        rust: renderRustOutput(schemaFiles)
+        rust: renderRustOutput(schemaFiles),
     };
 }
 

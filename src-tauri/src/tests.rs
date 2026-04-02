@@ -30,7 +30,12 @@ fn scrub_discord_token_from_env_contents_removes_only_token_lines() {
 #[test]
 fn build_release_diagnostics_reports_runtime_paths() {
     let paths = temp_runtime_paths("discord-release-diagnostics");
-    let diagnostics = build_release_diagnostics(&paths, "1.2.3", TokenStorageMode::Secure, SidecarStatus::Ready);
+    let diagnostics = build_release_diagnostics(
+        &paths,
+        "1.2.3",
+        TokenStorageMode::Secure,
+        SidecarStatus::Ready,
+    );
 
     assert_eq!(diagnostics.app_version, "1.2.3");
     assert_eq!(diagnostics.token_storage, TokenStorageMode::Secure);
@@ -42,7 +47,8 @@ fn build_release_diagnostics_reports_runtime_paths() {
 #[test]
 fn runtime_data_dir_override_reads_the_override_environment_variable() {
     let _guard = env_test_mutex().lock().expect("lock env test mutex");
-    let override_path = std::env::temp_dir().join(format!("discord-runtime-override-{}", std::process::id()));
+    let override_path =
+        std::env::temp_dir().join(format!("discord-runtime-override-{}", std::process::id()));
     std::env::set_var(APPDATA_OVERRIDE_ENV, &override_path);
 
     let resolved = runtime_data_dir_override();
@@ -54,15 +60,24 @@ fn runtime_data_dir_override_reads_the_override_environment_variable() {
 #[test]
 fn cli_command_parser_recognizes_release_cli_flags() {
     assert_eq!(
-        cli_command_from_iter(["app.exe".to_string(), "--print-release-diagnostics-json".to_string()]),
+        cli_command_from_iter([
+            "app.exe".to_string(),
+            "--print-release-diagnostics-json".to_string()
+        ]),
         Some(CliCommand::PrintReleaseDiagnosticsJson)
     );
     assert_eq!(
-        cli_command_from_iter(["app.exe".to_string(), "--export-support-bundle-json".to_string()]),
+        cli_command_from_iter([
+            "app.exe".to_string(),
+            "--export-support-bundle-json".to_string()
+        ]),
         Some(CliCommand::ExportSupportBundleJson)
     );
     assert_eq!(
-        cli_command_from_iter(["app.exe".to_string(), "--reset-runtime-state-json".to_string()]),
+        cli_command_from_iter([
+            "app.exe".to_string(),
+            "--reset-runtime-state-json".to_string()
+        ]),
         Some(CliCommand::ResetRuntimeStateJson)
     );
     assert_eq!(cli_command_from_iter(["app.exe".to_string()]), None);
@@ -71,7 +86,10 @@ fn cli_command_parser_recognizes_release_cli_flags() {
 #[test]
 fn open_logs_directory_helper_resolves_the_logs_path() {
     let paths = temp_runtime_paths("discord-open-logs");
-    assert_eq!(path_to_string(&paths.logs_dir), path_to_string(&paths.logs_dir));
+    assert_eq!(
+        path_to_string(&paths.logs_dir),
+        path_to_string(&paths.logs_dir)
+    );
     assert!(path_to_string(&paths.logs_dir).ends_with(RUNTIME_LOG_DIR));
 }
 
@@ -80,7 +98,11 @@ fn open_logs_directory_helper_resolves_the_logs_path() {
 fn clear_secure_token_files_removes_secure_store_and_scrubs_env() {
     let paths = temp_runtime_paths("discord-clear-token");
     write_secure_token(&paths, "secret-token").expect("write secure token");
-    fs::write(environment_path(&paths), "DISCORD_TOKEN=secret-token\nOTHER_FLAG=1\n").expect("write env");
+    fs::write(
+        environment_path(&paths),
+        "DISCORD_TOKEN=secret-token\nOTHER_FLAG=1\n",
+    )
+    .expect("write env");
 
     clear_secure_token_files(&paths).expect("clear secure token files");
 
@@ -93,11 +115,16 @@ fn clear_secure_token_files_removes_secure_store_and_scrubs_env() {
 #[test]
 fn migrate_plaintext_token_to_secure_store_copies_from_legacy_root_once() {
     let paths = temp_runtime_paths("discord-token-migrate");
-    let legacy_root = paths.data_dir.parent().expect("runtime parent").join("legacy");
+    let legacy_root = paths
+        .data_dir
+        .parent()
+        .expect("runtime parent")
+        .join("legacy");
     fs::create_dir_all(&legacy_root).expect("create legacy root");
     fs::write(legacy_root.join(".env"), "DISCORD_TOKEN=legacy-token\n").expect("write legacy env");
 
-    migrate_plaintext_token_to_secure_store_at_paths(&paths, &[legacy_root]).expect("migrate token");
+    migrate_plaintext_token_to_secure_store_at_paths(&paths, &[legacy_root])
+        .expect("migrate token");
 
     assert!(secure_token_path(&paths).exists());
     let setup = read_desktop_setup_state(&paths).expect("load setup state");
@@ -185,8 +212,14 @@ fn export_support_bundle_excludes_secure_token_and_env_but_includes_generated_js
     }
 
     let setup = read_desktop_setup_state(&paths).expect("load setup");
-    let diagnostics = build_release_diagnostics(&paths, "1.0.0", TokenStorageMode::Secure, SidecarStatus::Ready);
-    let bundle = export_support_bundle_at_paths(&paths, &diagnostics, &setup).expect("export support bundle");
+    let diagnostics = build_release_diagnostics(
+        &paths,
+        "1.0.0",
+        TokenStorageMode::Secure,
+        SidecarStatus::Ready,
+    );
+    let bundle = export_support_bundle_at_paths(&paths, &diagnostics, &setup)
+        .expect("export support bundle");
 
     let file = fs::File::open(&bundle.path).expect("open support bundle");
     let mut archive = zip::ZipArchive::new(file).expect("read support archive");
@@ -200,23 +233,35 @@ fn export_support_bundle_excludes_secure_token_and_env_but_includes_generated_js
     assert!(names.contains(&"setup.json".to_string()));
     assert!(names.contains(&"config.json".to_string()));
     assert!(names.contains(&".sender-state.json".to_string()));
-    assert_eq!(names.iter().filter(|name| name.starts_with("logs/")).count(), 5);
-    assert!(!names.iter().any(|name| name.contains("discord-token.secure")));
+    assert_eq!(
+        names
+            .iter()
+            .filter(|name| name.starts_with("logs/"))
+            .count(),
+        5
+    );
+    assert!(!names
+        .iter()
+        .any(|name| name.contains("discord-token.secure")));
     assert!(!names.iter().any(|name| name.ends_with(".env")));
 
     let config_contents = {
         let mut config_entry = archive.by_name("config.json").expect("read config entry");
         let mut contents = String::new();
-        std::io::Read::read_to_string(&mut config_entry, &mut contents).expect("read config contents");
+        std::io::Read::read_to_string(&mut config_entry, &mut contents)
+            .expect("read config contents");
         contents
     };
     assert!(!config_contents.contains("secret template"));
     assert!(config_contents.contains("[REDACTED 1 message template(s)]"));
 
     let state_contents = {
-        let mut state_entry = archive.by_name(".sender-state.json").expect("read state entry");
+        let mut state_entry = archive
+            .by_name(".sender-state.json")
+            .expect("read state entry");
         let mut contents = String::new();
-        std::io::Read::read_to_string(&mut state_entry, &mut contents).expect("read state contents");
+        std::io::Read::read_to_string(&mut state_entry, &mut contents)
+            .expect("read state contents");
         contents
     };
     assert!(!state_contents.contains("secret history"));
@@ -243,7 +288,12 @@ fn reset_runtime_state_clears_state_and_logs_without_touching_support_archives()
     assert!(result.cleared_state_file);
     assert_eq!(result.deleted_log_files, 2);
     assert!(!sender_state_path(&paths).exists());
-    assert_eq!(fs::read_dir(&paths.logs_dir).expect("read logs dir").count(), 0);
+    assert_eq!(
+        fs::read_dir(&paths.logs_dir)
+            .expect("read logs dir")
+            .count(),
+        0
+    );
     assert!(support_dir.join("keep.zip").exists());
 }
 

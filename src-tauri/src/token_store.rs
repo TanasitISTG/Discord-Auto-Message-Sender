@@ -48,8 +48,12 @@ pub(crate) fn scrub_discord_token_from_env_file(path: &Path) -> Result<(), Strin
             return Ok(());
         }
 
-        fs::remove_file(path)
-            .map_err(|error| format!("Failed to remove '{}' after token migration: {error}", path.display()))?;
+        fs::remove_file(path).map_err(|error| {
+            format!(
+                "Failed to remove '{}' after token migration: {error}",
+                path.display()
+            )
+        })?;
         return Ok(());
     };
 
@@ -57,8 +61,12 @@ pub(crate) fn scrub_discord_token_from_env_file(path: &Path) -> Result<(), Strin
         return Ok(());
     }
 
-    fs::write(path, next_contents)
-        .map_err(|error| format!("Failed to update '{}' after token migration: {error}", path.display()))
+    fs::write(path, next_contents).map_err(|error| {
+        format!(
+            "Failed to update '{}' after token migration: {error}",
+            path.display()
+        )
+    })
 }
 
 pub(crate) fn scrub_discord_token_from_env_contents(contents: &str) -> Option<String> {
@@ -111,7 +119,8 @@ fn protect_token(token: &str) -> Result<Vec<u8>, String> {
         .map_err(|_| "Failed to encrypt the Discord token with Windows DPAPI.".to_string())?;
     }
 
-    let encrypted = unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
+    let encrypted =
+        unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
     unsafe {
         let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
     }
@@ -134,16 +143,21 @@ fn unprotect_token(bytes: &[u8]) -> Result<String, String> {
             CRYPTPROTECT_UI_FORBIDDEN,
             &mut output,
         )
-        .map_err(|_| "Stored Discord token could not be decrypted. Save it again from Desktop Setup.".to_string())?;
+        .map_err(|_| {
+            "Stored Discord token could not be decrypted. Save it again from Desktop Setup."
+                .to_string()
+        })?;
     }
 
-    let decrypted = unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
+    let decrypted =
+        unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() };
     unsafe {
         let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
     }
 
-    String::from_utf8(decrypted)
-        .map_err(|_| "Stored Discord token is not valid UTF-8. Save it again from Desktop Setup.".to_string())
+    String::from_utf8(decrypted).map_err(|_| {
+        "Stored Discord token is not valid UTF-8. Save it again from Desktop Setup.".to_string()
+    })
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -241,7 +255,10 @@ pub(crate) fn load_desktop_setup_state(app: &AppHandle) -> Result<DesktopSetupSt
     read_desktop_setup_state(&paths)
 }
 
-pub(crate) fn save_secure_environment(app: &AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
+pub(crate) fn save_secure_environment(
+    app: &AppHandle,
+    request: SaveEnvironmentRequest,
+) -> Result<DesktopSetupState, String> {
     let normalized_token = normalize_token(request.discord_token)
         .ok_or_else(|| "DISCORD_TOKEN cannot be empty.".to_string())?;
     let paths = runtime_paths(app)?;

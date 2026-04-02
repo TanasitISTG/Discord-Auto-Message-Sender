@@ -6,7 +6,10 @@ pub(crate) fn load_config(app: AppHandle) -> Result<ConfigLoadResult, String> {
 }
 
 #[tauri::command]
-pub(crate) fn save_config(app: AppHandle, request: SaveConfigRequest) -> Result<SaveConfigResult, String> {
+pub(crate) fn save_config(
+    app: AppHandle,
+    request: SaveConfigRequest,
+) -> Result<SaveConfigResult, String> {
     send_sidecar_request(&app, "save_config", request)
 }
 
@@ -22,6 +25,9 @@ pub(crate) fn run_preflight(app: AppHandle) -> Result<PreflightResult, String> {
 }
 
 #[tauri::command]
-pub(crate) fn run_dry_run(app: AppHandle, request: RunDryRunRequest) -> Result<DryRunResult, String> {
+pub(crate) fn run_dry_run(
+    app: AppHandle,
+    request: RunDryRunRequest,
+) -> Result<DryRunResult, String> {
     send_sidecar_request(&app, "run_dry_run", request)
 }

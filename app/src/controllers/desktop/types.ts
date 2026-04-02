@@ -26,5 +26,5 @@ export const closedConfirmDialog: ConfirmDialogRequest = {
     cancelLabel: 'Cancel',
     pendingLabel: 'Working...',
     tone: 'danger',
-    onConfirm: null
+    onConfirm: null,
 };

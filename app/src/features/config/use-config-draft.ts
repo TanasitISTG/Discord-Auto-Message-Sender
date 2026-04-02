@@ -14,7 +14,7 @@ import {
     updateChannel as updateConfigChannel,
     updateChannelSchedule as updateConfigChannelSchedule,
     updateMessageInGroup,
-    updateUserAgent
+    updateUserAgent,
 } from './config-draft-domain';
 import { validateAppConfig } from './config-draft-domain';
 import { ConfigDraftState, configDraftReducer, createInitialConfigDraftState } from './config-draft-reducer';
@@ -36,7 +36,10 @@ export interface ConfigDraftController {
     patchUserAgent(userAgent: string): void;
     addChannel(): void;
     updateChannel(channelId: string, field: 'name' | 'id' | 'referrer' | 'messageGroup', value: string): void;
-    updateChannelSchedule(channelId: string, patch: Partial<NonNullable<AppConfig['channels'][number]['schedule']>>): void;
+    updateChannelSchedule(
+        channelId: string,
+        patch: Partial<NonNullable<AppConfig['channels'][number]['schedule']>>,
+    ): void;
     removeChannel(channelId: string): void;
     setSelectedChannel(channelId: string | null): void;
     setSelectedGroup(groupName: string): void;
@@ -60,14 +63,20 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
     const [state, dispatch] = useReducer(configDraftReducer, initialConfig, createInitialConfigDraftState);
     const [error, setError] = useState<string | null>(null);
 
-    const selectedChannel = state.config.channels.find((channel) => channel.id === state.selectedChannelId) ?? state.config.channels[0] ?? null;
+    const selectedChannel =
+        state.config.channels.find((channel) => channel.id === state.selectedChannelId) ??
+        state.config.channels[0] ??
+        null;
     const selectedGroupMessages = state.config.messageGroups[state.selectedGroupName] ?? [];
     const validationErrors = useMemo(() => validateAppConfig(state.config), [state.config]);
     const exportConfig = useMemo(() => JSON.stringify(state.config, null, 2), [state.config]);
-    const importPreviewErrors = useMemo(() => state.importPreview ? validateAppConfig(state.importPreview) : [], [state.importPreview]);
+    const importPreviewErrors = useMemo(
+        () => (state.importPreview ? validateAppConfig(state.importPreview) : []),
+        [state.importPreview],
+    );
 
     function runConfigUpdate(
-        recipe: () => { config: AppConfig; selectedChannelId?: string | null; selectedGroupName?: string }
+        recipe: () => { config: AppConfig; selectedChannelId?: string | null; selectedGroupName?: string },
     ) {
         try {
             const next = recipe();
@@ -75,7 +84,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
                 type: 'replace_config',
                 config: next.config,
                 selectedChannelId: next.selectedChannelId,
-                selectedGroupName: next.selectedGroupName
+                selectedGroupName: next.selectedGroupName,
             });
             setError(null);
         } catch (nextError) {
@@ -100,7 +109,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
         },
         patchUserAgent(userAgent) {
             runConfigUpdate(() => ({
-                config: updateUserAgent(state.config, userAgent)
+                config: updateUserAgent(state.config, userAgent),
             }));
         },
         addChannel() {
@@ -117,27 +126,27 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
                         randomMarginSeconds: 2,
                         timezone: 'UTC',
                         maxSendsPerDay: null,
-                        cooldownWindowSize: 3
-                    }
+                        cooldownWindowSize: 3,
+                    },
                 }),
-                selectedChannelId: channelId
+                selectedChannelId: channelId,
             }));
         },
         updateChannel(channelId, field, value) {
             runConfigUpdate(() => ({
                 config: updateConfigChannel(state.config, channelId, { [field]: value }),
-                selectedChannelId: field === 'id' && state.selectedChannelId === channelId ? value : undefined
+                selectedChannelId: field === 'id' && state.selectedChannelId === channelId ? value : undefined,
             }));
         },
         updateChannelSchedule(channelId, patch) {
             runConfigUpdate(() => ({
-                config: updateConfigChannelSchedule(state.config, channelId, patch)
+                config: updateConfigChannelSchedule(state.config, channelId, patch),
             }));
         },
         removeChannel(channelId) {
             runConfigUpdate(() => ({
                 config: removeChannels(state.config, [channelId]),
-                selectedChannelId: state.config.channels.find((channel) => channel.id !== channelId)?.id ?? null
+                selectedChannelId: state.config.channels.find((channel) => channel.id !== channelId)?.id ?? null,
             }));
         },
         setSelectedChannel(channelId) {
@@ -161,7 +170,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
 
             runConfigUpdate(() => ({
                 config: createMessageGroup(state.config, groupName),
-                selectedGroupName: groupName
+                selectedGroupName: groupName,
             }));
             dispatch({ type: 'set_new_group_name', value: '' });
         },
@@ -173,7 +182,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
 
             runConfigUpdate(() => ({
                 config: renameMessageGroup(state.config, state.selectedGroupName, normalizedName),
-                selectedGroupName: normalizedName
+                selectedGroupName: normalizedName,
             }));
         },
         cloneGroup() {
@@ -184,7 +193,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
             }
 
             runConfigUpdate(() => ({
-                config: cloneMessageGroup(state.config, state.selectedGroupName, cloneName)
+                config: cloneMessageGroup(state.config, state.selectedGroupName, cloneName),
             }));
             dispatch({ type: 'set_clone_group_name', value: '' });
         },
@@ -192,17 +201,17 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
             const nextConfig = deleteMessageGroup(state.config, groupName);
             runConfigUpdate(() => ({
                 config: nextConfig,
-                selectedGroupName: Object.keys(nextConfig.messageGroups)[0] ?? 'default'
+                selectedGroupName: Object.keys(nextConfig.messageGroups)[0] ?? 'default',
             }));
         },
         updateMessage(groupName, index, value) {
             runConfigUpdate(() => ({
-                config: updateMessageInGroup(state.config, groupName, index, value)
+                config: updateMessageInGroup(state.config, groupName, index, value),
             }));
         },
         addMessage(groupName) {
             runConfigUpdate(() => ({
-                config: addMessageToGroup(state.config, groupName)
+                config: addMessageToGroup(state.config, groupName),
             }));
         },
         moveMessage(groupName, index, direction) {
@@ -212,12 +221,12 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
             }
 
             runConfigUpdate(() => ({
-                config: reorderGroupMessages(state.config, groupName, index, nextIndex)
+                config: reorderGroupMessages(state.config, groupName, index, nextIndex),
             }));
         },
         removeMessage(groupName, index) {
             runConfigUpdate(() => ({
-                config: removeMessageFromGroup(state.config, groupName, index)
+                config: removeMessageFromGroup(state.config, groupName, index),
             }));
         },
         setImportDraft(value) {
@@ -249,7 +258,7 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
                 type: 'replace_config',
                 config: state.importPreview,
                 selectedChannelId: state.importPreview.channels[0]?.id ?? null,
-                selectedGroupName: Object.keys(state.importPreview.messageGroups)[0] ?? 'default'
+                selectedGroupName: Object.keys(state.importPreview.messageGroups)[0] ?? 'default',
             });
             dispatch({ type: 'set_import_draft', value: JSON.stringify(state.importPreview, null, 2) });
             dispatch({ type: 'set_import_preview', value: null });
@@ -259,6 +268,6 @@ export function useConfigDraft(initialConfig: AppConfig): ConfigDraftController 
             dispatch({ type: 'set_import_draft', value: JSON.stringify(state.config, null, 2) });
             dispatch({ type: 'set_import_preview', value: null });
             setError(null);
-        }
+        },
     };
 }

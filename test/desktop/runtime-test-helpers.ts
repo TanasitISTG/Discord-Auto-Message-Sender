@@ -1,4 +1,3 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
@@ -26,12 +25,14 @@ export function createTempDir(): string {
 
 export function writeDesktopFiles(baseDir: string) {
     const config = createDefaultAppConfig();
-    config.channels = [{
-        name: 'general',
-        id: '123456789012345678',
-        referrer: 'https://discord.com/channels/@me/123456789012345678',
-        messageGroup: 'default'
-    }];
+    config.channels = [
+        {
+            name: 'general',
+            id: '123456789012345678',
+            referrer: 'https://discord.com/channels/@me/123456789012345678',
+            messageGroup: 'default',
+        },
+    ];
 
     fs.writeFileSync(path.join(baseDir, 'config.json'), JSON.stringify(config, null, 2), 'utf8');
     return config;
@@ -51,7 +52,7 @@ export class FakeSession {
             activeChannels: [],
             completedChannels: [],
             failedChannels: [],
-            sentMessages: 0
+            sentMessages: 0,
         };
     }
 
@@ -85,8 +86,8 @@ export class FakeSession {
                 sentMessages: 0,
                 startedAt: new Date().toISOString(),
                 finishedAt: new Date().toISOString(),
-                stopReason: reason
-            }
+                stopReason: reason,
+            },
         };
         this.resolveStart?.(summaryState);
         return this.getState();
@@ -115,8 +116,8 @@ export class FakeInboxMonitor implements InboxMonitorController {
             state: {
                 ...this.snapshot.state,
                 enabled: settings.enabled,
-                pollIntervalSeconds: settings.pollIntervalSeconds
-            }
+                pollIntervalSeconds: settings.pollIntervalSeconds,
+            },
         };
         return this.getSnapshot();
     }
@@ -132,8 +133,8 @@ export class FakeInboxMonitor implements InboxMonitorController {
             lastSeen: {
                 initializedAt: this.snapshot.lastSeen.initializedAt,
                 selfUserId: this.snapshot.lastSeen.selfUserId,
-                channelMessageIds: { ...this.snapshot.lastSeen.channelMessageIds }
-            }
+                channelMessageIds: { ...this.snapshot.lastSeen.channelMessageIds },
+            },
         };
     }
 
@@ -143,8 +144,8 @@ export class FakeInboxMonitor implements InboxMonitorController {
             state: {
                 ...this.snapshot.state,
                 status: 'running',
-                enabled: this.snapshot.settings.enabled
-            }
+                enabled: this.snapshot.settings.enabled,
+            },
         };
         return this.getState();
     }
@@ -154,8 +155,8 @@ export class FakeInboxMonitor implements InboxMonitorController {
             ...this.snapshot,
             state: {
                 ...this.snapshot.state,
-                status: 'stopped'
-            }
+                status: 'stopped',
+            },
         };
         return this.getState();
     }

@@ -6,22 +6,18 @@ import {
     createTempDir,
     DesktopRuntime,
     FakeInboxMonitor,
-    STATE_SCHEMA_VERSION,
     resolveSessionLogPath,
-    writeDesktopFiles
+    writeDesktopFiles,
 } from './runtime-test-helpers';
 
 test('DesktopRuntime rejects invalid session ids when loading logs', async () => {
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
     const runtime = new DesktopRuntime({
-        baseDir: tempDir
+        baseDir: tempDir,
     });
 
-    await assert.rejects(
-        () => runtime.loadLogs({ sessionId: '../secret' }),
-        /Invalid session id/
-    );
+    await assert.rejects(() => runtime.loadLogs({ sessionId: '../secret' }), /Invalid session id/);
 });
 
 test('DesktopRuntime skips invalid JSONL lines while loading logs', async () => {
@@ -29,26 +25,30 @@ test('DesktopRuntime skips invalid JSONL lines while loading logs', async () => 
     writeDesktopFiles(tempDir);
     const logPath = resolveSessionLogPath(tempDir, 'session-1');
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.writeFileSync(logPath, [
-        JSON.stringify({
-            id: 'entry-1',
-            timestamp: '2026-03-22T00:00:00.000Z',
-            level: 'info',
-            context: 'System',
-            message: 'ok'
-        }),
-        '{ invalid jsonl',
-        JSON.stringify({
-            id: 'entry-2',
-            timestamp: '2026-03-22T00:00:01.000Z',
-            level: 'warning',
-            context: 'System',
-            message: 'still ok'
-        })
-    ].join('\n'), 'utf8');
+    fs.writeFileSync(
+        logPath,
+        [
+            JSON.stringify({
+                id: 'entry-1',
+                timestamp: '2026-03-22T00:00:00.000Z',
+                level: 'info',
+                context: 'System',
+                message: 'ok',
+            }),
+            '{ invalid jsonl',
+            JSON.stringify({
+                id: 'entry-2',
+                timestamp: '2026-03-22T00:00:01.000Z',
+                level: 'warning',
+                context: 'System',
+                message: 'still ok',
+            }),
+        ].join('\n'),
+        'utf8',
+    );
 
     const runtime = new DesktopRuntime({
-        baseDir: tempDir
+        baseDir: tempDir,
     });
 
     const result = await runtime.loadLogs({ sessionId: 'session-1' });
@@ -62,7 +62,7 @@ test('DesktopRuntime saves inbox monitor settings and starts/stops the monitor',
     writeDesktopFiles(tempDir);
     const runtime = new DesktopRuntime({
         baseDir: tempDir,
-        inboxMonitorFactory: () => new FakeInboxMonitor()
+        inboxMonitorFactory: () => new FakeInboxMonitor(),
     });
 
     const saved = runtime.saveInboxMonitorSettings({
@@ -70,8 +70,8 @@ test('DesktopRuntime saves inbox monitor settings and starts/stops the monitor',
             enabled: true,
             pollIntervalSeconds: 45,
             notifyDirectMessages: true,
-            notifyMessageRequests: false
-        }
+            notifyMessageRequests: false,
+        },
     });
     const started = await runtime.startInboxMonitor({ token: 'token' });
     const stopped = runtime.stopInboxMonitor();

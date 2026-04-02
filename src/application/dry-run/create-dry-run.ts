@@ -21,9 +21,9 @@ function buildChannelPreview(config: AppConfig, runtime: RuntimeOptions): DryRun
             cadence: {
                 numMessages: runtime.numMessages,
                 baseWaitSeconds: channel.schedule?.intervalSeconds ?? runtime.baseWaitSeconds,
-                marginSeconds: channel.schedule?.randomMarginSeconds ?? runtime.marginSeconds
+                marginSeconds: channel.schedule?.randomMarginSeconds ?? runtime.marginSeconds,
             },
-            skipReasons
+            skipReasons,
         };
     });
 }
@@ -40,7 +40,7 @@ export function createDryRun(config: AppConfig, runtime: RuntimeOptions): DryRun
         summary: {
             selectedChannels: channels.filter((channel) => channel.skipReasons.length === 0).length,
             skippedChannels,
-            totalSampleMessages
-        }
+            totalSampleMessages,
+        },
     };
 }

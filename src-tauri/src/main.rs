@@ -25,8 +25,10 @@ use tauri_plugin_notification::NotificationExt;
 use windows::{
     core::PCWSTR,
     Win32::{
-        Foundation::{HLOCAL, LocalFree},
-        Security::Cryptography::{CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB},
+        Foundation::{LocalFree, HLOCAL},
+        Security::Cryptography::{
+            CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+        },
     },
 };
 
@@ -45,7 +47,8 @@ const SIDECAR_BINARY_NAME: &str = if cfg!(target_os = "windows") {
 } else {
     "desktop-sidecar"
 };
-const LEGACY_RUNTIME_FILES: [&str; 4] = [".env", "config.json", "messages.json", ".sender-state.json"];
+const LEGACY_RUNTIME_FILES: [&str; 4] =
+    [".env", "config.json", "messages.json", ".sender-state.json"];
 const SESSION_ID_MAX_LEN: usize = 128;
 
 mod cli;
@@ -55,8 +58,8 @@ mod migrations;
 mod notification_delivery;
 mod runtime_paths;
 mod sender_state;
-mod sidecar_process;
 mod sidecar_manager;
+mod sidecar_process;
 mod support_bundle;
 mod token_store;
 

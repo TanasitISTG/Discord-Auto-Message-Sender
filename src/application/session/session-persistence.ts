@@ -21,22 +21,25 @@ export function updatePersistedSessionRecord(context: PersistedSessionContext, f
     if (finalize) {
         context.senderStateRecord.resumeSession = context.stopping
             ? {
-                sessionId: context.sessionId,
-                updatedAt: context.state.updatedAt,
-                runtime: context.runtime,
-                configSignature: createSessionConfigSignature(context.config),
-                state: {
-                    ...context.getState(),
-                    status: 'stopped',
-                    summary: undefined,
-                    stopReason: undefined
-                },
-                recentMessageHistory: structuredClone(context.recentMessageHistory)
-            }
+                  sessionId: context.sessionId,
+                  updatedAt: context.state.updatedAt,
+                  runtime: context.runtime,
+                  configSignature: createSessionConfigSignature(context.config),
+                  state: {
+                      ...context.getState(),
+                      status: 'stopped',
+                      summary: undefined,
+                      stopReason: undefined,
+                  },
+                  recentMessageHistory: structuredClone(context.recentMessageHistory),
+              }
             : undefined;
 
         if (context.state.summary) {
-            context.senderStateRecord.summaries = [context.state.summary, ...context.senderStateRecord.summaries].slice(0, 10);
+            context.senderStateRecord.summaries = [context.state.summary, ...context.senderStateRecord.summaries].slice(
+                0,
+                10,
+            );
         }
 
         const newFailures = context.state.failedChannels.map((channelId) => {
@@ -46,10 +49,13 @@ export function updatePersistedSessionRecord(context: PersistedSessionContext, f
                 channelId,
                 channelName: channel?.name ?? channelId,
                 reason: progress?.lastError ?? context.state.stopReason ?? 'Channel failed during session.',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             };
         });
-        context.senderStateRecord.recentFailures = [...newFailures, ...context.senderStateRecord.recentFailures].slice(0, 25);
+        context.senderStateRecord.recentFailures = [...newFailures, ...context.senderStateRecord.recentFailures].slice(
+            0,
+            25,
+        );
         return;
     }
 
@@ -60,7 +66,7 @@ export function updatePersistedSessionRecord(context: PersistedSessionContext, f
             runtime: context.runtime,
             configSignature: createSessionConfigSignature(context.config),
             state: context.getState(),
-            recentMessageHistory: structuredClone(context.recentMessageHistory)
+            recentMessageHistory: structuredClone(context.recentMessageHistory),
         };
     }
 }

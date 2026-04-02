@@ -31,19 +31,19 @@ function getZonedDateParts(date: Date, timeZone: string): ZonedDateParts {
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-        hourCycle: 'h23'
+        hourCycle: 'h23',
     });
     const parts = formatter.formatToParts(date);
-    const values = Object.fromEntries(parts
-        .filter((part) => part.type !== 'literal')
-        .map((part) => [part.type, part.value]));
+    const values = Object.fromEntries(
+        parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
+    );
 
     return {
         year: Number(values.year),
         month: Number(values.month),
         day: Number(values.day),
         hour: Number(values.hour),
-        minute: Number(values.minute)
+        minute: Number(values.minute),
     };
 }
 
@@ -84,7 +84,7 @@ function addDays(parts: ZonedDateParts, days: number): ZonedDateParts {
         ...parts,
         year: date.getUTCFullYear(),
         month: date.getUTCMonth() + 1,
-        day: date.getUTCDate()
+        day: date.getUTCDate(),
     };
 }
 
@@ -116,24 +116,24 @@ export function getQuietHoursDelayMs(target: AppChannel, now: Date = new Date())
 
     try {
         const zonedNow = getZonedDateParts(now, timeZone);
-        const currentMinutes = (zonedNow.hour * 60) + zonedNow.minute;
-        const startMinutes = (start.hour * 60) + start.minute;
-        const endMinutes = (end.hour * 60) + end.minute;
+        const currentMinutes = zonedNow.hour * 60 + zonedNow.minute;
+        const startMinutes = start.hour * 60 + start.minute;
+        const endMinutes = end.hour * 60 + end.minute;
 
         if (!isWithinQuietHours(currentMinutes, startMinutes, endMinutes)) {
             return 0;
         }
 
-        const resumeDate = startMinutes < endMinutes
-            ? zonedNow
-            : currentMinutes >= startMinutes
-                ? addDays(zonedNow, 1)
-                : zonedNow;
-        const resumeAt = zonedTimeToUtcMillis({
-            ...resumeDate,
-            hour: end.hour,
-            minute: end.minute
-        }, timeZone);
+        const resumeDate =
+            startMinutes < endMinutes ? zonedNow : currentMinutes >= startMinutes ? addDays(zonedNow, 1) : zonedNow;
+        const resumeAt = zonedTimeToUtcMillis(
+            {
+                ...resumeDate,
+                hour: end.hour,
+                minute: end.minute,
+            },
+            timeZone,
+        );
 
         return Math.max(0, resumeAt - now.getTime());
     } catch {

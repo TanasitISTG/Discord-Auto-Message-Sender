@@ -2,7 +2,13 @@ import { DesktopCommandMap, SidecarCommandName } from '../contracts';
 import { DesktopRuntime } from '../runtime';
 import { handleLoadConfig, handleSaveConfig } from './config';
 import { handleRunDryRun, handleRunPreflight } from './preflight';
-import { handleGetSessionState, handlePauseSession, handleResumeSession, handleStartSession, handleStopSession } from './session';
+import {
+    handleGetSessionState,
+    handlePauseSession,
+    handleResumeSession,
+    handleStartSession,
+    handleStopSession,
+} from './session';
 import {
     handleDiscardResumeSession,
     handleGetInboxMonitorState,
@@ -11,17 +17,17 @@ import {
     handleLoadState,
     handleSaveInboxMonitorSettings,
     handleStartInboxMonitor,
-    handleStopInboxMonitor
+    handleStopInboxMonitor,
 } from './state';
 
 type Handler<K extends SidecarCommandName> = (
     runtime: DesktopRuntime,
-    payload: DesktopCommandMap[K]['request']
+    payload: DesktopCommandMap[K]['request'],
 ) => Promise<DesktopCommandMap[K]['response']>;
 
 export function createDesktopHandlers() {
     const handlers: {
-        [K in SidecarCommandName]: Handler<K>
+        [K in SidecarCommandName]: Handler<K>;
     } = {
         load_config: handleLoadConfig,
         save_config: handleSaveConfig,
@@ -39,7 +45,7 @@ export function createDesktopHandlers() {
         save_inbox_monitor_settings: handleSaveInboxMonitorSettings,
         get_inbox_monitor_state: handleGetInboxMonitorState,
         start_inbox_monitor: handleStartInboxMonitor,
-        stop_inbox_monitor: handleStopInboxMonitor
+        stop_inbox_monitor: handleStopInboxMonitor,
     };
 
     return handlers;

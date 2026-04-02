@@ -10,14 +10,10 @@ export function loadSenderState(baseDir: string): SenderStateRecord {
 
     if (loaded.shouldWriteBack) {
         saveSenderState(baseDir, loaded.state);
-        return loaded.warning
-            ? { ...loaded.state, warning: loaded.warning }
-            : loaded.state;
+        return loaded.warning ? { ...loaded.state, warning: loaded.warning } : loaded.state;
     }
 
-    return loaded.warning
-        ? { ...loaded.state, warning: loaded.warning }
-        : loaded.state;
+    return loaded.warning ? { ...loaded.state, warning: loaded.warning } : loaded.state;
 }
 
 export function saveSenderState(baseDir: string, state: SenderStateRecord) {
@@ -29,9 +25,7 @@ export function saveSenderState(baseDir: string, state: SenderStateRecord) {
 export function updateSenderState(baseDir: string, updater: (state: SenderStateRecord) => void): SenderStateRecord {
     return withStateLock(baseDir, () => {
         const loaded = readSenderState(baseDir);
-        const state = loaded.warning
-            ? { ...loaded.state, warning: loaded.warning }
-            : loaded.state;
+        const state = loaded.warning ? { ...loaded.state, warning: loaded.warning } : loaded.state;
         updater(state);
         writeSenderStateUnlocked(resolveStateFile(baseDir), state);
         return readSenderState(baseDir).state;
@@ -53,18 +47,20 @@ function readSenderState(baseDir: string): {
     if (!fs.existsSync(filePath)) {
         return {
             state: getDefaultSenderState(),
-            shouldWriteBack: false
+            shouldWriteBack: false,
         };
     }
 
     try {
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<SenderStateRecord> & { schemaVersion?: unknown };
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Partial<SenderStateRecord> & {
+            schemaVersion?: unknown;
+        };
         return normalizeSenderState(raw);
     } catch {
         return {
             state: getDefaultSenderState(),
             shouldWriteBack: false,
-            warning: 'Local sender state was corrupted and has been reset.'
+            warning: 'Local sender state was corrupted and has been reset.',
         };
     }
 }
@@ -73,7 +69,7 @@ function writeSenderStateUnlocked(filePath: string, state: SenderStateRecord) {
     const nextState: SenderStateRecord = {
         ...state,
         schemaVersion: STATE_SCHEMA_VERSION,
-        warning: undefined
+        warning: undefined,
     };
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
@@ -89,9 +85,7 @@ function writeSenderStateUnlocked(filePath: string, state: SenderStateRecord) {
             }
             fs.renameSync(tempFilePath, filePath);
         } catch (renameError) {
-            throw renameError instanceof Error
-                ? renameError
-                : error;
+            throw renameError instanceof Error ? renameError : error;
         } finally {
             if (fs.existsSync(tempFilePath)) {
                 fs.rmSync(tempFilePath, { force: true });

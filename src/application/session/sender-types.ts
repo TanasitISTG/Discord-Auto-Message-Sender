@@ -31,15 +31,21 @@ export interface SenderLifecycle {
     isStopping(): boolean;
     getStopReason(): string | null;
     onChannelEvent?(target: AppChannel, phase: 'started' | 'stopped' | 'completed' | 'failed'): void;
-    onMessageSent?(target: AppChannel, details: {
-        template: string;
-        rendered: string;
-        sentToday: number;
-        sentTodayDayKey: string;
-    }): void;
+    onMessageSent?(
+        target: AppChannel,
+        details: {
+            template: string;
+            rendered: string;
+            sentToday: number;
+            sentTodayDayKey: string;
+        },
+    ): void;
     getRecentMessages?(target: AppChannel): string[];
     onRateLimit?(target: AppChannel, waitSeconds: number, consecutiveRateLimits: number): void;
-    onChannelSuppressed?(target: AppChannel, details: { waitMs: number; suppressedUntil: string; reason: string }): void;
+    onChannelSuppressed?(
+        target: AppChannel,
+        details: { waitMs: number; suppressedUntil: string; reason: string },
+    ): void;
     onChannelRecovered?(target: AppChannel): void;
     onChannelFailure?(target: AppChannel, reason: string): void;
 }

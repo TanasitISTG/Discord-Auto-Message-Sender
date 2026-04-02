@@ -7,7 +7,7 @@ export function createSessionLogActions({
     currentLogSessionId,
     setLogs,
     setNotice,
-    setSurfaceNotice
+    setSurfaceNotice,
 }: SessionActionOptions) {
     return {
         async loadCurrentLogs() {
@@ -22,9 +22,17 @@ export function createSessionLogActions({
                 const result = await loadLogs(sessionId);
                 setLogs(mergeLogsById(result.entries.slice().reverse()));
                 if (result.warnings && result.warnings.length > 0) {
-                    setSurfaceNotice('logs', 'warning', 'Some log lines were skipped because they were invalid or incomplete.');
+                    setSurfaceNotice(
+                        'logs',
+                        'warning',
+                        'Some log lines were skipped because they were invalid or incomplete.',
+                    );
                 } else {
-                    setSurfaceNotice('logs', 'success', `Loaded ${result.entries.length} log entr${result.entries.length === 1 ? 'y' : 'ies'} from disk.`);
+                    setSurfaceNotice(
+                        'logs',
+                        'success',
+                        `Loaded ${result.entries.length} log entr${result.entries.length === 1 ? 'y' : 'ies'} from disk.`,
+                    );
                 }
                 return result;
             } catch (error) {
@@ -53,6 +61,6 @@ export function createSessionLogActions({
                 setSurfaceNotice('logs', 'danger', message);
                 return null;
             }
-        }
+        },
     };
 }

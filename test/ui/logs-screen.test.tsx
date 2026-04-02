@@ -14,8 +14,8 @@ const logs = [
         segmentId: 'segment-2',
         segmentKind: 'resumed' as const,
         meta: {
-            event: 'session_segment_started'
-        }
+            event: 'session_segment_started',
+        },
     },
     {
         id: '2',
@@ -29,8 +29,8 @@ const logs = [
         meta: {
             event: 'rate_limit_wait',
             retryAfter: 120,
-            pacingMs: 5000
-        }
+            pacingMs: 5000,
+        },
     },
     {
         id: 'segment-1-marker',
@@ -42,20 +42,15 @@ const logs = [
         segmentId: 'segment-1',
         segmentKind: 'fresh' as const,
         meta: {
-            event: 'session_segment_started'
-        }
-    }
+            event: 'session_segment_started',
+        },
+    },
 ];
 
 test('LogsScreen shows human-readable event labels and segment headers', async () => {
     const user = userEvent.setup();
     render(
-        <LogsScreen
-            logs={logs}
-            sessionId="session-1"
-            onRefresh={() => undefined}
-            onOpenLogFile={() => undefined}
-        />
+        <LogsScreen logs={logs} sessionId="session-1" onRefresh={() => undefined} onOpenLogFile={() => undefined} />,
     );
 
     expect(screen.getByText('Resumed from checkpoint')).toBeTruthy();

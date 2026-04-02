@@ -9,22 +9,22 @@ function cloneConfig(config: AppConfig): AppConfig {
             ...channel,
             ...(channel.schedule
                 ? {
-                    schedule: {
-                        ...channel.schedule,
-                        ...(channel.schedule.quietHours
-                            ? {
-                                quietHours: {
-                                    ...channel.schedule.quietHours
+                      schedule: {
+                          ...channel.schedule,
+                          ...(channel.schedule.quietHours
+                              ? {
+                                    quietHours: {
+                                        ...channel.schedule.quietHours,
+                                    },
                                 }
-                            }
-                            : {})
-                    }
-                }
-                : {})
+                              : {}),
+                      },
+                  }
+                : {}),
         })),
         messageGroups: Object.fromEntries(
-            Object.entries(config.messageGroups).map(([name, messages]) => [name, [...messages]])
-        )
+            Object.entries(config.messageGroups).map(([name, messages]) => [name, [...messages]]),
+        ),
     };
 }
 
@@ -41,23 +41,26 @@ function getScheduleDefaults(existing?: ChannelSchedule | null): ChannelSchedule
         timezone: existing?.timezone ?? 'UTC',
         maxSendsPerDay: existing?.maxSendsPerDay ?? null,
         cooldownWindowSize: existing?.cooldownWindowSize ?? 3,
-        quietHours: existing?.quietHours ?? null
+        quietHours: existing?.quietHours ?? null,
     };
 }
 
 export function updateUserAgent(config: AppConfig, userAgent: string): AppConfig {
     return parseAppConfig({
         ...cloneConfig(config),
-        userAgent
+        userAgent,
     });
 }
 
-export function addChannel(config: AppConfig, channel: Omit<AppChannel, 'referrer'> & { referrer?: string }): AppConfig {
+export function addChannel(
+    config: AppConfig,
+    channel: Omit<AppChannel, 'referrer'> & { referrer?: string },
+): AppConfig {
     const next = cloneConfig(config);
     next.channels.push({
         ...channel,
         referrer: channel.referrer ?? buildDefaultReferrer(channel.id),
-        ...(channel.schedule ? { schedule: getScheduleDefaults(channel.schedule) } : {})
+        ...(channel.schedule ? { schedule: getScheduleDefaults(channel.schedule) } : {}),
     });
     return parseAppConfig(next);
 }
@@ -72,13 +75,17 @@ export function updateChannel(config: AppConfig, channelId: string, patch: Parti
     next.channels[index] = {
         ...next.channels[index],
         ...patch,
-        ...(patch.schedule ? { schedule: getScheduleDefaults(patch.schedule) } : {})
+        ...(patch.schedule ? { schedule: getScheduleDefaults(patch.schedule) } : {}),
     };
 
     return parseAppConfig(next);
 }
 
-export function updateChannelSchedule(config: AppConfig, channelId: string, patch: Partial<ChannelSchedule>): AppConfig {
+export function updateChannelSchedule(
+    config: AppConfig,
+    channelId: string,
+    patch: Partial<ChannelSchedule>,
+): AppConfig {
     const next = cloneConfig(config);
     const index = next.channels.findIndex((channel) => channel.id === channelId);
     if (index === -1) {
@@ -89,8 +96,8 @@ export function updateChannelSchedule(config: AppConfig, channelId: string, patc
         ...next.channels[index],
         schedule: {
             ...getScheduleDefaults(next.channels[index].schedule),
-            ...patch
-        }
+            ...patch,
+        },
     };
 
     return parseAppConfig(next);
@@ -102,7 +109,11 @@ export function removeChannels(config: AppConfig, channelIds: string[]): AppConf
     return parseAppConfig(next);
 }
 
-export function createMessageGroup(config: AppConfig, groupName: string, initialMessages: string[] = ['New Message']): AppConfig {
+export function createMessageGroup(
+    config: AppConfig,
+    groupName: string,
+    initialMessages: string[] = ['New Message'],
+): AppConfig {
     const next = cloneConfig(config);
     if (next.messageGroups[groupName]) {
         throw new Error(`Message group '${groupName}' already exists.`);
@@ -121,9 +132,9 @@ export function renameMessageGroup(config: AppConfig, previousName: string, next
 
     next.messageGroups[nextName] = next.messageGroups[previousName];
     delete next.messageGroups[previousName];
-    next.channels = next.channels.map((channel) => channel.messageGroup === previousName
-        ? { ...channel, messageGroup: nextName }
-        : channel);
+    next.channels = next.channels.map((channel) =>
+        channel.messageGroup === previousName ? { ...channel, messageGroup: nextName } : channel,
+    );
     return parseAppConfig(next);
 }
 
@@ -148,9 +159,9 @@ export function deleteMessageGroup(config: AppConfig, groupName: string): AppCon
     }
 
     delete next.messageGroups[groupName];
-    next.channels = next.channels.map((channel) => channel.messageGroup === groupName
-        ? { ...channel, messageGroup: fallbackGroup }
-        : channel);
+    next.channels = next.channels.map((channel) =>
+        channel.messageGroup === groupName ? { ...channel, messageGroup: fallbackGroup } : channel,
+    );
     return parseAppConfig(next);
 }
 
@@ -171,9 +182,9 @@ export function addMessageToGroup(config: AppConfig, groupName: string, message:
 export function updateMessageInGroup(config: AppConfig, groupName: string, index: number, value: string): AppConfig {
     const next = cloneConfig(config);
     ensureGroupExists(next, groupName);
-    next.messageGroups[groupName] = next.messageGroups[groupName].map((message, messageIndex) => (
-        messageIndex === index ? value : message
-    ));
+    next.messageGroups[groupName] = next.messageGroups[groupName].map((message, messageIndex) =>
+        messageIndex === index ? value : message,
+    );
     return parseAppConfig(next);
 }
 
@@ -188,11 +199,23 @@ export function removeMessageFromGroup(config: AppConfig, groupName: string, ind
     return parseAppConfig(next);
 }
 
-export function reorderGroupMessages(config: AppConfig, groupName: string, fromIndex: number, toIndex: number): AppConfig {
+export function reorderGroupMessages(
+    config: AppConfig,
+    groupName: string,
+    fromIndex: number,
+    toIndex: number,
+): AppConfig {
     const next = cloneConfig(config);
     ensureGroupExists(next, groupName);
     const messages = [...next.messageGroups[groupName]];
-    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= messages.length || toIndex >= messages.length) {
+    if (
+        !Number.isInteger(fromIndex) ||
+        !Number.isInteger(toIndex) ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= messages.length ||
+        toIndex >= messages.length
+    ) {
         throw new Error(`Message index out of range for group '${groupName}'.`);
     }
     const [message] = messages.splice(fromIndex, 1);

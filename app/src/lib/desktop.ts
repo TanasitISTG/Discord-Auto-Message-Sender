@@ -12,7 +12,6 @@ import type {
     InboxMonitorSnapshot,
     InboxMonitorState,
     LogLoadResult,
-    LogEntry,
     NotificationDeliverySettings,
     NotificationDeliverySnapshot,
     PreflightResult,
@@ -21,10 +20,9 @@ import type {
     RuntimeOptions,
     SaveConfigResult,
     SaveEnvironmentRequest,
-    SidecarStatus,
     SenderStateRecord,
     SupportBundleResult,
-    SessionSnapshot
+    SessionSnapshot,
 } from '../../../src/desktop/contracts';
 
 export type {
@@ -48,14 +46,14 @@ export type {
     SidecarStatus,
     SenderStateRecord,
     SupportBundleResult,
-    SessionSnapshot
+    SessionSnapshot,
 } from '../../../src/desktop/contracts';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 async function desktopInvoke<K extends DesktopCommandName>(
     command: K,
-    request: DesktopCommandMap[K]['request']
+    request: DesktopCommandMap[K]['request'],
 ): Promise<DesktopCommandMap[K]['response']> {
     if (!isTauri) {
         throw new Error('Tauri desktop APIs are unavailable in the browser dev preview.');
@@ -144,7 +142,9 @@ export async function loadNotificationDeliverySettings(): Promise<NotificationDe
     return desktopInvoke('load_notification_delivery_settings', {});
 }
 
-export async function saveNotificationDeliverySettings(settings: NotificationDeliverySettings): Promise<NotificationDeliverySnapshot> {
+export async function saveNotificationDeliverySettings(
+    settings: NotificationDeliverySettings,
+): Promise<NotificationDeliverySnapshot> {
     return desktopInvoke('save_notification_delivery_settings', { settings });
 }
 
@@ -164,7 +164,11 @@ export async function detectTelegramChat(): Promise<{ chatId: string; title?: st
     return desktopInvoke('detect_telegram_chat', {});
 }
 
-export async function sendTestTelegramNotification(): Promise<{ ok: boolean; message: string; state: NotificationDeliverySnapshot['telegramState'] }> {
+export async function sendTestTelegramNotification(): Promise<{
+    ok: boolean;
+    message: string;
+    state: NotificationDeliverySnapshot['telegramState'];
+}> {
     return desktopInvoke('send_test_telegram_notification', {});
 }
 

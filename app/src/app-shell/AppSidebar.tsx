@@ -17,7 +17,9 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                     <Send className="h-4 w-4" />
                     <span>Desktop Sender</span>
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">GUI-first local control plane for Discord messaging.</p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    GUI-first local control plane for Discord messaging.
+                </p>
             </div>
 
             <nav className="flex-1 space-y-1.5 px-3">
@@ -27,10 +29,11 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                     return (
                         <button
                             key={item.id}
-                            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${isActive
-                                ? 'bg-primary/10 text-cyan-50 shadow-inner-glow'
-                                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                                }`}
+                            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all ${
+                                isActive
+                                    ? 'bg-primary/10 text-cyan-50 shadow-inner-glow'
+                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                            }`}
                             onClick={() => onSelectScreen(item.id)}
                         >
                             {isActive ? (
@@ -48,19 +51,25 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                     {controller.releaseDiagnostics ? (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>Version</span>
-                            <span className="font-mono text-[11px]">v{controller.releaseDiagnostics.appVersion} beta</span>
+                            <span className="font-mono text-[11px]">
+                                v{controller.releaseDiagnostics.appVersion} beta
+                            </span>
                         </div>
                     ) : null}
                     {controller.session?.id ? (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>Session ID</span>
-                            <span className="ml-2 truncate font-mono text-[11px]">{controller.session.id.split('-')[0]}</span>
+                            <span className="ml-2 truncate font-mono text-[11px]">
+                                {controller.session.id.split('-')[0]}
+                            </span>
                         </div>
                     ) : null}
                     {!controller.setupChecklist.complete ? (
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>Setup tasks</span>
-                            <Badge tone="warning" className="px-1.5 py-0 text-[9px]">{controller.setupChecklist.completedCount}/{controller.setupChecklist.totalCount}</Badge>
+                            <Badge tone="warning" className="px-1.5 py-0 text-[9px]">
+                                {controller.setupChecklist.completedCount}/{controller.setupChecklist.totalCount}
+                            </Badge>
                         </div>
                     ) : null}
                     <div className="mt-1 flex items-center justify-between border-t border-border/30 pt-3">
@@ -74,7 +83,9 @@ export function AppSidebar({ screen, controller, onSelectScreen }: AppSidebarPro
                             ) : (
                                 <span className="h-2 w-2 rounded-full bg-amber-500"></span>
                             )}
-                            <span className="text-[10px] font-semibold uppercase tracking-widest text-foreground/90">{controller.sidecarStatus}</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-widest text-foreground/90">
+                                {controller.sidecarStatus}
+                            </span>
                         </div>
                     </div>
                 </div>

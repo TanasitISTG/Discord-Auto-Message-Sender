@@ -1,7 +1,10 @@
 use crate::*;
 
 #[tauri::command]
-pub(crate) fn start_session(app: AppHandle, request: StartSessionRequest) -> Result<SessionSnapshot, String> {
+pub(crate) fn start_session(
+    app: AppHandle,
+    request: StartSessionRequest,
+) -> Result<SessionSnapshot, String> {
     let mut payload = serde_json::to_value(request)
         .map_err(|error| format!("Failed to serialize the session runtime request: {error}"))?;
     if let Value::Object(ref mut object) = payload {

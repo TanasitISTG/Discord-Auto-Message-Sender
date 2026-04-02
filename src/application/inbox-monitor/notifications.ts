@@ -34,17 +34,17 @@ export function buildChannelName(channel: InboxChannel): string {
         return channel.id;
     }
 
-    return recipients
-        .map((recipient) => recipient.global_name ?? recipient.username ?? recipient.id)
-        .join(', ');
+    return recipients.map((recipient) => recipient.global_name ?? recipient.username ?? recipient.id).join(', ');
 }
 
 export function isMessageRequestChannel(channel: InboxChannel): boolean {
-    return channel.is_message_request === true
-        || typeof channel.is_message_request_timestamp === 'string'
-        || typeof channel.message_request_timestamp === 'string'
-        || channel.is_spam === true
-        || channel.spam === true;
+    return (
+        channel.is_message_request === true ||
+        typeof channel.is_message_request_timestamp === 'string' ||
+        typeof channel.message_request_timestamp === 'string' ||
+        channel.is_spam === true ||
+        channel.spam === true
+    );
 }
 
 export function compareSnowflakes(left: string, right: string): number {

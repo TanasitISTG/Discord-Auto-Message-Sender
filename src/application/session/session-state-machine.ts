@@ -6,7 +6,7 @@ import type {
     RuntimeOptions,
     SenderStateRecord,
     SessionSegmentKind,
-    SessionState
+    SessionState,
 } from '../../types';
 
 export type ResumeSessionRecord = NonNullable<SenderStateRecord['resumeSession']>;
@@ -25,7 +25,7 @@ export function createEmptyChannelProgress(channel: AppConfig['channels'][number
         status: 'pending',
         sentMessages: 0,
         sentToday: 0,
-        consecutiveRateLimits: 0
+        consecutiveRateLimits: 0,
     };
 }
 
@@ -36,34 +36,38 @@ export function createEmptyChannelHealth(channel: AppConfig['channels'][number])
         status: 'healthy',
         consecutiveRateLimits: 0,
         consecutiveFailures: 0,
-        suppressionCount: 0
+        suppressionCount: 0,
     };
 }
 
 export function buildChannelProgress(
     config: AppConfig,
-    previous?: Record<string, ChannelProgressRecord>
+    previous?: Record<string, ChannelProgressRecord>,
 ): Record<string, ChannelProgressRecord> {
-    return Object.fromEntries(config.channels.map((channel) => [
-        channel.id,
-        {
-            ...createEmptyChannelProgress(channel),
-            ...(previous?.[channel.id] ?? {})
-        }
-    ]));
+    return Object.fromEntries(
+        config.channels.map((channel) => [
+            channel.id,
+            {
+                ...createEmptyChannelProgress(channel),
+                ...(previous?.[channel.id] ?? {}),
+            },
+        ]),
+    );
 }
 
 export function buildChannelHealth(
     config: AppConfig,
-    previous?: Record<string, ChannelHealthRecord>
+    previous?: Record<string, ChannelHealthRecord>,
 ): Record<string, ChannelHealthRecord> {
-    return Object.fromEntries(config.channels.map((channel) => [
-        channel.id,
-        {
-            ...createEmptyChannelHealth(channel),
-            ...(previous?.[channel.id] ?? {})
-        }
-    ]));
+    return Object.fromEntries(
+        config.channels.map((channel) => [
+            channel.id,
+            {
+                ...createEmptyChannelHealth(channel),
+                ...(previous?.[channel.id] ?? {}),
+            },
+        ]),
+    );
 }
 
 export function createInitialPacing(): AdaptivePacingState {
@@ -72,7 +76,7 @@ export function createInitialPacing(): AdaptivePacingState {
         currentRequestIntervalMs: 250,
         maxRequestIntervalMs: 250,
         penaltyLevel: 0,
-        recentRateLimitCount: 0
+        recentRateLimitCount: 0,
     };
 }
 
@@ -81,7 +85,7 @@ export function createSessionSegment(kind: SessionSegmentKind, resumedFromCheckp
         id: `segment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         kind,
         startedAt: new Date().toISOString(),
-        resumedFromCheckpointAt
+        resumedFromCheckpointAt,
     };
 }
 
@@ -90,7 +94,7 @@ export function createInitialState(
     runtime: RuntimeOptions,
     config: AppConfig,
     segment: SessionSegment,
-    persistedHealth?: Record<string, ChannelHealthRecord>
+    persistedHealth?: Record<string, ChannelHealthRecord>,
 ): SessionState {
     const now = new Date().toISOString();
     return {
@@ -108,7 +112,7 @@ export function createInitialState(
         runtime,
         channelProgress: buildChannelProgress(config),
         channelHealth: buildChannelHealth(config, persistedHealth),
-        pacing: createInitialPacing()
+        pacing: createInitialPacing(),
     };
 }
 
@@ -124,7 +128,11 @@ export function createOutcomeStatus(progress: ChannelProgressRecord): 'completed
     return 'failed';
 }
 
-export function ensureChannelProgress(config: AppConfig, state: SessionState, channelId: string): ChannelProgressRecord {
+export function ensureChannelProgress(
+    config: AppConfig,
+    state: SessionState,
+    channelId: string,
+): ChannelProgressRecord {
     const channel = config.channels.find((item) => item.id === channelId);
     const progress = state.channelProgress?.[channelId];
     if (progress) {
@@ -133,17 +141,17 @@ export function ensureChannelProgress(config: AppConfig, state: SessionState, ch
 
     const nextProgress = channel
         ? createEmptyChannelProgress(channel)
-        : {
-            channelId,
-            channelName: channelId,
-            status: 'pending',
-            sentMessages: 0,
-            sentToday: 0,
-            consecutiveRateLimits: 0
-        } satisfies ChannelProgressRecord;
+        : ({
+              channelId,
+              channelName: channelId,
+              status: 'pending',
+              sentMessages: 0,
+              sentToday: 0,
+              consecutiveRateLimits: 0,
+          } satisfies ChannelProgressRecord);
     state.channelProgress = {
         ...(state.channelProgress ?? {}),
-        [channelId]: nextProgress
+        [channelId]: nextProgress,
     };
     return nextProgress;
 }
@@ -157,17 +165,17 @@ export function ensureChannelHealth(config: AppConfig, state: SessionState, chan
 
     const nextHealth = channel
         ? createEmptyChannelHealth(channel)
-        : {
-            channelId,
-            channelName: channelId,
-            status: 'healthy',
-            consecutiveRateLimits: 0,
-            consecutiveFailures: 0,
-            suppressionCount: 0
-        } satisfies ChannelHealthRecord;
+        : ({
+              channelId,
+              channelName: channelId,
+              status: 'healthy',
+              consecutiveRateLimits: 0,
+              consecutiveFailures: 0,
+              suppressionCount: 0,
+          } satisfies ChannelHealthRecord);
     state.channelHealth = {
         ...(state.channelHealth ?? {}),
-        [channelId]: nextHealth
+        [channelId]: nextHealth,
     };
     return nextHealth;
 }

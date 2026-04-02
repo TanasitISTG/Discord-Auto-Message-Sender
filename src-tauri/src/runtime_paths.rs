@@ -71,14 +71,19 @@ pub(crate) fn validate_session_id(session_id: &str) -> Result<&str, String> {
         return Err("Invalid session id.".to_string());
     }
 
-    if !chars.all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-') {
+    if !chars
+        .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+    {
         return Err("Invalid session id.".to_string());
     }
 
     Ok(session_id)
 }
 
-pub(crate) fn resolve_session_log_path(paths: &RuntimePaths, session_id: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve_session_log_path(
+    paths: &RuntimePaths,
+    session_id: &str,
+) -> Result<PathBuf, String> {
     let valid_session_id = validate_session_id(session_id)?;
     let log_path = paths.logs_dir.join(format!("{valid_session_id}.jsonl"));
     let canonical_logs_dir = paths
@@ -87,7 +92,11 @@ pub(crate) fn resolve_session_log_path(paths: &RuntimePaths, session_id: &str) -
         .unwrap_or_else(|_| paths.logs_dir.clone());
     let canonical_parent = log_path
         .parent()
-        .map(|parent| parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf()))
+        .map(|parent| {
+            parent
+                .canonicalize()
+                .unwrap_or_else(|_| parent.to_path_buf())
+        })
         .ok_or_else(|| "Invalid session id.".to_string())?;
 
     if !canonical_parent.starts_with(&canonical_logs_dir) {

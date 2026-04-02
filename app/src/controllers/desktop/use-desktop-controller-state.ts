@@ -12,13 +12,13 @@ import type {
     SenderStateRecord,
     SessionSnapshot,
     SidecarStatus,
-    SupportBundleResult
+    SupportBundleResult,
 } from '@/lib/desktop';
 import {
     defaultInboxMonitorSettings,
     defaultInboxMonitorState,
     defaultNotificationDeliverySnapshot,
-    defaultSenderState
+    defaultSenderState,
 } from './helpers';
 import type { PreferredScreen, RecoveryState } from './types';
 
@@ -31,7 +31,9 @@ export function useDesktopControllerState() {
     const [setup, setSetup] = useState<DesktopSetupState | null>(null);
     const [inboxMonitorSettings, setInboxMonitorSettings] = useState<InboxMonitorSettings>(defaultInboxMonitorSettings);
     const [inboxMonitorState, setInboxMonitorState] = useState<InboxMonitorState>(defaultInboxMonitorState);
-    const [notificationDelivery, setNotificationDelivery] = useState<NotificationDeliverySnapshot>(defaultNotificationDeliverySnapshot);
+    const [notificationDelivery, setNotificationDelivery] = useState<NotificationDeliverySnapshot>(
+        defaultNotificationDeliverySnapshot,
+    );
     const [releaseDiagnostics, setReleaseDiagnostics] = useState<ReleaseDiagnostics | null>(null);
     const [supportBundle, setSupportBundle] = useState<SupportBundleResult | null>(null);
     const [configStatus, setConfigStatus] = useState<'loading' | 'ready' | 'missing' | 'invalid'>('loading');
@@ -45,7 +47,7 @@ export function useDesktopControllerState() {
     const [runtime, setRuntime] = useState<RuntimeOptions>({
         numMessages: 0,
         baseWaitSeconds: 5,
-        marginSeconds: 2
+        marginSeconds: 2,
     });
     const sessionRef = useRef<SessionSnapshot | null>(null);
 
@@ -94,6 +96,6 @@ export function useDesktopControllerState() {
         setPreferredScreen,
         runtime,
         setRuntime,
-        sessionRef
+        sessionRef,
     };
 }

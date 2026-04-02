@@ -1,4 +1,3 @@
-import path from 'path';
 import {
     AppConfig,
     AppEvent,
@@ -7,31 +6,27 @@ import {
     RuntimeOptions,
     SenderStateRecord,
     SessionState,
-    SessionStatus
+    SessionStatus,
 } from '../../types';
 import { createSenderCoordinator, runChannel } from '../../core/sender';
-import { createBufferedFileWriter, createStructuredLogger, StructuredLogger } from '../../utils/logger';
+import { type BufferedFileWriter, type StructuredLogger } from '../../utils/logger';
 import { validateSessionId } from '../../utils/session-id';
 import { loadSenderState } from '../../infrastructure/state-store';
-import {
-    canResumeSession,
-    restoreStateFromResume,
-    type ResumeSessionRecord
-} from './resume-session';
+import { restoreStateFromResume, type ResumeSessionRecord } from './resume-session';
 import { updatePersistedSessionRecord, flushPersistedSessionState } from './session-persistence';
 import { buildSessionSummary } from './session-summary';
 import { createSessionChannelLifecycle } from './session-channel-lifecycle';
 import { SessionStateFlusher } from './session-state-flusher';
+import { createSessionLoggerArtifacts } from './session-logger';
 import {
     createInitialState,
     createSessionSegment,
     ensureChannelHealth,
     ensureChannelProgress,
-    type SessionSegment
+    type SessionSegment,
 } from './session-state-machine';
 import type { FetchImpl, SleepFn } from './sender-types';
 
-const SESSION_LOG_DIR = 'logs';
 const STATE_FLUSH_DEBOUNCE_MS = 250;
 type SessionUpdateReason = Extract<AppEvent, { type: 'session_state_updated' }>['reason'];
 
@@ -70,7 +65,7 @@ export class SessionService {
     private paused = false;
     private stopping = false;
     private readonly logger: StructuredLogger;
-    private readonly logWriter: ReturnType<typeof createBufferedFileWriter>;
+    private readonly logWriter: BufferedFileWriter;
     private readonly stateFlusher: SessionStateFlusher;
 
     constructor(options: SessionServiceOptions) {
@@ -85,11 +80,10 @@ export class SessionService {
 
         const persistedState = loadSenderState(this.baseDir);
         this.senderStateRecord = structuredClone(persistedState);
-        this.sessionId = validateSessionId(options.sessionId ?? this.resumeSession?.sessionId ?? `session-${Date.now()}`);
-        this.segment = createSessionSegment(
-            this.resumeSession ? 'resumed' : 'fresh',
-            this.resumeSession?.updatedAt
+        this.sessionId = validateSessionId(
+            options.sessionId ?? this.resumeSession?.sessionId ?? `session-${Date.now()}`,
         );
+        this.segment = createSessionSegment(this.resumeSession ? 'resumed' : 'fresh', this.resumeSession?.updatedAt);
         this.coordinator = createSenderCoordinator(250, this.resumeSession?.state.pacing);
         this.state = this.resumeSession
             ? restoreStateFromResume(this.resumeSession, this.config, this.segment, persistedState.channelHealth)
@@ -99,40 +93,18 @@ export class SessionService {
         this.state.pacing = this.coordinator.getPacingState();
 
         this.recentMessageHistory = structuredClone(
-            this.resumeSession?.recentMessageHistory
-            ?? persistedState.recentMessageHistory
-            ?? {}
+            this.resumeSession?.recentMessageHistory ?? persistedState.recentMessageHistory ?? {},
         );
 
-        this.logWriter = createBufferedFileWriter(path.join(this.baseDir, SESSION_LOG_DIR, `${this.sessionId}.jsonl`));
-        const baseLogger = createStructuredLogger({
-            sinks: [
-                this.logWriter.sink,
-                (entry) => this.emitEvent?.({ type: 'log_event_emitted', entry }),
-                ...(options.logger
-                    ? [((entry: ReturnType<StructuredLogger['emit']>) => {
-                        options.logger?.emit({
-                            timestamp: entry.timestamp,
-                            context: entry.context,
-                            level: entry.level,
-                            message: entry.message,
-                            meta: entry.meta,
-                            sessionId: entry.sessionId,
-                            segmentId: entry.segmentId,
-                            segmentKind: entry.segmentKind
-                        });
-                    })]
-                    : [])
-            ],
-            defaults: {
-                sessionId: this.sessionId
-            }
-        });
-        this.logger = baseLogger.child({
+        const loggerArtifacts = createSessionLoggerArtifacts({
+            baseDir: this.baseDir,
             sessionId: this.sessionId,
-            segmentId: this.segment.id,
-            segmentKind: this.segment.kind
+            segment: this.segment,
+            emitEvent: this.emitEvent,
+            logger: options.logger,
         });
+        this.logWriter = loggerArtifacts.logWriter;
+        this.logger = loggerArtifacts.logger;
         this.stateFlusher = new SessionStateFlusher(STATE_FLUSH_DEBOUNCE_MS, () => {
             flushPersistedSessionState(this.baseDir, this.senderStateRecord);
         });
@@ -192,12 +164,14 @@ export class SessionService {
         this.logger.emit({
             context: 'Session',
             level: 'info',
-            message: this.state.resumedFromCheckpoint ? 'Resumed from saved checkpoint.' : 'Fresh session segment started.',
+            message: this.state.resumedFromCheckpoint
+                ? 'Resumed from saved checkpoint.'
+                : 'Fresh session segment started.',
             meta: {
                 event: 'session_segment_started',
                 segmentStartedAt: this.segment.startedAt,
-                resumedFromCheckpointAt: this.segment.resumedFromCheckpointAt ?? null
-            }
+                resumedFromCheckpointAt: this.segment.resumedFromCheckpointAt ?? null,
+            },
         });
         this.persistState();
         this.emitEvent?.({ type: 'session_started', state: this.getState() });
@@ -222,7 +196,7 @@ export class SessionService {
             bumpState: () => this.bumpState(),
             persistState: () => this.persistState(),
             emitStateUpdated: (reason) => this.emitStateUpdated(reason),
-            recentMessageHistory: this.recentMessageHistory
+            recentMessageHistory: this.recentMessageHistory,
         });
 
         try {
@@ -231,27 +205,31 @@ export class SessionService {
                 return progress?.status !== 'completed' && progress?.status !== 'failed';
             });
 
-            await Promise.all(runnableChannels.map((target) => runChannel({
-                target,
-                numMessages: this.runtime.numMessages,
-                baseWaitSeconds: this.runtime.baseWaitSeconds,
-                marginSeconds: this.runtime.marginSeconds,
-                token: this.token,
-                userAgent: this.config.userAgent,
-                messageGroups: this.config.messageGroups,
-                coordinator: this.coordinator,
-                sleep: this.sleepImpl,
-                fetchImpl: this.fetchImpl,
-                logger: this.logger,
-                resumeProgress: this.state.channelProgress?.[target.id],
-                lifecycle
-            })));
+            await Promise.all(
+                runnableChannels.map((target) =>
+                    runChannel({
+                        target,
+                        numMessages: this.runtime.numMessages,
+                        baseWaitSeconds: this.runtime.baseWaitSeconds,
+                        marginSeconds: this.runtime.marginSeconds,
+                        token: this.token,
+                        userAgent: this.config.userAgent,
+                        messageGroups: this.config.messageGroups,
+                        coordinator: this.coordinator,
+                        sleep: this.sleepImpl,
+                        fetchImpl: this.fetchImpl,
+                        logger: this.logger,
+                        resumeProgress: this.state.channelProgress?.[target.id],
+                        lifecycle,
+                    }),
+                ),
+            );
 
             const status: SessionStatus = this.stopping
                 ? 'stopped'
-                : (this.coordinator.isAborted() || this.state.failedChannels.length > 0)
-                    ? 'failed'
-                    : 'completed';
+                : this.coordinator.isAborted() || this.state.failedChannels.length > 0
+                  ? 'failed'
+                  : 'completed';
             await this.finalize(status);
             return this.getState();
         } catch (error) {
@@ -270,7 +248,7 @@ export class SessionService {
         this.emitEvent?.({
             type: 'summary_ready',
             summary: this.state.summary,
-            state: this.getState()
+            state: this.getState(),
         });
         await this.logWriter.close();
     }
@@ -295,7 +273,7 @@ export class SessionService {
         this.emitEvent?.({
             type: 'session_state_updated',
             reason,
-            state: this.getState()
+            state: this.getState(),
         });
     }
 
@@ -311,16 +289,19 @@ export class SessionService {
     }
 
     private updatePersistedStateRecord(finalize: boolean) {
-        updatePersistedSessionRecord({
-            sessionId: this.sessionId,
-            runtime: this.runtime,
-            config: this.config,
-            state: this.state,
-            senderStateRecord: this.senderStateRecord,
-            recentMessageHistory: this.recentMessageHistory,
-            stopping: this.stopping,
-            getState: () => this.getState()
-        }, finalize);
+        updatePersistedSessionRecord(
+            {
+                sessionId: this.sessionId,
+                runtime: this.runtime,
+                config: this.config,
+                state: this.state,
+                senderStateRecord: this.senderStateRecord,
+                recentMessageHistory: this.recentMessageHistory,
+                stopping: this.stopping,
+                getState: () => this.getState(),
+            },
+            finalize,
+        );
     }
 
     private bumpState() {

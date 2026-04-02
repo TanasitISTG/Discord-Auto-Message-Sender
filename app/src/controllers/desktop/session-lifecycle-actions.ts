@@ -5,7 +5,7 @@ import {
     runDryRun,
     runPreflight,
     startSession,
-    stopSession
+    stopSession,
 } from '@/lib/desktop';
 import { describeBlockingIssue } from '@/shared/readiness';
 import { showInfoToast, showSuccessToast, showWarningToast } from '@/shared/toast';
@@ -25,7 +25,7 @@ export function createSessionLifecycleActions({
     setNotice,
     setRecoveryState,
     setSurfaceNotice,
-    requestConfirmation
+    requestConfirmation,
 }: SessionActionOptions) {
     return {
         async runPreflightCommand() {
@@ -33,7 +33,11 @@ export function createSessionLifecycleActions({
                 const result = await runPreflight();
                 setPreflight(result);
                 setNotice(result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
-                setSurfaceNotice('session', result.ok ? 'success' : 'warning', result.ok ? 'Preflight passed.' : 'Preflight reported issues.');
+                setSurfaceNotice(
+                    'session',
+                    result.ok ? 'success' : 'warning',
+                    result.ok ? 'Preflight passed.' : 'Preflight reported issues.',
+                );
                 if (result.ok) {
                     showSuccessToast('Preflight passed.');
                 } else {
@@ -51,7 +55,11 @@ export function createSessionLifecycleActions({
             try {
                 const result = await runDryRun(runtime);
                 setDryRun(result);
-                setNotice(result.willSendMessages ? 'Dry run generated. No messages were sent.' : 'Dry run found no sendable channels.');
+                setNotice(
+                    result.willSendMessages
+                        ? 'Dry run generated. No messages were sent.'
+                        : 'Dry run found no sendable channels.',
+                );
                 return result;
             } catch (error) {
                 setNotice(error instanceof Error ? error.message : String(error));
@@ -76,10 +84,14 @@ export function createSessionLifecycleActions({
                 const nextState = await startSession(runtime);
                 setSession(nextState);
                 setRecoveryState(null);
-                const message = nextState.resumedFromCheckpoint ? 'Session resumed from the saved checkpoint.' : 'Session started from the desktop shell.';
+                const message = nextState.resumedFromCheckpoint
+                    ? 'Session resumed from the saved checkpoint.'
+                    : 'Session started from the desktop shell.';
                 setNotice(message);
                 setSurfaceNotice('session', 'success', message);
-                showSuccessToast(nextState.resumedFromCheckpoint ? 'Session resumed from checkpoint.' : 'Session started.');
+                showSuccessToast(
+                    nextState.resumedFromCheckpoint ? 'Session resumed from checkpoint.' : 'Session started.',
+                );
                 return nextState;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -94,12 +106,14 @@ export function createSessionLifecycleActions({
             }
 
             try {
-                const nextState = session.status === 'paused'
-                    ? await resumeSession()
-                    : await pauseSession();
+                const nextState = session.status === 'paused' ? await resumeSession() : await pauseSession();
                 if (nextState) {
                     setSession(nextState);
-                    setSurfaceNotice('session', 'neutral', nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.');
+                    setSurfaceNotice(
+                        'session',
+                        'neutral',
+                        nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.',
+                    );
                     showInfoToast(nextState.status === 'paused' ? 'Session paused.' : 'Session resumed.');
                 }
                 return nextState;
@@ -118,7 +132,8 @@ export function createSessionLifecycleActions({
 
             requestConfirmation({
                 title: 'Stop active session?',
-                description: 'The session will stop after the current send finishes. Progress and checkpoint state remain available locally.',
+                description:
+                    'The session will stop after the current send finishes. Progress and checkpoint state remain available locally.',
                 confirmLabel: 'Stop Session',
                 cancelLabel: 'Cancel',
                 pendingLabel: 'Stopping...',
@@ -135,14 +150,18 @@ export function createSessionLifecycleActions({
                     setNotice('Stopping the active session after the current send finishes.');
                     setSurfaceNotice('session', 'warning', 'Stopping after the current send finishes.');
                     showWarningToast('Stopping after the current send finishes.');
-                }
+                },
             });
             return null;
         },
         async discardResumeCheckpoint() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
                 setNotice('Stop the active session before discarding the saved checkpoint.');
-                setSurfaceNotice('session', 'warning', 'Stop the active session before discarding the saved checkpoint.');
+                setSurfaceNotice(
+                    'session',
+                    'warning',
+                    'Stop the active session before discarding the saved checkpoint.',
+                );
                 showWarningToast('Stop the active session before discarding the checkpoint.');
                 return null;
             }
@@ -168,9 +187,9 @@ export function createSessionLifecycleActions({
                     setNotice('Saved checkpoint discarded.');
                     setSurfaceNotice('session', 'success', 'Checkpoint discarded.');
                     showSuccessToast('Checkpoint discarded.');
-                }
+                },
             });
             return null;
-        }
+        },
     };
 }

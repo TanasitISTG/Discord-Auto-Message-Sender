@@ -8,13 +8,13 @@ test('dry run reports sendable channels and sample messages', () => {
     const config = addChannel(createDefaultAppConfig(), {
         name: 'general',
         id: '123456789012345678',
-        messageGroup: 'default'
+        messageGroup: 'default',
     });
 
     const result = createDryRun(config, {
         numMessages: 2,
         baseWaitSeconds: 5,
-        marginSeconds: 2
+        marginSeconds: 2,
     });
 
     assert.equal(result.willSendMessages, true);
@@ -31,15 +31,15 @@ test('dry run marks channels with missing groups as skipped', () => {
                 name: 'broken',
                 id: '123456789012345678',
                 referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'missing'
-            }
-        ]
+                messageGroup: 'missing',
+            },
+        ],
     };
 
     const result = createDryRun(config, {
         numMessages: 1,
         baseWaitSeconds: 5,
-        marginSeconds: 2
+        marginSeconds: 2,
     });
 
     assert.equal(result.willSendMessages, false);

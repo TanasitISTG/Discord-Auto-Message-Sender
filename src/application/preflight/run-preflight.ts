@@ -26,44 +26,46 @@ function summarizeChannelError(status: number): string {
 async function verifyChannelAccess(
     config: AppConfig,
     env: Pick<EnvironmentConfig, 'DISCORD_TOKEN'>,
-    fetchImpl: FetchImpl
+    fetchImpl: FetchImpl,
 ): Promise<ChannelPreflightResult[]> {
-    return Promise.all(config.channels.map(async (channel) => {
-        try {
-            const response = await fetchImpl(`${API_BASE}/channels/${channel.id}`, {
-                method: 'GET',
-                headers: {
-                    Authorization: env.DISCORD_TOKEN,
-                    'User-Agent': config.userAgent,
-                    Referer: channel.referrer
-                }
-            });
+    return Promise.all(
+        config.channels.map(async (channel) => {
+            try {
+                const response = await fetchImpl(`${API_BASE}/channels/${channel.id}`, {
+                    method: 'GET',
+                    headers: {
+                        Authorization: env.DISCORD_TOKEN,
+                        'User-Agent': config.userAgent,
+                        Referer: channel.referrer,
+                    },
+                });
 
-            if (response.ok) {
+                if (response.ok) {
+                    return {
+                        channelId: channel.id,
+                        channelName: channel.name,
+                        ok: true,
+                        status: response.status,
+                    };
+                }
+
                 return {
                     channelId: channel.id,
                     channelName: channel.name,
-                    ok: true,
-                    status: response.status
+                    ok: false,
+                    reason: summarizeChannelError(response.status),
+                    status: response.status,
+                };
+            } catch (error) {
+                return {
+                    channelId: channel.id,
+                    channelName: channel.name,
+                    ok: false,
+                    reason: error instanceof Error ? error.message : String(error),
                 };
             }
-
-            return {
-                channelId: channel.id,
-                channelName: channel.name,
-                ok: false,
-                reason: summarizeChannelError(response.status),
-                status: response.status
-            };
-        } catch (error) {
-            return {
-                channelId: channel.id,
-                channelName: channel.name,
-                ok: false,
-                reason: error instanceof Error ? error.message : String(error)
-            };
-        }
-    }));
+        }),
+    );
 }
 
 export async function runPreflight(config: AppConfig, options: PreflightOptions = {}): Promise<PreflightResult> {
@@ -83,15 +85,16 @@ export async function runPreflight(config: AppConfig, options: PreflightOptions 
         issues.push('DISCORD_TOKEN is missing.');
     }
 
-    const channels = configValid && tokenPresent && options.checkAccess
-        ? await verifyChannelAccess(config, { DISCORD_TOKEN: options.token!.trim() }, options.fetchImpl ?? fetch)
-        : config.channels.map((channel) => ({
-            channelId: channel.id,
-            channelName: channel.name,
-            ok: tokenPresent,
-            skipped: tokenPresent,
-            reason: tokenPresent ? 'Access check skipped.' : 'Missing token.'
-        }));
+    const channels =
+        configValid && tokenPresent && options.checkAccess
+            ? await verifyChannelAccess(config, { DISCORD_TOKEN: options.token!.trim() }, options.fetchImpl ?? fetch)
+            : config.channels.map((channel) => ({
+                  channelId: channel.id,
+                  channelName: channel.name,
+                  ok: tokenPresent,
+                  skipped: tokenPresent,
+                  reason: tokenPresent ? 'Access check skipped.' : 'Missing token.',
+              }));
 
     if (channels.some((channel) => !channel.ok && !channel.skipped)) {
         issues.push('One or more channels failed access verification.');
@@ -103,6 +106,6 @@ export async function runPreflight(config: AppConfig, options: PreflightOptions 
         configValid,
         tokenPresent,
         issues,
-        channels
+        channels,
     };
 }

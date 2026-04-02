@@ -7,7 +7,7 @@ export {
     getDefaultInboxMonitorSnapshot,
     getDefaultNotificationDeliverySettings,
     getDefaultNotificationDeliverySnapshot,
-    getDefaultSenderState
+    getDefaultSenderState,
 } from './schema';
 export { resolveStateFile, resolveStateLockFile } from './locking';
 export { clearResumeSession, loadSenderState, saveSenderState, updateSenderState } from './sender-state-store';

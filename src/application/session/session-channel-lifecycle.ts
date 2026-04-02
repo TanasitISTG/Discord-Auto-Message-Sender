@@ -1,11 +1,10 @@
 import {
-    AppChannel,
     AppConfig,
     AppEvent,
     ChannelHealthRecord,
     ChannelProgressRecord,
     RuntimeOptions,
-    SessionState
+    SessionState,
 } from '../../types';
 import type { SenderLifecycle, SleepFn } from './sender-types';
 
@@ -80,7 +79,7 @@ export function createSessionChannelLifecycle(context: SessionChannelLifecycleCo
                 type: 'channel_state_changed',
                 state: context.getState(),
                 channelId: channel.id,
-                phase
+                phase,
             });
         },
         getRecentMessages: (channel) => {
@@ -115,7 +114,7 @@ export function createSessionChannelLifecycle(context: SessionChannelLifecycleCo
             context.state.sentMessages += 1;
             context.recentMessageHistory[channel.id] = [
                 ...(context.recentMessageHistory[channel.id] ?? []),
-                details.template
+                details.template,
             ].slice(-20);
             context.syncPacingState();
             context.bumpState();
@@ -185,6 +184,6 @@ export function createSessionChannelLifecycle(context: SessionChannelLifecycleCo
             context.bumpState();
             context.persistState();
             context.emitStateUpdated('health_changed');
-        }
+        },
     };
 }

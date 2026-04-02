@@ -14,22 +14,22 @@ function cloneConfig(config: AppConfig): AppConfig {
             ...channel,
             ...(channel.schedule
                 ? {
-                    schedule: {
-                        ...channel.schedule,
-                        ...(channel.schedule.quietHours
-                            ? {
-                                quietHours: {
-                                    ...channel.schedule.quietHours
+                      schedule: {
+                          ...channel.schedule,
+                          ...(channel.schedule.quietHours
+                              ? {
+                                    quietHours: {
+                                        ...channel.schedule.quietHours,
+                                    },
                                 }
-                            }
-                            : {})
-                    }
-                }
-                : {})
+                              : {}),
+                      },
+                  }
+                : {}),
         })),
         messageGroups: Object.fromEntries(
-            Object.entries(config.messageGroups).map(([name, messages]) => [name, [...messages]])
-        )
+            Object.entries(config.messageGroups).map(([name, messages]) => [name, [...messages]]),
+        ),
     };
 }
 
@@ -46,7 +46,7 @@ function getScheduleDefaults(existing?: ChannelSchedule | null): ChannelSchedule
         timezone: existing?.timezone ?? 'UTC',
         maxSendsPerDay: existing?.maxSendsPerDay ?? null,
         cooldownWindowSize: existing?.cooldownWindowSize ?? 3,
-        quietHours: existing?.quietHours ?? null
+        quietHours: existing?.quietHours ?? null,
     };
 }
 
@@ -120,7 +120,7 @@ function normalizeImportedConfig(value: unknown): AppConfig {
             }
 
             return [groupName, messages];
-        })
+        }),
     );
 
     const rawChannels = value.channels;
@@ -136,41 +136,60 @@ function normalizeImportedConfig(value: unknown): AppConfig {
         const rawSchedule = channel.schedule;
         const schedule = isRecord(rawSchedule)
             ? (() => {
-                const maxSendsPerDay = readOptionalNumber(rawSchedule.maxSendsPerDay, `channels[${index}].schedule.maxSendsPerDay`);
-                const cooldownWindowSize = readOptionalNumber(rawSchedule.cooldownWindowSize, `channels[${index}].schedule.cooldownWindowSize`);
-                return {
-                    intervalSeconds: readRequiredNumber(rawSchedule.intervalSeconds, `channels[${index}].schedule.intervalSeconds`),
-                    randomMarginSeconds: readRequiredNumber(rawSchedule.randomMarginSeconds, `channels[${index}].schedule.randomMarginSeconds`),
-                    ...(typeof rawSchedule.timezone === 'string' ? { timezone: rawSchedule.timezone } : {}),
-                    ...(maxSendsPerDay !== null ? { maxSendsPerDay } : {}),
-                    ...(cooldownWindowSize !== null ? { cooldownWindowSize: cooldownWindowSize ?? undefined } : {}),
-                    ...(isRecord(rawSchedule.quietHours)
-                        ? {
-                            quietHours: {
-                                start: readRequiredString(rawSchedule.quietHours.start, `channels[${index}].schedule.quietHours.start`),
-                                end: readRequiredString(rawSchedule.quietHours.end, `channels[${index}].schedule.quietHours.end`)
+                  const maxSendsPerDay = readOptionalNumber(
+                      rawSchedule.maxSendsPerDay,
+                      `channels[${index}].schedule.maxSendsPerDay`,
+                  );
+                  const cooldownWindowSize = readOptionalNumber(
+                      rawSchedule.cooldownWindowSize,
+                      `channels[${index}].schedule.cooldownWindowSize`,
+                  );
+                  return {
+                      intervalSeconds: readRequiredNumber(
+                          rawSchedule.intervalSeconds,
+                          `channels[${index}].schedule.intervalSeconds`,
+                      ),
+                      randomMarginSeconds: readRequiredNumber(
+                          rawSchedule.randomMarginSeconds,
+                          `channels[${index}].schedule.randomMarginSeconds`,
+                      ),
+                      ...(typeof rawSchedule.timezone === 'string' ? { timezone: rawSchedule.timezone } : {}),
+                      ...(maxSendsPerDay !== null ? { maxSendsPerDay } : {}),
+                      ...(cooldownWindowSize !== null ? { cooldownWindowSize: cooldownWindowSize ?? undefined } : {}),
+                      ...(isRecord(rawSchedule.quietHours)
+                          ? {
+                                quietHours: {
+                                    start: readRequiredString(
+                                        rawSchedule.quietHours.start,
+                                        `channels[${index}].schedule.quietHours.start`,
+                                    ),
+                                    end: readRequiredString(
+                                        rawSchedule.quietHours.end,
+                                        `channels[${index}].schedule.quietHours.end`,
+                                    ),
+                                },
                             }
-                        }
-                        : {})
-                };
-            })()
+                          : {}),
+                  };
+              })()
             : undefined;
 
         return {
             name: readRequiredString(channel.name, `channels[${index}].name`),
             id: readRequiredString(channel.id, `channels[${index}].id`),
-            referrer: typeof channel.referrer === 'string' && channel.referrer.trim().length > 0
-                ? channel.referrer
-                : buildDefaultReferrer(readRequiredString(channel.id, `channels[${index}].id`)),
+            referrer:
+                typeof channel.referrer === 'string' && channel.referrer.trim().length > 0
+                    ? channel.referrer
+                    : buildDefaultReferrer(readRequiredString(channel.id, `channels[${index}].id`)),
             messageGroup: readRequiredString(channel.messageGroup, `channels[${index}].messageGroup`),
-            ...(schedule ? { schedule } : {})
+            ...(schedule ? { schedule } : {}),
         };
     });
 
     return {
         userAgent: readRequiredString(value.userAgent, 'userAgent'),
         channels,
-        messageGroups
+        messageGroups,
     };
 }
 
@@ -206,7 +225,9 @@ export function validateAppConfig(config: AppConfig): string[] {
             }
 
             if (message.length > 2000) {
-                errors.push(`Message group '${groupName}' contains a message longer than Discord's 2000 character limit.`);
+                errors.push(
+                    `Message group '${groupName}' contains a message longer than Discord's 2000 character limit.`,
+                );
             }
         }
     }
@@ -242,10 +263,15 @@ export function validateAppConfig(config: AppConfig): string[] {
                 errors.push(`Channel '${channel.name || channel.id}' has a negative random margin.`);
             }
             if (channel.schedule.timezone && !isValidTimeZone(channel.schedule.timezone)) {
-                errors.push(`Channel '${channel.name || channel.id}' has an invalid timezone '${channel.schedule.timezone}'.`);
+                errors.push(
+                    `Channel '${channel.name || channel.id}' has an invalid timezone '${channel.schedule.timezone}'.`,
+                );
             }
             if (channel.schedule.quietHours) {
-                if (!isValidClockTime(channel.schedule.quietHours.start) || !isValidClockTime(channel.schedule.quietHours.end)) {
+                if (
+                    !isValidClockTime(channel.schedule.quietHours.start) ||
+                    !isValidClockTime(channel.schedule.quietHours.end)
+                ) {
                     errors.push(`Channel '${channel.name || channel.id}' must use valid 24-hour HH:MM quiet hours.`);
                 }
             }
@@ -258,16 +284,19 @@ export function validateAppConfig(config: AppConfig): string[] {
 export function updateUserAgent(config: AppConfig, userAgent: string): AppConfig {
     return {
         ...cloneConfig(config),
-        userAgent
+        userAgent,
     };
 }
 
-export function addChannel(config: AppConfig, channel: Omit<AppChannel, 'referrer'> & { referrer?: string }): AppConfig {
+export function addChannel(
+    config: AppConfig,
+    channel: Omit<AppChannel, 'referrer'> & { referrer?: string },
+): AppConfig {
     const next = cloneConfig(config);
     next.channels.push({
         ...channel,
         referrer: channel.referrer ?? buildDefaultReferrer(channel.id),
-        ...(channel.schedule ? { schedule: getScheduleDefaults(channel.schedule) } : {})
+        ...(channel.schedule ? { schedule: getScheduleDefaults(channel.schedule) } : {}),
     });
     return next;
 }
@@ -282,13 +311,17 @@ export function updateChannel(config: AppConfig, channelId: string, patch: Parti
     next.channels[index] = {
         ...next.channels[index],
         ...patch,
-        ...(patch.schedule ? { schedule: getScheduleDefaults(patch.schedule) } : {})
+        ...(patch.schedule ? { schedule: getScheduleDefaults(patch.schedule) } : {}),
     };
 
     return next;
 }
 
-export function updateChannelSchedule(config: AppConfig, channelId: string, patch: Partial<ChannelSchedule>): AppConfig {
+export function updateChannelSchedule(
+    config: AppConfig,
+    channelId: string,
+    patch: Partial<ChannelSchedule>,
+): AppConfig {
     const next = cloneConfig(config);
     const index = next.channels.findIndex((channel) => channel.id === channelId);
     if (index === -1) {
@@ -299,8 +332,8 @@ export function updateChannelSchedule(config: AppConfig, channelId: string, patc
         ...next.channels[index],
         schedule: {
             ...getScheduleDefaults(next.channels[index].schedule),
-            ...patch
-        }
+            ...patch,
+        },
     };
 
     return next;
@@ -312,7 +345,11 @@ export function removeChannels(config: AppConfig, channelIds: string[]): AppConf
     return next;
 }
 
-export function createMessageGroup(config: AppConfig, groupName: string, initialMessages: string[] = ['New Message']): AppConfig {
+export function createMessageGroup(
+    config: AppConfig,
+    groupName: string,
+    initialMessages: string[] = ['New Message'],
+): AppConfig {
     const next = cloneConfig(config);
     if (next.messageGroups[groupName]) {
         throw new Error(`Message group '${groupName}' already exists.`);
@@ -331,9 +368,9 @@ export function renameMessageGroup(config: AppConfig, previousName: string, next
 
     next.messageGroups[nextName] = next.messageGroups[previousName];
     delete next.messageGroups[previousName];
-    next.channels = next.channels.map((channel) => channel.messageGroup === previousName
-        ? { ...channel, messageGroup: nextName }
-        : channel);
+    next.channels = next.channels.map((channel) =>
+        channel.messageGroup === previousName ? { ...channel, messageGroup: nextName } : channel,
+    );
     return next;
 }
 
@@ -358,9 +395,9 @@ export function deleteMessageGroup(config: AppConfig, groupName: string): AppCon
     }
 
     delete next.messageGroups[groupName];
-    next.channels = next.channels.map((channel) => channel.messageGroup === groupName
-        ? { ...channel, messageGroup: fallbackGroup }
-        : channel);
+    next.channels = next.channels.map((channel) =>
+        channel.messageGroup === groupName ? { ...channel, messageGroup: fallbackGroup } : channel,
+    );
     return next;
 }
 
@@ -374,9 +411,9 @@ export function addMessageToGroup(config: AppConfig, groupName: string, message:
 export function updateMessageInGroup(config: AppConfig, groupName: string, index: number, value: string): AppConfig {
     const next = cloneConfig(config);
     ensureGroupExists(next, groupName);
-    next.messageGroups[groupName] = next.messageGroups[groupName].map((message, messageIndex) => (
-        messageIndex === index ? value : message
-    ));
+    next.messageGroups[groupName] = next.messageGroups[groupName].map((message, messageIndex) =>
+        messageIndex === index ? value : message,
+    );
     return next;
 }
 
@@ -391,11 +428,23 @@ export function removeMessageFromGroup(config: AppConfig, groupName: string, ind
     return next;
 }
 
-export function reorderGroupMessages(config: AppConfig, groupName: string, fromIndex: number, toIndex: number): AppConfig {
+export function reorderGroupMessages(
+    config: AppConfig,
+    groupName: string,
+    fromIndex: number,
+    toIndex: number,
+): AppConfig {
     const next = cloneConfig(config);
     ensureGroupExists(next, groupName);
     const messages = [...next.messageGroups[groupName]];
-    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || fromIndex < 0 || toIndex < 0 || fromIndex >= messages.length || toIndex >= messages.length) {
+    if (
+        !Number.isInteger(fromIndex) ||
+        !Number.isInteger(toIndex) ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= messages.length ||
+        toIndex >= messages.length
+    ) {
         throw new Error(`Message index out of range for group '${groupName}'.`);
     }
     const [message] = messages.splice(fromIndex, 1);

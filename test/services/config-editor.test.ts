@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addChannel, cloneMessageGroup, renameMessageGroup, reorderGroupMessages } from '../../src/services/config-editor';
+import {
+    addChannel,
+    cloneMessageGroup,
+    renameMessageGroup,
+    reorderGroupMessages,
+} from '../../src/services/config-editor';
 import { createDefaultAppConfig } from '../../src/config/schema';
 
 test('config editor can add channels with a default referrer', () => {
     const config = addChannel(createDefaultAppConfig(), {
         name: 'general',
         id: '123456789012345678',
-        messageGroup: 'default'
+        messageGroup: 'default',
     });
 
     assert.equal(config.channels[0].referrer, 'https://discord.com/channels/@me/123456789012345678');
@@ -17,7 +22,7 @@ test('config editor can rename and clone message groups while preserving channel
     const withChannel = addChannel(createDefaultAppConfig(), {
         name: 'general',
         id: '123456789012345678',
-        messageGroup: 'default'
+        messageGroup: 'default',
     });
 
     const renamed = renameMessageGroup(withChannel, 'default', 'announcements');
@@ -33,8 +38,5 @@ test('config editor can reorder messages inside a group', () => {
 });
 
 test('config editor rejects out-of-range message reorder indices', () => {
-    assert.throws(
-        () => reorderGroupMessages(createDefaultAppConfig(), 'default', 0, 1),
-        /Message index out of range/
-    );
+    assert.throws(() => reorderGroupMessages(createDefaultAppConfig(), 'default', 0, 1), /Message index out of range/);
 });

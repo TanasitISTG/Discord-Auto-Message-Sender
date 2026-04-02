@@ -3,10 +3,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 const repoRoot = process.cwd();
-const sourceRoots = [
-    path.join(repoRoot, 'src'),
-    path.join(repoRoot, 'app', 'src')
-];
+const sourceRoots = [path.join(repoRoot, 'src'), path.join(repoRoot, 'app', 'src')];
 const sourceExtensions = new Set(['.ts', '.tsx']);
 
 interface DependencyRecord {
@@ -63,7 +60,7 @@ function resolveInternalSpecifier(importer: string, specifier: string) {
     const candidates = [
         basePath,
         ...['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.json'].map((extension) => `${basePath}${extension}`),
-        ...['index.ts', 'index.tsx', 'index.js', 'index.jsx'].map((fileName) => path.join(basePath, fileName))
+        ...['index.ts', 'index.tsx', 'index.js', 'index.jsx'].map((fileName) => path.join(basePath, fileName)),
     ];
     const resolved = candidates.find((candidate) => fs.existsSync(candidate));
     return toRepoPath(resolved ?? basePath);
@@ -83,20 +80,24 @@ function collectDependencies(filePath: string) {
         dependencies.push({
             importer: toRepoPath(filePath),
             specifier,
-            target
+            target,
         });
     }
 
     function visit(node: ts.Node): void {
-        if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        if (
+            (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+            node.moduleSpecifier &&
+            ts.isStringLiteral(node.moduleSpecifier)
+        ) {
             record(node.moduleSpecifier.text);
         }
 
         if (
-            ts.isCallExpression(node)
-            && node.expression.kind === ts.SyntaxKind.ImportKeyword
-            && node.arguments.length === 1
-            && ts.isStringLiteral(node.arguments[0])
+            ts.isCallExpression(node) &&
+            node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+            node.arguments.length === 1 &&
+            ts.isStringLiteral(node.arguments[0])
         ) {
             record(node.arguments[0].text);
         }
@@ -111,17 +112,18 @@ function collectDependencies(filePath: string) {
 function isViolation(dependency: DependencyRecord): Violation | null {
     const { importer, specifier, target } = dependency;
 
-    if (importer.startsWith('src/domain/') && (
-        target.startsWith('src/application/')
-        || target.startsWith('src/infrastructure/')
-        || target.startsWith('src/desktop/')
-        || target.startsWith('app/src/')
-    )) {
+    if (
+        importer.startsWith('src/domain/') &&
+        (target.startsWith('src/application/') ||
+            target.startsWith('src/infrastructure/') ||
+            target.startsWith('src/desktop/') ||
+            target.startsWith('app/src/'))
+    ) {
         return {
             rule: 'domain-no-upward-deps',
             importer,
             specifier,
-            target
+            target,
         };
     }
 
@@ -130,7 +132,7 @@ function isViolation(dependency: DependencyRecord): Violation | null {
             rule: 'infrastructure-no-app-imports',
             importer,
             specifier,
-            target
+            target,
         };
     }
 
@@ -142,7 +144,7 @@ function isViolation(dependency: DependencyRecord): Violation | null {
                 rule: 'app-no-direct-src-imports',
                 importer,
                 specifier,
-                target
+                target,
             };
         }
     }
@@ -150,7 +152,9 @@ function isViolation(dependency: DependencyRecord): Violation | null {
     return null;
 }
 
-const dependencies = sourceRoots.flatMap((directory) => walk(directory)).flatMap((filePath) => collectDependencies(filePath));
+const dependencies = sourceRoots
+    .flatMap((directory) => walk(directory))
+    .flatMap((filePath) => collectDependencies(filePath));
 const violations = dependencies
     .map((dependency) => isViolation(dependency))
     .filter((violation): violation is Violation => violation !== null);

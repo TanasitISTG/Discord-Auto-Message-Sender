@@ -44,7 +44,7 @@ export function TelegramNotificationsCard({
     onSaveBotToken,
     onClearBotToken,
     onDetectChat,
-    onSendTest
+    onSendTest,
 }: TelegramNotificationsCardProps) {
     const [draft, setDraft] = useState<NotificationDeliverySettings>(delivery.settings);
     const [botToken, setBotToken] = useState('');
@@ -61,17 +61,22 @@ export function TelegramNotificationsCard({
         <Card>
             <CardHeader>
                 <CardTitle>Telegram Notifications</CardTitle>
-                <CardDescription>Fan out new Discord DMs and message requests to a personal Telegram bot chat while the app is running.</CardDescription>
+                <CardDescription>
+                    Fan out new Discord DMs and message requests to a personal Telegram bot chat while the app is
+                    running.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-foreground">
                     <span className="font-medium">Windows desktop notifications</span>
                     <Checkbox
                         checked={draft.windowsDesktopEnabled}
-                        onCheckedChange={(checked) => setDraft((previous) => ({
-                            ...previous,
-                            windowsDesktopEnabled: checked === true
-                        }))}
+                        onCheckedChange={(checked) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                windowsDesktopEnabled: checked === true,
+                            }))
+                        }
                     />
                 </label>
 
@@ -79,13 +84,15 @@ export function TelegramNotificationsCard({
                     <span className="font-medium">Telegram notifications</span>
                     <Checkbox
                         checked={draft.telegram.enabled}
-                        onCheckedChange={(checked) => setDraft((previous) => ({
-                            ...previous,
-                            telegram: {
-                                ...previous.telegram,
-                                enabled: checked === true
-                            }
-                        }))}
+                        onCheckedChange={(checked) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                telegram: {
+                                    ...previous.telegram,
+                                    enabled: checked === true,
+                                },
+                            }))
+                        }
                     />
                 </label>
 
@@ -93,7 +100,11 @@ export function TelegramNotificationsCard({
                     <span>Telegram bot token</span>
                     <Input
                         type="password"
-                        placeholder={delivery.settings.telegram.botTokenStored ? 'Stored securely. Paste to replace.' : 'Paste your BotFather token'}
+                        placeholder={
+                            delivery.settings.telegram.botTokenStored
+                                ? 'Stored securely. Paste to replace.'
+                                : 'Paste your BotFather token'
+                        }
                         value={botToken}
                         onChange={(event) => setBotToken(event.target.value)}
                     />
@@ -133,13 +144,15 @@ export function TelegramNotificationsCard({
                         type="text"
                         placeholder="Detected or pasted personal chat ID"
                         value={draft.telegram.chatId}
-                        onChange={(event) => setDraft((previous) => ({
-                            ...previous,
-                            telegram: {
-                                ...previous.telegram,
-                                chatId: event.target.value
-                            }
-                        }))}
+                        onChange={(event) =>
+                            setDraft((previous) => ({
+                                ...previous,
+                                telegram: {
+                                    ...previous.telegram,
+                                    chatId: event.target.value,
+                                },
+                            }))
+                        }
                     />
                 </label>
 
@@ -167,7 +180,12 @@ export function TelegramNotificationsCard({
                                 setIsSendingTest(false);
                             }
                         }}
-                        disabled={!delivery.settings.telegram.enabled || !delivery.settings.telegram.botTokenStored || !delivery.settings.telegram.chatId.trim() || isSendingTest}
+                        disabled={
+                            !delivery.settings.telegram.enabled ||
+                            !delivery.settings.telegram.botTokenStored ||
+                            !delivery.settings.telegram.chatId.trim() ||
+                            isSendingTest
+                        }
                     >
                         {isSendingTest ? 'Sending Test Telegram Notification...' : 'Send Test Telegram Notification'}
                     </Button>
@@ -190,21 +208,35 @@ export function TelegramNotificationsCard({
 
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Telegram status</div>
-                        <div className="mt-2 font-semibold text-foreground">{statusLabel(delivery.telegramState.status)}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                            Telegram status
+                        </div>
+                        <div className="mt-2 font-semibold text-foreground">
+                            {statusLabel(delivery.telegramState.status)}
+                        </div>
                     </div>
                     <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Bot token readiness</div>
-                        <div className="mt-2 font-semibold text-foreground">{delivery.settings.telegram.botTokenStored ? 'stored securely' : 'missing'}</div>
+                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                            Bot token readiness
+                        </div>
+                        <div className="mt-2 font-semibold text-foreground">
+                            {delivery.settings.telegram.botTokenStored ? 'stored securely' : 'missing'}
+                        </div>
                     </div>
                 </div>
 
                 <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
-                    Last Telegram delivery: <span className="font-mono text-xs text-foreground/90">{formatLocalTimestamp(delivery.telegramState.lastDeliveredAt)}</span>
+                    Last Telegram delivery:{' '}
+                    <span className="font-mono text-xs text-foreground/90">
+                        {formatLocalTimestamp(delivery.telegramState.lastDeliveredAt)}
+                    </span>
                 </div>
 
                 <div className="rounded-xl border border-border/50 bg-background/50 p-4 text-sm text-muted-foreground">
-                    Last Telegram test: <span className="font-mono text-xs text-foreground/90">{formatLocalTimestamp(delivery.telegramState.lastTestedAt)}</span>
+                    Last Telegram test:{' '}
+                    <span className="font-mono text-xs text-foreground/90">
+                        {formatLocalTimestamp(delivery.telegramState.lastTestedAt)}
+                    </span>
                 </div>
 
                 {delivery.telegramState.lastError ? (
@@ -218,7 +250,9 @@ export function TelegramNotificationsCard({
                     <div className="mt-2">1. Create a bot in Telegram with `@BotFather` and `/newbot`.</div>
                     <div>2. Open the bot and send `/start` from your personal Telegram account.</div>
                     <div>3. Save the bot token here, then use Detect Chat ID or fetch `getUpdates` manually.</div>
-                    <div>4. Telegram receives sender names and message previews, so those details leave the local app.</div>
+                    <div>
+                        4. Telegram receives sender names and message previews, so those details leave the local app.
+                    </div>
                 </div>
             </CardContent>
         </Card>

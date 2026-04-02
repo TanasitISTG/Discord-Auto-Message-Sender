@@ -4,12 +4,12 @@ import {
     InboxMonitorSettings,
     InboxMonitorSnapshot,
     InboxMonitorState,
-    InboxNotificationItem
+    InboxNotificationItem,
 } from '../../types';
 import {
     getDefaultInboxMonitorSettings,
     getDefaultInboxMonitorSnapshot,
-    getDefaultInboxMonitorState
+    getDefaultInboxMonitorState,
 } from '../../infrastructure/state-store';
 
 export const MIN_POLL_INTERVAL_SECONDS = 15;
@@ -64,17 +64,14 @@ export function normalizeSettings(settings: InboxMonitorSettings): InboxMonitorS
         enabled: settings.enabled,
         pollIntervalSeconds: clampPollIntervalSeconds(settings.pollIntervalSeconds),
         notifyDirectMessages: settings.notifyDirectMessages,
-        notifyMessageRequests: settings.notifyMessageRequests
+        notifyMessageRequests: settings.notifyMessageRequests,
     };
 }
 
-export function buildStatePatch(
-    state: InboxMonitorState,
-    patch: Partial<InboxMonitorState>
-): InboxMonitorState {
+export function buildStatePatch(state: InboxMonitorState, patch: Partial<InboxMonitorState>): InboxMonitorState {
     return {
         ...state,
-        ...patch
+        ...patch,
     };
 }
 
@@ -88,13 +85,13 @@ export function hydrateSnapshot(snapshot?: InboxMonitorSnapshot): InboxMonitorSn
         state: {
             ...snapshot.state,
             pollIntervalSeconds: clampPollIntervalSeconds(snapshot.state.pollIntervalSeconds),
-            enabled: snapshot.settings.enabled
+            enabled: snapshot.settings.enabled,
         },
         lastSeen: {
             initializedAt: snapshot.lastSeen.initializedAt,
             selfUserId: snapshot.lastSeen.selfUserId,
-            channelMessageIds: { ...snapshot.lastSeen.channelMessageIds }
-        }
+            channelMessageIds: { ...snapshot.lastSeen.channelMessageIds },
+        },
     };
 }
 

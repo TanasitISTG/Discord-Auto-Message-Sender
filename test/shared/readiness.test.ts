@@ -10,7 +10,7 @@ const secureSetup = {
     envPath: 'C:/data/.env',
     configPath: 'C:/data/config.json',
     statePath: 'C:/data/.sender-state.json',
-    logsDir: 'C:/data/logs'
+    logsDir: 'C:/data/logs',
 };
 
 test('deriveAppReadiness blocks start when the token is missing', () => {
@@ -18,11 +18,11 @@ test('deriveAppReadiness blocks start when the token is missing', () => {
         setup: {
             ...secureSetup,
             tokenPresent: false,
-            tokenStorage: 'missing'
+            tokenStorage: 'missing',
         },
         configStatus: 'ready',
         configError: null,
-        sidecarStatus: 'ready'
+        sidecarStatus: 'ready',
     });
 
     assert.equal(readiness.canStartSession, false);
@@ -34,7 +34,7 @@ test('deriveAppReadiness blocks start when the saved config is invalid', () => {
         setup: secureSetup,
         configStatus: 'invalid',
         configError: 'channels.0.id: invalid snowflake',
-        sidecarStatus: 'ready'
+        sidecarStatus: 'ready',
     });
 
     assert.equal(readiness.canStartSession, false);
@@ -47,13 +47,13 @@ test('deriveAppReadiness tracks sidecar failure and recovery states', () => {
         setup: secureSetup,
         configStatus: 'ready',
         configError: null,
-        sidecarStatus: 'failed'
+        sidecarStatus: 'failed',
     });
     const recovered = deriveAppReadiness({
         setup: secureSetup,
         configStatus: 'ready',
         configError: null,
-        sidecarStatus: 'ready'
+        sidecarStatus: 'ready',
     });
 
     assert.ok(failed.blockingIssues.includes('sidecar_failed'));
@@ -68,11 +68,11 @@ test('deriveAppReadiness treats unreadable secure-token state as a blocking issu
             ...secureSetup,
             tokenPresent: false,
             tokenStorage: 'missing',
-            warning: 'Stored token could not be decrypted.'
+            warning: 'Stored token could not be decrypted.',
         },
         configStatus: 'ready',
         configError: null,
-        sidecarStatus: 'ready'
+        sidecarStatus: 'ready',
     });
 
     assert.equal(readiness.token.status, 'corrupted');
@@ -90,20 +90,22 @@ test('deriveSetupChecklist reflects first-run progress without persisting separa
             configValid: true,
             tokenPresent: true,
             issues: [],
-            channels: []
+            channels: [],
         },
         config: {
             userAgent: 'UA',
-            channels: [{
-                name: 'general',
-                id: '123456789012345678',
-                referrer: 'https://discord.com/channels/@me/123456789012345678',
-                messageGroup: 'default'
-            }],
+            channels: [
+                {
+                    name: 'general',
+                    id: '123456789012345678',
+                    referrer: 'https://discord.com/channels/@me/123456789012345678',
+                    messageGroup: 'default',
+                },
+            ],
             messageGroups: {
-                default: ['Hello']
-            }
-        }
+                default: ['Hello'],
+            },
+        },
     });
 
     assert.equal(checklist.complete, true);

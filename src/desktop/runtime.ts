@@ -5,14 +5,19 @@ import { createInboxMonitorService, InboxMonitorController } from '../services/i
 import { createDryRun } from '../services/dry-run';
 import { runPreflight } from '../services/preflight';
 import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
-import { clearResumeSession, getDefaultInboxMonitorSnapshot, loadSenderState, updateSenderState } from '../services/state-store';
+import {
+    clearResumeSession,
+    getDefaultInboxMonitorSnapshot,
+    loadSenderState,
+    updateSenderState,
+} from '../services/state-store';
 import {
     ConfigLoadResult,
     DesktopCommandMap,
     DesktopEvent,
     LogLoadResult,
     SessionSnapshot,
-    StateLoadResult
+    StateLoadResult,
 } from './contracts';
 import { resolveSessionLogPath, validateSessionId } from '../utils/session-id';
 
@@ -33,26 +38,31 @@ interface DesktopRuntimeOptions {
 const DEFAULT_RUNTIME = {
     numMessages: 0,
     baseWaitSeconds: 5,
-    marginSeconds: 2
+    marginSeconds: 2,
 };
 
-function isSessionStateEvent(event: DesktopEvent): event is Extract<DesktopEvent, {
-    type:
-        | 'session_started'
-        | 'session_paused'
-        | 'session_resumed'
-        | 'session_stopping'
-        | 'channel_state_changed'
-        | 'session_state_updated'
-        | 'summary_ready'
-}> {
-    return event.type === 'session_started'
-        || event.type === 'session_paused'
-        || event.type === 'session_resumed'
-        || event.type === 'session_stopping'
-        || event.type === 'channel_state_changed'
-        || event.type === 'session_state_updated'
-        || event.type === 'summary_ready';
+function isSessionStateEvent(event: DesktopEvent): event is Extract<
+    DesktopEvent,
+    {
+        type:
+            | 'session_started'
+            | 'session_paused'
+            | 'session_resumed'
+            | 'session_stopping'
+            | 'channel_state_changed'
+            | 'session_state_updated'
+            | 'summary_ready';
+    }
+> {
+    return (
+        event.type === 'session_started' ||
+        event.type === 'session_paused' ||
+        event.type === 'session_resumed' ||
+        event.type === 'session_stopping' ||
+        event.type === 'channel_state_changed' ||
+        event.type === 'session_state_updated' ||
+        event.type === 'summary_ready'
+    );
 }
 
 export class DesktopRuntime {
@@ -70,7 +80,9 @@ export class DesktopRuntime {
         this.sessionFactory = options.sessionFactory ?? ((sessionOptions) => new SessionService(sessionOptions));
         const persistedState = loadSenderState(this.baseDir);
         const monitorSnapshot = persistedState.inboxMonitor ?? getDefaultInboxMonitorSnapshot();
-        this.inboxMonitor = (options.inboxMonitorFactory ?? ((monitorOptions) => createInboxMonitorService(monitorOptions)))({
+        this.inboxMonitor = (
+            options.inboxMonitorFactory ?? ((monitorOptions) => createInboxMonitorService(monitorOptions))
+        )({
             initialSnapshot: monitorSnapshot,
             emitEvent: this.emitEvent,
             onSnapshotChange: (snapshot) => {
@@ -78,7 +90,7 @@ export class DesktopRuntime {
                     state.inboxMonitor = snapshot;
                     clearMonitorWarning(state);
                 });
-            }
+            },
         });
     }
 
@@ -86,15 +98,19 @@ export class DesktopRuntime {
         return readAppConfigResult(this.resolveConfigPaths());
     }
 
-    async saveConfig(payload: DesktopCommandMap['save_config']['request']): Promise<DesktopCommandMap['save_config']['response']> {
+    async saveConfig(
+        payload: DesktopCommandMap['save_config']['request'],
+    ): Promise<DesktopCommandMap['save_config']['response']> {
         const config = writeAppConfig(payload.config, this.resolveConfigPaths());
         return {
             ok: true,
-            config
+            config,
         };
     }
 
-    async runPreflight(payload: DesktopCommandMap['run_preflight']['request']): Promise<DesktopCommandMap['run_preflight']['response']> {
+    async runPreflight(
+        payload: DesktopCommandMap['run_preflight']['request'],
+    ): Promise<DesktopCommandMap['run_preflight']['response']> {
         const configResult = readAppConfigResult(this.resolveConfigPaths());
         if (configResult.kind !== 'ok') {
             const token = this.readToken(payload.token);
@@ -104,11 +120,11 @@ export class DesktopRuntime {
                 configValid: false,
                 tokenPresent: Boolean(token),
                 issues: [configResult.kind === 'invalid' ? configResult.error : 'Config is missing.'],
-                channels: []
+                channels: [],
             };
             this.publish({
                 type: 'preflight_result_emitted',
-                result
+                result,
             });
             return result;
         }
@@ -116,16 +132,18 @@ export class DesktopRuntime {
         const token = this.readToken(payload.token);
         const result = await runPreflight(configResult.config, {
             token,
-            checkAccess: true
+            checkAccess: true,
         });
         this.publish({
             type: 'preflight_result_emitted',
-            result
+            result,
         });
         return result;
     }
 
-    async runDryRun(payload: DesktopCommandMap['run_dry_run']['request']): Promise<DesktopCommandMap['run_dry_run']['response']> {
+    async runDryRun(
+        payload: DesktopCommandMap['run_dry_run']['request'],
+    ): Promise<DesktopCommandMap['run_dry_run']['response']> {
         const configResult = readAppConfigResult(this.resolveConfigPaths());
         if (configResult.kind !== 'ok') {
             throw new Error(configResult.kind === 'invalid' ? configResult.error : 'Config is missing.');
@@ -134,12 +152,14 @@ export class DesktopRuntime {
         const result = createDryRun(configResult.config, payload.runtime ?? DEFAULT_RUNTIME);
         this.publish({
             type: 'dry_run_ready',
-            result
+            result,
         });
         return result;
     }
 
-    async startSession(request: DesktopCommandMap['start_session']['request']): Promise<DesktopCommandMap['start_session']['response']> {
+    async startSession(
+        request: DesktopCommandMap['start_session']['request'],
+    ): Promise<DesktopCommandMap['start_session']['response']> {
         const current = this.getSessionState();
         if (current && ['running', 'paused', 'stopping'].includes(current.status)) {
             throw new Error('A desktop session is already running.');
@@ -148,7 +168,7 @@ export class DesktopRuntime {
         const runtime = {
             numMessages: request.numMessages,
             baseWaitSeconds: request.baseWaitSeconds,
-            marginSeconds: request.marginSeconds
+            marginSeconds: request.marginSeconds,
         };
         const token = this.readRequiredToken(request.token);
         const configResult = readAppConfigResult(this.resolveConfigPaths());
@@ -173,17 +193,18 @@ export class DesktopRuntime {
                     this.sessionState = event.state;
                 }
                 this.publish(event);
-            }
+            },
         });
 
         this.session = session;
         this.sessionState = session.getState();
-        const sessionPromise = session.start()
+        const sessionPromise = session
+            .start()
             .catch((error) => {
                 this.publish({
                     type: 'sidecar_error',
                     status: 'failed',
-                    message: error instanceof Error ? error.message : String(error)
+                    message: error instanceof Error ? error.message : String(error),
                 });
                 throw error;
             })
@@ -228,12 +249,13 @@ export class DesktopRuntime {
                 ok: true,
                 path: logPath,
                 entries: [],
-                warnings: []
+                warnings: [],
             };
         }
 
         const warnings: string[] = [];
-        const entries = fs.readFileSync(logPath, 'utf8')
+        const entries = fs
+            .readFileSync(logPath, 'utf8')
             .split(/\r?\n/)
             .flatMap((line, index) => {
                 if (line.trim().length === 0) {
@@ -252,7 +274,7 @@ export class DesktopRuntime {
             ok: true,
             path: logPath,
             entries,
-            ...(warnings.length > 0 ? { warnings } : {})
+            ...(warnings.length > 0 ? { warnings } : {}),
         };
     }
 
@@ -274,7 +296,7 @@ export class DesktopRuntime {
     }
 
     saveInboxMonitorSettings(
-        payload: DesktopCommandMap['save_inbox_monitor_settings']['request']
+        payload: DesktopCommandMap['save_inbox_monitor_settings']['request'],
     ): DesktopCommandMap['save_inbox_monitor_settings']['response'] {
         return this.inboxMonitor.saveSettings(payload.settings);
     }
@@ -284,7 +306,7 @@ export class DesktopRuntime {
     }
 
     async startInboxMonitor(
-        payload: DesktopCommandMap['start_inbox_monitor']['request']
+        payload: DesktopCommandMap['start_inbox_monitor']['request'],
     ): Promise<DesktopCommandMap['start_inbox_monitor']['response']> {
         return await this.inboxMonitor.start(payload);
     }
@@ -296,14 +318,12 @@ export class DesktopRuntime {
     private resolveConfigPaths() {
         return {
             configFile: path.join(this.baseDir, 'config.json'),
-            messagesFile: path.join(this.baseDir, 'messages.json')
+            messagesFile: path.join(this.baseDir, 'messages.json'),
         };
     }
 
     private readToken(explicitToken?: string): string | undefined {
-        return typeof explicitToken === 'string' && explicitToken.trim().length > 0
-            ? explicitToken.trim()
-            : undefined;
+        return typeof explicitToken === 'string' && explicitToken.trim().length > 0 ? explicitToken.trim() : undefined;
     }
 
     private readRequiredToken(explicitToken?: string): string {

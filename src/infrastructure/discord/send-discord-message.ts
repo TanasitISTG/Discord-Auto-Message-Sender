@@ -7,7 +7,7 @@ import {
     RequestTimeoutError,
     SendAbortError,
     type SendOutcome,
-    type SenderDependencies
+    type SenderDependencies,
 } from '../../application/session/sender-types';
 
 const API_BASE = 'https://discord.com/api/v10';
@@ -73,7 +73,7 @@ async function fetchWithTimeout(
     url: string,
     init: RequestInit,
     timeoutMs: number,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
 ): Promise<Response> {
     const controller = new AbortController();
     const abortListener = () => {
@@ -82,7 +82,7 @@ async function fetchWithTimeout(
     abortSignal?.addEventListener('abort', abortListener, { once: true });
     const fetchPromise = (fetchImpl ?? fetch)(url, {
         ...init,
-        signal: controller.signal
+        signal: controller.signal,
     });
 
     let timeoutId: NodeJS.Timeout | undefined;
@@ -95,7 +95,7 @@ async function fetchWithTimeout(
                     controller.abort();
                     reject(new RequestTimeoutError(timeoutMs));
                 }, timeoutMs);
-            })
+            }),
         ]);
     } finally {
         abortSignal?.removeEventListener('abort', abortListener);
@@ -110,7 +110,7 @@ export async function sendDiscordMessage(
     content: string,
     token: string,
     userAgent: string,
-    dependencies: SenderDependencies = {}
+    dependencies: SenderDependencies = {},
 ): Promise<SendOutcome> {
     const sleep = dependencies.sleep ?? defaultSleep;
     const random = dependencies.random ?? Math.random;
@@ -133,19 +133,24 @@ export async function sendDiscordMessage(
 
     for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt++) {
         try {
-            const request = () => fetchWithTimeout(dependencies.fetchImpl, `${API_BASE}/channels/${target.id}/messages`, {
-                method: 'POST',
-                headers: {
-                    Authorization: token,
-                    'User-Agent': userAgent,
-                    'Content-Type': 'application/json',
-                    Referer: target.referrer
-                },
-                body: JSON.stringify({ content, tts: false })
-            }, requestTimeoutMs, abortSignal);
-            const response = coordinator
-                ? await coordinator.scheduleRequest(sleep, request)
-                : await request();
+            const request = () =>
+                fetchWithTimeout(
+                    dependencies.fetchImpl,
+                    `${API_BASE}/channels/${target.id}/messages`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            Authorization: token,
+                            'User-Agent': userAgent,
+                            'Content-Type': 'application/json',
+                            Referer: target.referrer,
+                        },
+                        body: JSON.stringify({ content, tts: false }),
+                    },
+                    requestTimeoutMs,
+                    abortSignal,
+                );
+            const response = coordinator ? await coordinator.scheduleRequest(sleep, request) : await request();
 
             if (response.ok) {
                 coordinator?.recordSuccess();
@@ -162,29 +167,41 @@ export async function sendDiscordMessage(
                     attempt,
                     status: response.status,
                     retryAfter: waitSeconds,
-                    pacingMs: pacing?.currentRequestIntervalMs
+                    pacingMs: pacing?.currentRequestIntervalMs,
                 });
                 return { type: 'wait', waitSeconds };
             }
 
             const fatalReason =
-                response.status === 401 ? 'unauthorized'
-                    : response.status === 403 ? 'forbidden'
-                        : response.status === 404 ? 'not_found'
-                            : attempt === MAX_SEND_ATTEMPTS ? 'exhausted'
-                                : null;
+                response.status === 401
+                    ? 'unauthorized'
+                    : response.status === 403
+                      ? 'forbidden'
+                      : response.status === 404
+                        ? 'not_found'
+                        : attempt === MAX_SEND_ATTEMPTS
+                          ? 'exhausted'
+                          : null;
             const shouldStop = fatalReason !== null;
-            emitLog(logger, target.name, `HTTP ${response.status}: ${stringifyBody(body)}`, shouldStop ? 'red' : 'yellow', {
-                channelId: target.id,
-                event: 'http_error',
-                attempt,
-                code: getResponseCode(body),
-                status: response.status,
-                fatal: shouldStop
-            });
+            emitLog(
+                logger,
+                target.name,
+                `HTTP ${response.status}: ${stringifyBody(body)}`,
+                shouldStop ? 'red' : 'yellow',
+                {
+                    channelId: target.id,
+                    event: 'http_error',
+                    attempt,
+                    code: getResponseCode(body),
+                    status: response.status,
+                    fatal: shouldStop,
+                },
+            );
 
             if (response.status === 401) {
-                coordinator?.abort('HTTP 401 received. Stopping all workers because the token appears invalid or expired.');
+                coordinator?.abort(
+                    'HTTP 401 received. Stopping all workers because the token appears invalid or expired.',
+                );
             }
 
             if (shouldStop) {
@@ -206,7 +223,7 @@ export async function sendDiscordMessage(
                 channelId: target.id,
                 event: 'request_error',
                 attempt,
-                fatal: isFatal
+                fatal: isFatal,
             });
 
             if (isFatal) {
@@ -214,7 +231,12 @@ export async function sendDiscordMessage(
             }
         }
 
-        const completedBackoff = await sleepWithAbort(getBackoffDelayMs(attempt, random), sleep, coordinator, lifecycle);
+        const completedBackoff = await sleepWithAbort(
+            getBackoffDelayMs(attempt, random),
+            sleep,
+            coordinator,
+            lifecycle,
+        );
         if (!completedBackoff) {
             return { type: 'fatal', reason: 'aborted' };
         }

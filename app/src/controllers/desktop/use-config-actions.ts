@@ -9,7 +9,7 @@ import {
     type ReleaseDiagnostics,
     type RuntimeOptions,
     type SessionSnapshot,
-    type SidecarStatus
+    type SidecarStatus,
 } from '@/lib/desktop';
 import type { ConfigDraftController } from '@/features/config/use-config-draft';
 import { showSuccessToast, showWarningToast } from '@/shared/toast';
@@ -28,7 +28,11 @@ interface UseConfigActionsOptions {
     setNotice(next: string): void;
     setConfigStatus(next: 'loading' | 'ready' | 'missing' | 'invalid'): void;
     setConfigIssue(next: string | null): void;
-    setSurfaceNotice(scope: 'config' | 'session' | 'logs', tone: 'neutral' | 'success' | 'warning' | 'danger', message: string): void;
+    setSurfaceNotice(
+        scope: 'config' | 'session' | 'logs',
+        tone: 'neutral' | 'success' | 'warning' | 'danger',
+        message: string,
+    ): void;
     refreshState(): Promise<void>;
     requestConfirmation(request: Omit<ConfirmDialogRequest, 'open'>): void;
 }
@@ -47,7 +51,7 @@ export function useConfigActions({
     setConfigIssue,
     setSurfaceNotice,
     refreshState,
-    requestConfirmation
+    requestConfirmation,
 }: UseConfigActionsOptions) {
     return {
         async saveConfigDraft() {
@@ -83,7 +87,7 @@ export function useConfigActions({
 
             try {
                 const nextSetup = await saveEnvironment({
-                    discordToken: environmentDraft
+                    discordToken: environmentDraft,
                 });
                 setSetup(nextSetup);
                 const diagnostics = await loadReleaseDiagnostics().catch(() => null);
@@ -109,13 +113,16 @@ export function useConfigActions({
         },
         async clearSecureToken() {
             if (session && ['running', 'paused', 'stopping'].includes(session.status)) {
-                setNotice('Removing the stored token does not stop the active session, but it only affects future starts.');
+                setNotice(
+                    'Removing the stored token does not stop the active session, but it only affects future starts.',
+                );
                 setSurfaceNotice('config', 'warning', 'Removing the stored token only affects future starts.');
             }
 
             requestConfirmation({
                 title: 'Remove stored Discord token?',
-                description: 'Future preflight and session starts will require a new token. Active sessions are not stopped.',
+                description:
+                    'Future preflight and session starts will require a new token. Active sessions are not stopped.',
                 confirmLabel: 'Remove Token',
                 cancelLabel: 'Cancel',
                 pendingLabel: 'Removing...',
@@ -136,9 +143,9 @@ export function useConfigActions({
                     setNotice('Secure Discord token removed from this Windows profile.');
                     setSurfaceNotice('config', 'warning', 'Secure Discord token removed from this Windows user.');
                     showWarningToast('Secure token removed.');
-                }
+                },
             });
             return null;
-        }
+        },
     };
 }

@@ -13,23 +13,23 @@ const budgetRules: BudgetRule[] = [
     {
         label: 'frontend controller/hook',
         maxLines: 200,
-        matches: (filePath) => /^app\/src\/controllers\/desktop\/.+\.ts$/.test(filePath)
+        matches: (filePath) => /^app\/src\/controllers\/desktop\/.+\.ts$/.test(filePath),
     },
     {
         label: 'frontend screen',
         maxLines: 250,
-        matches: (filePath) => /^app\/src\/features\/.+-screen\.tsx$/.test(filePath)
+        matches: (filePath) => /^app\/src\/features\/.+-screen\.tsx$/.test(filePath),
     },
     {
         label: 'TypeScript application/infrastructure module',
         maxLines: 300,
-        matches: (filePath) => /^src\/(application|infrastructure)\/.+\.ts$/.test(filePath)
+        matches: (filePath) => /^src\/(application|infrastructure)\/.+\.ts$/.test(filePath),
     },
     {
         label: 'Rust module',
         maxLines: 350,
-        matches: (filePath) => /^src-tauri\/src\/.+\.rs$/.test(filePath)
-    }
+        matches: (filePath) => /^src-tauri\/src\/.+\.rs$/.test(filePath),
+    },
 ];
 
 function toRepoPath(filePath: string) {
@@ -56,21 +56,22 @@ function countBudgetLines(contents: string) {
     return contents
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith('//'))
-        .length;
+        .filter((line) => line.length > 0 && !line.startsWith('//')).length;
 }
 
 function isTestOrFixture(filePath: string) {
-    return /(^|\/)test\//.test(filePath)
-        || filePath.includes('.test.')
-        || filePath.endsWith('/src-tauri/src/tests.rs')
-        || filePath.endsWith('/src-tauri/src/tests/mod.rs');
+    return (
+        /(^|\/)test\//.test(filePath) ||
+        filePath.includes('.test.') ||
+        filePath.endsWith('/src-tauri/src/tests.rs') ||
+        filePath.endsWith('/src-tauri/src/tests/mod.rs')
+    );
 }
 
 const files = [
     ...walk(path.join(repoRoot, 'app', 'src')),
     ...walk(path.join(repoRoot, 'src')),
-    ...walk(path.join(repoRoot, 'src-tauri', 'src'))
+    ...walk(path.join(repoRoot, 'src-tauri', 'src')),
 ];
 
 const violations: string[] = [];
@@ -93,7 +94,9 @@ for (const absolutePath of files) {
 
     const lineCount = countBudgetLines(contents);
     if (lineCount > rule.maxLines) {
-        violations.push(`${repoPath} has ${lineCount} counted lines, above the ${rule.label} budget of ${rule.maxLines}.`);
+        violations.push(
+            `${repoPath} has ${lineCount} counted lines, above the ${rule.label} budget of ${rule.maxLines}.`,
+        );
     }
 }
 

@@ -19,7 +19,13 @@
                 { "name": "level", "type": "LogLevel" },
                 { "name": "context", "type": "string" },
                 { "name": "message", "type": "string" },
-                { "name": "meta", "type": "unknown", "optional": true, "tsType": "Record<string, string | number | boolean | null>", "rustType": "Option<HashMap<String, Value>>" },
+                {
+                    "name": "meta",
+                    "type": "unknown",
+                    "optional": true,
+                    "tsType": "Record<string, string | number | boolean | null>",
+                    "rustType": "Option<HashMap<String, Value>>"
+                },
                 { "name": "sessionId", "type": "string", "optional": true },
                 { "name": "segmentId", "type": "string", "optional": true },
                 { "name": "segmentKind", "type": "SessionSegmentKind", "optional": true }

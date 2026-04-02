@@ -1,13 +1,7 @@
 import React from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-    App,
-    getDesktopMock,
-    headerActions,
-    resetDesktopState,
-    sessionWorkspace,
-} from './app-flow-test-helpers';
+import { App, getDesktopMock, headerActions, resetDesktopState, sessionWorkspace } from './app-flow-test-helpers';
 
 const desktopMock = getDesktopMock();
 
@@ -77,8 +71,8 @@ test('App reacts to streamed session events in the rendered flow', async () => {
                 activeChannels: ['123456789012345678'],
                 completedChannels: [],
                 failedChannels: [],
-                sentMessages: 2
-            }
+                sentMessages: 2,
+            },
         });
     });
 
@@ -138,11 +132,11 @@ test('App keeps preflight available when token readiness is blocked', async () =
     desktopMock.state.setup = {
         ...desktopMock.state.setup,
         tokenPresent: false,
-        tokenStorage: 'missing'
+        tokenStorage: 'missing',
     };
     desktopMock.state.diagnostics = {
         ...desktopMock.state.diagnostics,
-        tokenStorage: 'missing'
+        tokenStorage: 'missing',
     };
 
     const user = userEvent.setup();
@@ -172,4 +166,3 @@ test('App shows the setup checklist until preflight succeeds, then collapses it 
     await user.click(await screen.findByRole('button', { name: 'Dashboard' }));
     await screen.findByText('Setup Complete');
 });
-

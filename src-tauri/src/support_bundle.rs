@@ -18,7 +18,9 @@ pub(crate) fn build_release_diagnostics(
     }
 }
 
-pub(crate) fn load_release_diagnostics_state(app: &AppHandle) -> Result<ReleaseDiagnostics, String> {
+pub(crate) fn load_release_diagnostics_state(
+    app: &AppHandle,
+) -> Result<ReleaseDiagnostics, String> {
     let paths = runtime_paths(app)?;
     let setup_state = read_desktop_setup_state(&paths)?;
     let sidecar_status = sidecar_status_value(app)?;
@@ -52,11 +54,13 @@ fn latest_log_files(paths: &RuntimePaths, limit: usize) -> Result<Vec<PathBuf>, 
     }
 
     let mut files = Vec::new();
-    for entry in fs::read_dir(&paths.logs_dir)
-        .map_err(|error| format!("Failed to read logs directory '{}': {error}", paths.logs_dir.display()))?
-    {
-        let entry = entry
-            .map_err(|error| format!("Failed to read a log file entry: {error}"))?;
+    for entry in fs::read_dir(&paths.logs_dir).map_err(|error| {
+        format!(
+            "Failed to read logs directory '{}': {error}",
+            paths.logs_dir.display()
+        )
+    })? {
+        let entry = entry.map_err(|error| format!("Failed to read a log file entry: {error}"))?;
         let path = entry.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("jsonl") {
             continue;
@@ -69,11 +73,7 @@ fn latest_log_files(paths: &RuntimePaths, limit: usize) -> Result<Vec<PathBuf>, 
         files.push((modified, path));
     }
 
-    files.sort_by(|left, right| {
-        right.0
-            .cmp(&left.0)
-            .then_with(|| right.1.cmp(&left.1))
-    });
+    files.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| right.1.cmp(&left.1)));
 
     Ok(files
         .into_iter()
@@ -90,8 +90,7 @@ fn add_zip_text_entry(
     archive
         .start_file::<_, ()>(
             entry_name,
-            zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated),
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated),
         )
         .map_err(|error| format!("Failed to add '{entry_name}' to the support bundle: {error}"))?;
     archive
@@ -104,8 +103,12 @@ fn add_zip_file_entry(
     source_path: &Path,
     entry_name: &str,
 ) -> Result<(), String> {
-    let contents = fs::read(source_path)
-        .map_err(|error| format!("Failed to read '{}' for the support bundle: {error}", source_path.display()))?;
+    let contents = fs::read(source_path).map_err(|error| {
+        format!(
+            "Failed to read '{}' for the support bundle: {error}",
+            source_path.display()
+        )
+    })?;
     add_zip_text_entry(archive, entry_name, &contents)
 }
 
@@ -136,7 +139,10 @@ fn redact_channel_progress_messages(value: &mut Value) {
             continue;
         };
         if record.contains_key("lastMessage") {
-            record.insert("lastMessage".to_string(), Value::String("[REDACTED]".to_string()));
+            record.insert(
+                "lastMessage".to_string(),
+                Value::String("[REDACTED]".to_string()),
+            );
         }
     }
 }
@@ -171,7 +177,10 @@ fn sanitize_notification_delivery_value(value: &mut Value, token: Option<&str>) 
     *last_error = Value::String(sanitize_telegram_error(error.to_string(), token));
 }
 
-fn sanitize_sender_state_value_for_support_bundle(value: &mut Value, telegram_bot_token: Option<&str>) {
+fn sanitize_sender_state_value_for_support_bundle(
+    value: &mut Value,
+    telegram_bot_token: Option<&str>,
+) {
     let Some(state) = value.as_object_mut() else {
         return;
     };
@@ -182,7 +191,10 @@ fn sanitize_sender_state_value_for_support_bundle(value: &mut Value, telegram_bo
     if let Some(recent_message_history) = state.get_mut("recentMessageHistory") {
         redact_string_list_map(recent_message_history, "recent message(s)");
     }
-    if let Some(resume_session) = state.get_mut("resumeSession").and_then(Value::as_object_mut) {
+    if let Some(resume_session) = state
+        .get_mut("resumeSession")
+        .and_then(Value::as_object_mut)
+    {
         if let Some(session_state) = resume_session.get_mut("state") {
             redact_session_snapshot_value(session_state);
         }
@@ -208,8 +220,12 @@ fn read_redacted_json_for_support_bundle(
     source_path: &Path,
     redact: impl FnOnce(&mut Value),
 ) -> Result<Vec<u8>, String> {
-    let contents = fs::read_to_string(source_path)
-        .map_err(|error| format!("Failed to read '{}' for the support bundle: {error}", source_path.display()))?;
+    let contents = fs::read_to_string(source_path).map_err(|error| {
+        format!(
+            "Failed to read '{}' for the support bundle: {error}",
+            source_path.display()
+        )
+    })?;
 
     let mut value = match serde_json::from_str::<Value>(&contents) {
         Ok(value) => value,
@@ -223,8 +239,12 @@ fn read_redacted_json_for_support_bundle(
     };
 
     redact(&mut value);
-    serde_json::to_vec_pretty(&value)
-        .map_err(|error| format!("Failed to serialize '{}' for the support bundle: {error}", source_path.display()))
+    serde_json::to_vec_pretty(&value).map_err(|error| {
+        format!(
+            "Failed to serialize '{}' for the support bundle: {error}",
+            source_path.display()
+        )
+    })
 }
 
 pub(crate) fn export_support_bundle_at_paths(
@@ -233,12 +253,20 @@ pub(crate) fn export_support_bundle_at_paths(
     setup: &DesktopSetupState,
 ) -> Result<SupportBundleResult, String> {
     let support_dir = support_bundle_dir(paths);
-    fs::create_dir_all(&support_dir)
-        .map_err(|error| format!("Failed to prepare support bundle directory '{}': {error}", support_dir.display()))?;
+    fs::create_dir_all(&support_dir).map_err(|error| {
+        format!(
+            "Failed to prepare support bundle directory '{}': {error}",
+            support_dir.display()
+        )
+    })?;
 
     let bundle_path = support_dir.join(support_bundle_file_name());
-    let bundle_file = fs::File::create(&bundle_path)
-        .map_err(|error| format!("Failed to create support bundle '{}': {error}", bundle_path.display()))?;
+    let bundle_file = fs::File::create(&bundle_path).map_err(|error| {
+        format!(
+            "Failed to create support bundle '{}': {error}",
+            bundle_path.display()
+        )
+    })?;
     let mut archive = zip::ZipWriter::new(bundle_file);
     let mut included_files = Vec::new();
     let mut missing_files = Vec::new();
@@ -257,7 +285,10 @@ pub(crate) fn export_support_bundle_at_paths(
 
     let config_file = config_path(paths);
     if config_file.exists() {
-        let redacted_config = read_redacted_json_for_support_bundle(&config_file, sanitize_config_value_for_support_bundle)?;
+        let redacted_config = read_redacted_json_for_support_bundle(
+            &config_file,
+            sanitize_config_value_for_support_bundle,
+        )?;
         add_zip_text_entry(&mut archive, "config.json", &redacted_config)?;
         included_files.push("config.json".to_string());
     } else {
@@ -290,9 +321,12 @@ pub(crate) fn export_support_bundle_at_paths(
         }
     }
 
-    archive
-        .finish()
-        .map_err(|error| format!("Failed to finalize the support bundle '{}': {error}", bundle_path.display()))?;
+    archive.finish().map_err(|error| {
+        format!(
+            "Failed to finalize the support bundle '{}': {error}",
+            bundle_path.display()
+        )
+    })?;
 
     Ok(SupportBundleResult {
         path: path_to_string(&bundle_path),
@@ -301,7 +335,9 @@ pub(crate) fn export_support_bundle_at_paths(
     })
 }
 
-pub(crate) fn reset_runtime_state_at_paths(paths: &RuntimePaths) -> Result<ResetRuntimeStateResult, String> {
+pub(crate) fn reset_runtime_state_at_paths(
+    paths: &RuntimePaths,
+) -> Result<ResetRuntimeStateResult, String> {
     let state_file = sender_state_path(paths);
     let cleared_state_file = if state_file.exists() {
         fs::remove_file(&state_file)
@@ -313,24 +349,32 @@ pub(crate) fn reset_runtime_state_at_paths(paths: &RuntimePaths) -> Result<Reset
 
     let mut deleted_log_files = 0;
     if paths.logs_dir.exists() {
-        for entry in fs::read_dir(&paths.logs_dir)
-            .map_err(|error| format!("Failed to read logs directory '{}': {error}", paths.logs_dir.display()))?
-        {
-            let entry = entry
-                .map_err(|error| format!("Failed to read a log file entry: {error}"))?;
+        for entry in fs::read_dir(&paths.logs_dir).map_err(|error| {
+            format!(
+                "Failed to read logs directory '{}': {error}",
+                paths.logs_dir.display()
+            )
+        })? {
+            let entry =
+                entry.map_err(|error| format!("Failed to read a log file entry: {error}"))?;
             let path = entry.path();
             if path.extension().and_then(|extension| extension.to_str()) != Some("jsonl") {
                 continue;
             }
 
-            fs::remove_file(&path)
-                .map_err(|error| format!("Failed to remove log file '{}': {error}", path.display()))?;
+            fs::remove_file(&path).map_err(|error| {
+                format!("Failed to remove log file '{}': {error}", path.display())
+            })?;
             deleted_log_files += 1;
         }
     }
 
-    fs::create_dir_all(&paths.logs_dir)
-        .map_err(|error| format!("Failed to recreate logs directory '{}': {error}", paths.logs_dir.display()))?;
+    fs::create_dir_all(&paths.logs_dir).map_err(|error| {
+        format!(
+            "Failed to recreate logs directory '{}': {error}",
+            paths.logs_dir.display()
+        )
+    })?;
 
     Ok(ResetRuntimeStateResult {
         ok: true,

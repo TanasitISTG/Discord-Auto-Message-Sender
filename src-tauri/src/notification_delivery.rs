@@ -41,13 +41,19 @@ fn normalize_notification_delivery_settings(
     }
 }
 
-fn resolve_telegram_state(settings: &NotificationDeliverySettings, previous: Option<&TelegramState>) -> TelegramState {
+fn resolve_telegram_state(
+    settings: &NotificationDeliverySettings,
+    previous: Option<&TelegramState>,
+) -> TelegramState {
     let default_status = if !settings.telegram.enabled {
         TelegramDeliveryStatus::Disabled
     } else if !settings.telegram.bot_token_stored || settings.telegram.chat_id.trim().is_empty() {
         TelegramDeliveryStatus::Unconfigured
     } else if let Some(previous) = previous {
-        if matches!(previous.status, TelegramDeliveryStatus::Failed | TelegramDeliveryStatus::Testing) {
+        if matches!(
+            previous.status,
+            TelegramDeliveryStatus::Failed | TelegramDeliveryStatus::Testing
+        ) {
             previous.status.clone()
         } else {
             TelegramDeliveryStatus::Ready
@@ -70,12 +76,18 @@ fn resolve_telegram_state(settings: &NotificationDeliverySettings, previous: Opt
         last_checked_at: previous.last_checked_at,
         last_delivered_at: previous.last_delivered_at,
         last_tested_at: previous.last_tested_at,
-        last_error: if default_status == TelegramDeliveryStatus::Failed { previous.last_error } else { None },
+        last_error: if default_status == TelegramDeliveryStatus::Failed {
+            previous.last_error
+        } else {
+            None
+        },
         last_resolved_chat_title: previous.last_resolved_chat_title,
     }
 }
 
-pub(crate) fn load_notification_delivery_snapshot(paths: &RuntimePaths) -> Result<NotificationDeliverySnapshot, String> {
+pub(crate) fn load_notification_delivery_snapshot(
+    paths: &RuntimePaths,
+) -> Result<NotificationDeliverySnapshot, String> {
     let state = load_sender_state_record(paths)?;
     let mut snapshot = state
         .notification_delivery
@@ -84,7 +96,8 @@ pub(crate) fn load_notification_delivery_snapshot(paths: &RuntimePaths) -> Resul
         &snapshot.settings,
         read_telegram_bot_token(paths)?.is_some(),
     );
-    snapshot.telegram_state = resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
+    snapshot.telegram_state =
+        resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
     Ok(snapshot)
 }
 
@@ -94,8 +107,10 @@ pub(crate) fn persist_notification_delivery_snapshot(
 ) -> Result<NotificationDeliverySnapshot, String> {
     let paths = runtime_paths(app)?;
     let bot_token_stored = read_telegram_bot_token(&paths)?.is_some();
-    snapshot.settings = normalize_notification_delivery_settings(&snapshot.settings, bot_token_stored);
-    snapshot.telegram_state = resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
+    snapshot.settings =
+        normalize_notification_delivery_settings(&snapshot.settings, bot_token_stored);
+    snapshot.telegram_state =
+        resolve_telegram_state(&snapshot.settings, Some(&snapshot.telegram_state));
 
     let snapshot = update_sender_state_record(&paths, |state| {
         state.notification_delivery = Some(snapshot.clone());
@@ -127,9 +142,9 @@ fn truncate_notification_body(value: &str, max_chars: usize) -> String {
 }
 
 fn notification_parts_from_event(event: &Value) -> Result<(String, String, String), String> {
-    let notification = event
-        .get("notification")
-        .ok_or_else(|| "Inbox notification event payload was missing the notification object.".to_string())?;
+    let notification = event.get("notification").ok_or_else(|| {
+        "Inbox notification event payload was missing the notification object.".to_string()
+    })?;
     let kind = notification
         .get("kind")
         .and_then(Value::as_str)
@@ -142,7 +157,11 @@ fn notification_parts_from_event(event: &Value) -> Result<(String, String, Strin
         .get("previewText")
         .and_then(Value::as_str)
         .unwrap_or("(No text content)");
-    Ok((kind.to_string(), author_name.to_string(), preview_text.to_string()))
+    Ok((
+        kind.to_string(),
+        author_name.to_string(),
+        preview_text.to_string(),
+    ))
 }
 
 fn show_inbox_notification(app: &AppHandle, event: &Value) -> Result<(), String> {
@@ -168,7 +187,10 @@ fn telegram_message_body_from_event(event: &Value) -> Result<String, String> {
     } else {
         format!("New Discord DM from {author_name}")
     };
-    Ok(format!("{title}\n\n{}", truncate_notification_body(&preview_text, 180)))
+    Ok(format!(
+        "{title}\n\n{}",
+        truncate_notification_body(&preview_text, 180)
+    ))
 }
 
 fn telegram_api_url(token: &str, method: &str) -> String {
@@ -182,13 +204,22 @@ fn telegram_http_client() -> Result<Client, String> {
         .map_err(|error| format!("Failed to build Telegram HTTP client: {error}"))
 }
 
-pub(crate) fn detect_telegram_chat_with_token(token: &str) -> Result<TelegramChatDetectionResult, String> {
+pub(crate) fn detect_telegram_chat_with_token(
+    token: &str,
+) -> Result<TelegramChatDetectionResult, String> {
     let payload: Value = telegram_http_client()?
         .get(telegram_api_url(token, "getUpdates"))
         .send()
-        .map_err(|error| sanitize_telegram_error(format!("Failed to call Telegram getUpdates: {error}"), Some(token)))?
+        .map_err(|error| {
+            sanitize_telegram_error(
+                format!("Failed to call Telegram getUpdates: {error}"),
+                Some(token),
+            )
+        })?
         .error_for_status()
-        .map_err(|error| sanitize_telegram_error(format!("Telegram getUpdates failed: {error}"), Some(token)))?
+        .map_err(|error| {
+            sanitize_telegram_error(format!("Telegram getUpdates failed: {error}"), Some(token))
+        })?
         .json()
         .map_err(|error| format!("Failed to decode Telegram getUpdates response: {error}"))?;
 
@@ -234,7 +265,12 @@ pub(crate) fn send_telegram_message(token: &str, chat_id: &str, text: &str) -> R
             "disable_notification": false
         }))
         .send()
-        .map_err(|error| sanitize_telegram_error(format!("Failed to call Telegram sendMessage: {error}"), Some(token)))?
+        .map_err(|error| {
+            sanitize_telegram_error(
+                format!("Failed to call Telegram sendMessage: {error}"),
+                Some(token),
+            )
+        })?
         .json()
         .map_err(|error| format!("Failed to decode Telegram sendMessage response: {error}"))?;
 
@@ -249,7 +285,10 @@ pub(crate) fn send_telegram_message(token: &str, chat_id: &str, text: &str) -> R
     Err(description.to_string())
 }
 
-pub(crate) fn handle_inbox_notification_event(app: &AppHandle, event: &Value) -> Result<(), String> {
+pub(crate) fn handle_inbox_notification_event(
+    app: &AppHandle,
+    event: &Value,
+) -> Result<(), String> {
     let mut snapshot = load_notification_delivery_snapshot(&runtime_paths(app)?)?;
 
     if snapshot.settings.windows_desktop_enabled {

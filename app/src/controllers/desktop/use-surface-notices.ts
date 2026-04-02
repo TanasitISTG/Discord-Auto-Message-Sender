@@ -9,13 +9,13 @@ export function useSurfaceNotices() {
             ...previous,
             [scope]: {
                 tone,
-                message
-            }
+                message,
+            },
         }));
     }
 
     return {
         surfaceNotices,
-        setSurfaceNotice
+        setSurfaceNotice,
     };
 }

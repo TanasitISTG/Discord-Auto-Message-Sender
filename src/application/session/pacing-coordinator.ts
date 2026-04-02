@@ -10,7 +10,7 @@ export async function sleepWithAbort(
     ms: number,
     sleep: SleepFn,
     coordinator?: SenderCoordinator,
-    lifecycle?: SenderLifecycle
+    lifecycle?: SenderLifecycle,
 ): Promise<boolean> {
     if (!coordinator && !lifecycle) {
         await sleep(ms);
@@ -45,7 +45,7 @@ export async function sleepWithAbort(
 
 export function createSenderCoordinator(
     minRequestIntervalMs: number = DEFAULT_GLOBAL_REQUEST_INTERVAL_MS,
-    initialState?: Partial<AdaptivePacingState>
+    initialState?: Partial<AdaptivePacingState>,
 ): SenderCoordinator {
     let abortedReason: string | null = null;
     const abortController = new AbortController();
@@ -53,12 +53,18 @@ export function createSenderCoordinator(
     let requestQueue = Promise.resolve();
     const pacingState: AdaptivePacingState = {
         baseRequestIntervalMs: minRequestIntervalMs,
-        currentRequestIntervalMs: Math.max(minRequestIntervalMs, initialState?.currentRequestIntervalMs ?? minRequestIntervalMs),
-        maxRequestIntervalMs: Math.max(minRequestIntervalMs, initialState?.maxRequestIntervalMs ?? minRequestIntervalMs),
+        currentRequestIntervalMs: Math.max(
+            minRequestIntervalMs,
+            initialState?.currentRequestIntervalMs ?? minRequestIntervalMs,
+        ),
+        maxRequestIntervalMs: Math.max(
+            minRequestIntervalMs,
+            initialState?.maxRequestIntervalMs ?? minRequestIntervalMs,
+        ),
         penaltyLevel: initialState?.penaltyLevel ?? 0,
         recentRateLimitCount: initialState?.recentRateLimitCount ?? 0,
         lastRateLimitAt: initialState?.lastRateLimitAt,
-        lastRecoveryAt: initialState?.lastRecoveryAt
+        lastRecoveryAt: initialState?.lastRecoveryAt,
     };
 
     const coordinator: SenderCoordinator = {
@@ -84,20 +90,26 @@ export function createSenderCoordinator(
             pacingState.currentRequestIntervalMs = Math.min(
                 DEFAULT_MAX_REQUEST_INTERVAL_MS,
                 Math.max(
-                    pacingState.baseRequestIntervalMs + (pacingState.penaltyLevel * 125),
-                    pacingState.currentRequestIntervalMs + penaltyBoost
-                )
+                    pacingState.baseRequestIntervalMs + pacingState.penaltyLevel * 125,
+                    pacingState.currentRequestIntervalMs + penaltyBoost,
+                ),
             );
-            pacingState.maxRequestIntervalMs = Math.max(pacingState.maxRequestIntervalMs, pacingState.currentRequestIntervalMs);
+            pacingState.maxRequestIntervalMs = Math.max(
+                pacingState.maxRequestIntervalMs,
+                pacingState.currentRequestIntervalMs,
+            );
             pacingState.lastRateLimitAt = new Date().toISOString();
             return { ...pacingState };
         },
         recordSuccess() {
             if (pacingState.currentRequestIntervalMs > pacingState.baseRequestIntervalMs) {
-                const decayStep = Math.max(125, Math.ceil((pacingState.currentRequestIntervalMs - pacingState.baseRequestIntervalMs) / 2));
+                const decayStep = Math.max(
+                    125,
+                    Math.ceil((pacingState.currentRequestIntervalMs - pacingState.baseRequestIntervalMs) / 2),
+                );
                 pacingState.currentRequestIntervalMs = Math.max(
                     pacingState.baseRequestIntervalMs,
-                    pacingState.currentRequestIntervalMs - decayStep
+                    pacingState.currentRequestIntervalMs - decayStep,
                 );
                 pacingState.lastRecoveryAt = new Date().toISOString();
             }
@@ -142,7 +154,7 @@ export function createSenderCoordinator(
                 }
                 releaseQueue?.();
             }
-        }
+        },
     };
 
     return coordinator;

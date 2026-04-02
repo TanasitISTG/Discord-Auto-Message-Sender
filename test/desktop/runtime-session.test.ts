@@ -5,12 +5,10 @@ import {
     assert,
     createTempDir,
     DesktopRuntime,
-    FakeInboxMonitor,
     FakeSession,
-    resolveSessionLogPath,
     SessionController,
     STATE_SCHEMA_VERSION,
-    writeDesktopFiles
+    writeDesktopFiles,
 } from './runtime-test-helpers';
 import type { SessionState } from '../../src/types';
 
@@ -24,14 +22,14 @@ test('DesktopRuntime uses a single in-process session controller for lifecycle c
         emitEvent: (event) => {
             events.push(event.type);
         },
-        sessionFactory: (options) => new FakeSession(options)
+        sessionFactory: (options) => new FakeSession(options),
     });
 
     const started = await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'test-token'
+        token: 'test-token',
     });
     assert.equal(started.status, 'running');
     assert.equal(runtime.getSessionState()?.status, 'running');
@@ -55,10 +53,12 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
     const tempDir = createTempDir();
     writeDesktopFiles(tempDir);
 
-    const controllers: Array<SessionController & {
-        markCompleted(): void;
-        resolveCompleted(): void;
-    }> = [];
+    const controllers: Array<
+        SessionController & {
+            markCompleted(): void;
+            resolveCompleted(): void;
+        }
+    > = [];
 
     const runtime = new DesktopRuntime({
         baseDir: tempDir,
@@ -70,7 +70,7 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
                 activeChannels: [],
                 completedChannels: [],
                 failedChannels: [],
-                sentMessages: 0
+                sentMessages: 0,
             };
             let resolveStart: ((value: SessionState) => void) | undefined;
 
@@ -109,8 +109,8 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
                             failedChannels: 0,
                             sentMessages: 0,
                             startedAt: state.updatedAt,
-                            finishedAt
-                        }
+                            finishedAt,
+                        },
                     });
                 },
                 async start() {
@@ -119,19 +119,19 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
                     return await new Promise<SessionState>((resolve) => {
                         resolveStart = resolve;
                     });
-                }
+                },
             };
 
             controllers.push(controller);
             return controller;
-        }
+        },
     });
 
     await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'test-token'
+        token: 'test-token',
     });
     controllers[0]?.markCompleted();
 
@@ -139,7 +139,7 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
         numMessages: 2,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'test-token'
+        token: 'test-token',
     });
     assert.equal(restarted.id, 'session-2');
     assert.equal(runtime.getSessionState()?.id, 'session-2');
@@ -154,41 +154,49 @@ test('DesktopRuntime keeps the newer session controller when an older completed 
 test('DesktopRuntime restores a resumable checkpoint when config and runtime still match', async () => {
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);
-    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
-        schemaVersion: STATE_SCHEMA_VERSION,
-        summaries: [],
-        recentFailures: [],
-        recentMessageHistory: {
-            '123456789012345678': ['hello']
-        },
-        resumeSession: {
-            sessionId: 'session-resume',
-            updatedAt: '2026-03-21T10:00:00.000Z',
-            runtime: {
-                numMessages: 1,
-                baseWaitSeconds: 1,
-                marginSeconds: 0
+    fs.writeFileSync(
+        path.join(tempDir, '.sender-state.json'),
+        JSON.stringify(
+            {
+                schemaVersion: STATE_SCHEMA_VERSION,
+                summaries: [],
+                recentFailures: [],
+                recentMessageHistory: {
+                    '123456789012345678': ['hello'],
+                },
+                resumeSession: {
+                    sessionId: 'session-resume',
+                    updatedAt: '2026-03-21T10:00:00.000Z',
+                    runtime: {
+                        numMessages: 1,
+                        baseWaitSeconds: 1,
+                        marginSeconds: 0,
+                    },
+                    configSignature: JSON.stringify(config),
+                    state: {
+                        id: 'session-resume',
+                        status: 'running',
+                        updatedAt: '2026-03-21T10:00:00.000Z',
+                        activeChannels: ['123456789012345678'],
+                        completedChannels: [],
+                        failedChannels: [],
+                        sentMessages: 1,
+                        runtime: {
+                            numMessages: 1,
+                            baseWaitSeconds: 1,
+                            marginSeconds: 0,
+                        },
+                    },
+                    recentMessageHistory: {
+                        '123456789012345678': ['hello'],
+                    },
+                },
             },
-            configSignature: JSON.stringify(config),
-            state: {
-                id: 'session-resume',
-                status: 'running',
-                updatedAt: '2026-03-21T10:00:00.000Z',
-                activeChannels: ['123456789012345678'],
-                completedChannels: [],
-                failedChannels: [],
-                sentMessages: 1,
-                runtime: {
-                    numMessages: 1,
-                    baseWaitSeconds: 1,
-                    marginSeconds: 0
-                }
-            },
-            recentMessageHistory: {
-                '123456789012345678': ['hello']
-            }
-        }
-    }, null, 2), 'utf8');
+            null,
+            2,
+        ),
+        'utf8',
+    );
 
     let receivedResumeSessionId: string | undefined;
     const runtime = new DesktopRuntime({
@@ -196,14 +204,14 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
         sessionFactory: (options) => {
             receivedResumeSessionId = options.resumeSession?.sessionId;
             return new FakeSession(options);
-        }
+        },
     });
 
     await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'test-token'
+        token: 'test-token',
     });
 
     assert.equal(receivedResumeSessionId, 'session-resume');
@@ -212,36 +220,44 @@ test('DesktopRuntime restores a resumable checkpoint when config and runtime sti
 test('DesktopRuntime can discard a saved resume checkpoint when no session is active', () => {
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);
-    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
-        schemaVersion: STATE_SCHEMA_VERSION,
-        summaries: [],
-        recentFailures: [],
-        resumeSession: {
-            sessionId: 'session-resume',
-            updatedAt: '2026-03-21T10:00:00.000Z',
-            runtime: {
-                numMessages: 1,
-                baseWaitSeconds: 1,
-                marginSeconds: 0
+    fs.writeFileSync(
+        path.join(tempDir, '.sender-state.json'),
+        JSON.stringify(
+            {
+                schemaVersion: STATE_SCHEMA_VERSION,
+                summaries: [],
+                recentFailures: [],
+                resumeSession: {
+                    sessionId: 'session-resume',
+                    updatedAt: '2026-03-21T10:00:00.000Z',
+                    runtime: {
+                        numMessages: 1,
+                        baseWaitSeconds: 1,
+                        marginSeconds: 0,
+                    },
+                    configSignature: JSON.stringify(config),
+                    state: {
+                        id: 'session-resume',
+                        status: 'running',
+                        updatedAt: '2026-03-21T10:00:00.000Z',
+                        activeChannels: ['123456789012345678'],
+                        completedChannels: [],
+                        failedChannels: [],
+                        sentMessages: 1,
+                    },
+                    recentMessageHistory: {
+                        '123456789012345678': ['hello'],
+                    },
+                },
             },
-            configSignature: JSON.stringify(config),
-            state: {
-                id: 'session-resume',
-                status: 'running',
-                updatedAt: '2026-03-21T10:00:00.000Z',
-                activeChannels: ['123456789012345678'],
-                completedChannels: [],
-                failedChannels: [],
-                sentMessages: 1
-            },
-            recentMessageHistory: {
-                '123456789012345678': ['hello']
-            }
-        }
-    }, null, 2), 'utf8');
+            null,
+            2,
+        ),
+        'utf8',
+    );
 
     const runtime = new DesktopRuntime({
-        baseDir: tempDir
+        baseDir: tempDir,
     });
 
     const state = runtime.discardResumeSession();
@@ -259,14 +275,14 @@ test('DesktopRuntime accepts an injected token from the desktop shell', async ()
         sessionFactory: (options) => {
             receivedToken = options.token;
             return new FakeSession(options);
-        }
+        },
     });
 
     await runtime.startSession({
         numMessages: 1,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'injected-token'
+        token: 'injected-token',
     });
 
     assert.equal(receivedToken, 'injected-token');
@@ -275,33 +291,41 @@ test('DesktopRuntime accepts an injected token from the desktop shell', async ()
 test('DesktopRuntime does not restore a checkpoint when the requested runtime no longer matches', async () => {
     const tempDir = createTempDir();
     const config = writeDesktopFiles(tempDir);
-    fs.writeFileSync(path.join(tempDir, '.sender-state.json'), JSON.stringify({
-        schemaVersion: STATE_SCHEMA_VERSION,
-        summaries: [],
-        recentFailures: [],
-        resumeSession: {
-            sessionId: 'session-resume',
-            updatedAt: '2026-03-21T10:00:00.000Z',
-            runtime: {
-                numMessages: 1,
-                baseWaitSeconds: 1,
-                marginSeconds: 0
+    fs.writeFileSync(
+        path.join(tempDir, '.sender-state.json'),
+        JSON.stringify(
+            {
+                schemaVersion: STATE_SCHEMA_VERSION,
+                summaries: [],
+                recentFailures: [],
+                resumeSession: {
+                    sessionId: 'session-resume',
+                    updatedAt: '2026-03-21T10:00:00.000Z',
+                    runtime: {
+                        numMessages: 1,
+                        baseWaitSeconds: 1,
+                        marginSeconds: 0,
+                    },
+                    configSignature: JSON.stringify(config),
+                    state: {
+                        id: 'session-resume',
+                        status: 'running',
+                        updatedAt: '2026-03-21T10:00:00.000Z',
+                        activeChannels: ['123456789012345678'],
+                        completedChannels: [],
+                        failedChannels: [],
+                        sentMessages: 1,
+                    },
+                    recentMessageHistory: {
+                        '123456789012345678': ['hello'],
+                    },
+                },
             },
-            configSignature: JSON.stringify(config),
-            state: {
-                id: 'session-resume',
-                status: 'running',
-                updatedAt: '2026-03-21T10:00:00.000Z',
-                activeChannels: ['123456789012345678'],
-                completedChannels: [],
-                failedChannels: [],
-                sentMessages: 1
-            },
-            recentMessageHistory: {
-                '123456789012345678': ['hello']
-            }
-        }
-    }, null, 2), 'utf8');
+            null,
+            2,
+        ),
+        'utf8',
+    );
 
     let receivedResumeSessionId: string | undefined;
     const runtime = new DesktopRuntime({
@@ -309,16 +333,15 @@ test('DesktopRuntime does not restore a checkpoint when the requested runtime no
         sessionFactory: (options) => {
             receivedResumeSessionId = options.resumeSession?.sessionId;
             return new FakeSession(options);
-        }
+        },
     });
 
     await runtime.startSession({
         numMessages: 2,
         baseWaitSeconds: 1,
         marginSeconds: 0,
-        token: 'test-token'
+        token: 'test-token',
     });
 
     assert.equal(receivedResumeSessionId, undefined);
 });
-

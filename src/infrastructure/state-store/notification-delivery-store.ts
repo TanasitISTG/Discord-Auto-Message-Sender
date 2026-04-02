@@ -1,8 +1,5 @@
 import { NotificationDeliverySettings, NotificationDeliverySnapshot } from '../../types';
-import {
-    getDefaultNotificationDeliverySettings,
-    getDefaultNotificationDeliverySnapshot
-} from './schema';
+import { getDefaultNotificationDeliverySettings, getDefaultNotificationDeliverySnapshot } from './schema';
 
 function normalizeTelegramSettings(value: unknown): NotificationDeliverySettings['telegram'] {
     const defaults = getDefaultNotificationDeliverySettings().telegram;
@@ -13,9 +10,10 @@ function normalizeTelegramSettings(value: unknown): NotificationDeliverySettings
     const settings = value as Partial<NotificationDeliverySettings['telegram']>;
     return {
         enabled: typeof settings.enabled === 'boolean' ? settings.enabled : defaults.enabled,
-        botTokenStored: typeof settings.botTokenStored === 'boolean' ? settings.botTokenStored : defaults.botTokenStored,
+        botTokenStored:
+            typeof settings.botTokenStored === 'boolean' ? settings.botTokenStored : defaults.botTokenStored,
         chatId: typeof settings.chatId === 'string' ? settings.chatId : defaults.chatId,
-        previewMode: settings.previewMode === 'full' ? settings.previewMode : defaults.previewMode
+        previewMode: settings.previewMode === 'full' ? settings.previewMode : defaults.previewMode,
     };
 }
 
@@ -27,31 +25,38 @@ function normalizeNotificationDeliverySettings(value: unknown): NotificationDeli
 
     const settings = value as Partial<NotificationDeliverySettings>;
     return {
-        windowsDesktopEnabled: typeof settings.windowsDesktopEnabled === 'boolean'
-            ? settings.windowsDesktopEnabled
-            : defaults.windowsDesktopEnabled,
-        telegram: normalizeTelegramSettings(settings.telegram)
+        windowsDesktopEnabled:
+            typeof settings.windowsDesktopEnabled === 'boolean'
+                ? settings.windowsDesktopEnabled
+                : defaults.windowsDesktopEnabled,
+        telegram: normalizeTelegramSettings(settings.telegram),
     };
 }
 
-function normalizeTelegramState(value: unknown, settings: NotificationDeliverySettings): NotificationDeliverySnapshot['telegramState'] {
+function normalizeTelegramState(
+    value: unknown,
+    settings: NotificationDeliverySettings,
+): NotificationDeliverySnapshot['telegramState'] {
     const defaultStatus = settings.telegram.enabled
-        ? (settings.telegram.botTokenStored && settings.telegram.chatId ? 'ready' : 'unconfigured')
+        ? settings.telegram.botTokenStored && settings.telegram.chatId
+            ? 'ready'
+            : 'unconfigured'
         : 'disabled';
     if (!value || typeof value !== 'object') {
         return {
-            status: defaultStatus
+            status: defaultStatus,
         };
     }
 
     const state = value as Partial<NotificationDeliverySnapshot['telegramState']>;
-    const status = state.status === 'disabled'
-        || state.status === 'unconfigured'
-        || state.status === 'ready'
-        || state.status === 'testing'
-        || state.status === 'failed'
-        ? state.status
-        : defaultStatus;
+    const status =
+        state.status === 'disabled' ||
+        state.status === 'unconfigured' ||
+        state.status === 'ready' ||
+        state.status === 'testing' ||
+        state.status === 'failed'
+            ? state.status
+            : defaultStatus;
 
     return {
         status,
@@ -59,7 +64,8 @@ function normalizeTelegramState(value: unknown, settings: NotificationDeliverySe
         lastDeliveredAt: typeof state.lastDeliveredAt === 'string' ? state.lastDeliveredAt : undefined,
         lastTestedAt: typeof state.lastTestedAt === 'string' ? state.lastTestedAt : undefined,
         lastError: typeof state.lastError === 'string' ? state.lastError : undefined,
-        lastResolvedChatTitle: typeof state.lastResolvedChatTitle === 'string' ? state.lastResolvedChatTitle : undefined
+        lastResolvedChatTitle:
+            typeof state.lastResolvedChatTitle === 'string' ? state.lastResolvedChatTitle : undefined,
     };
 }
 
@@ -73,11 +79,8 @@ export function normalizeNotificationDeliverySnapshot(value: unknown): Notificat
     const settings = normalizeNotificationDeliverySettings(snapshot.settings);
     return {
         settings,
-        telegramState: normalizeTelegramState(snapshot.telegramState, settings)
+        telegramState: normalizeTelegramState(snapshot.telegramState, settings),
     };
 }
 
-export {
-    getDefaultNotificationDeliverySettings,
-    getDefaultNotificationDeliverySnapshot
-};
+export { getDefaultNotificationDeliverySettings, getDefaultNotificationDeliverySnapshot };

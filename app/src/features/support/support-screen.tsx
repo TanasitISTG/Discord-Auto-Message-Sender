@@ -7,7 +7,7 @@ import type {
     NotificationDeliverySettings,
     NotificationDeliverySnapshot,
     ReleaseDiagnostics,
-    SupportBundleResult
+    SupportBundleResult,
 } from '@/lib/desktop';
 import { InboxMonitorCard } from './inbox-monitor-card';
 import { TelegramNotificationsCard } from './telegram-notifications-card';
@@ -62,7 +62,7 @@ export function SupportScreen({
     onSaveTelegramBotToken,
     onClearTelegramBotToken,
     onDetectTelegramChat,
-    onSendTestTelegramNotification
+    onSendTestTelegramNotification,
 }: SupportScreenProps) {
     return (
         <section className="flex flex-col gap-4 xl:flex-row xl:items-start">
@@ -122,7 +122,8 @@ export function SupportScreen({
                                 <div className="font-medium">Latest support bundle</div>
                                 <div className="break-all font-mono text-xs text-cyan-50/90">{supportBundle.path}</div>
                                 <div className="text-cyan-50/80">
-                                    Included {supportBundle.includedFiles.length} file{supportBundle.includedFiles.length === 1 ? '' : 's'}.
+                                    Included {supportBundle.includedFiles.length} file
+                                    {supportBundle.includedFiles.length === 1 ? '' : 's'}.
                                 </div>
                                 {supportBundle.missingFiles.length > 0 ? (
                                     <div className="text-cyan-50/80">
@@ -145,16 +146,28 @@ export function SupportScreen({
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
-                            <div className="mb-2 font-semibold tracking-tight text-foreground">Unsigned Windows Public Beta</div>
-                            <div className="leading-relaxed">This build is Windows-only, uses manual MSI updates, and does not ship an auto-updater.</div>
+                            <div className="mb-2 font-semibold tracking-tight text-foreground">
+                                Unsigned Windows Public Beta
+                            </div>
+                            <div className="leading-relaxed">
+                                This build is Windows-only, uses manual MSI updates, and does not ship an auto-updater.
+                            </div>
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
                             <div className="mb-2 font-semibold tracking-tight text-foreground">Manual updates</div>
-                            <div className="leading-relaxed">Install the newer MSI over the existing version. Downgrades are blocked.</div>
+                            <div className="leading-relaxed">
+                                Install the newer MSI over the existing version. Downgrades are blocked.
+                            </div>
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
-                            <div className="mb-2 font-semibold tracking-tight text-foreground">Support export safety</div>
-                            <div className="leading-relaxed">The support bundle excludes secure token stores and `.env`, and it redacts plaintext token values, message templates, recent message history, and Telegram error details before export.</div>
+                            <div className="mb-2 font-semibold tracking-tight text-foreground">
+                                Support export safety
+                            </div>
+                            <div className="leading-relaxed">
+                                The support bundle excludes secure token stores and `.env`, and it redacts plaintext
+                                token values, message templates, recent message history, and Telegram error details
+                                before export.
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -193,20 +206,34 @@ export function SupportScreen({
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm text-muted-foreground">
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
-                            <div className="font-semibold tracking-tight text-foreground">1. Export a support bundle</div>
-                            <div className="mt-2 leading-relaxed">Use the support bundle action after reproducing the issue if possible.</div>
+                            <div className="font-semibold tracking-tight text-foreground">
+                                1. Export a support bundle
+                            </div>
+                            <div className="mt-2 leading-relaxed">
+                                Use the support bundle action after reproducing the issue if possible.
+                            </div>
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
-                            <div className="font-semibold tracking-tight text-foreground">2. Describe the exact action</div>
-                            <div className="mt-2 leading-relaxed">Include what screen you were on, what you clicked, and what you expected to happen.</div>
+                            <div className="font-semibold tracking-tight text-foreground">
+                                2. Describe the exact action
+                            </div>
+                            <div className="mt-2 leading-relaxed">
+                                Include what screen you were on, what you clicked, and what you expected to happen.
+                            </div>
                         </div>
                         <div className="rounded-xl border border-border/50 bg-background/50 p-5 shadow-xs">
-                            <div className="font-semibold tracking-tight text-foreground">3. Attach the exported ZIP</div>
-                            <div className="mt-2 leading-relaxed">Attach the support bundle path or ZIP file instead of copying local app-data files manually.</div>
+                            <div className="font-semibold tracking-tight text-foreground">
+                                3. Attach the exported ZIP
+                            </div>
+                            <div className="mt-2 leading-relaxed">
+                                Attach the support bundle path or ZIP file instead of copying local app-data files
+                                manually.
+                            </div>
                         </div>
                         {setup?.warning ? (
                             <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100 shadow-xs backdrop-blur-xs">
-                                <span className="font-semibold tracking-tight">Setup warning:</span> <span className="leading-relaxed">{setup.warning}</span>
+                                <span className="font-semibold tracking-tight">Setup warning:</span>{' '}
+                                <span className="leading-relaxed">{setup.warning}</span>
                             </div>
                         ) : null}
                     </CardContent>

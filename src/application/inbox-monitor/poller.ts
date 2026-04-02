@@ -1,10 +1,11 @@
+import { InboxMonitorLastSeen, InboxMonitorSnapshot, InboxNotificationItem, InboxNotificationKind } from '../../types';
 import {
-    InboxMonitorLastSeen,
-    InboxMonitorSnapshot,
-    InboxNotificationItem,
-    InboxNotificationKind
-} from '../../types';
-import { buildChannelName, compareSnowflakes, InboxChannel, InboxMessage, isMessageRequestChannel } from './notifications';
+    buildChannelName,
+    compareSnowflakes,
+    InboxChannel,
+    InboxMessage,
+    isMessageRequestChannel,
+} from './notifications';
 import type { FetchImpl, MonitorPollResult } from './snapshot';
 
 const API_BASE = 'https://discord.com/api/v10';
@@ -20,14 +21,14 @@ interface PollInboxOptions {
 }
 
 async function readJson<T>(response: Response): Promise<T> {
-    return await response.json() as T;
+    return (await response.json()) as T;
 }
 
 async function fetchWithTimeout(
     url: string,
     headers: HeadersInit,
     fetchImpl: FetchImpl,
-    abortSignal: AbortSignal
+    abortSignal: AbortSignal,
 ): Promise<Response> {
     const controller = new AbortController();
     const abortListener = () => {
@@ -41,14 +42,14 @@ async function fetchWithTimeout(
         return await Promise.race([
             fetchImpl(url, {
                 headers,
-                signal: controller.signal
+                signal: controller.signal,
             }),
             new Promise<Response>((_, reject) => {
                 timeoutId = setTimeout(() => {
                     controller.abort();
                     reject(new Error(`Inbox monitor request timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms.`));
                 }, DEFAULT_REQUEST_TIMEOUT_MS);
-            })
+            }),
         ]);
     } finally {
         abortSignal.removeEventListener('abort', abortListener);
@@ -68,7 +69,11 @@ async function fetchSelfUserId(headers: HeadersInit, fetchImpl: FetchImpl, abort
     return payload.id;
 }
 
-async function fetchChannels(headers: HeadersInit, fetchImpl: FetchImpl, abortSignal: AbortSignal): Promise<InboxChannel[]> {
+async function fetchChannels(
+    headers: HeadersInit,
+    fetchImpl: FetchImpl,
+    abortSignal: AbortSignal,
+): Promise<InboxChannel[]> {
     const response = await fetchWithTimeout(`${API_BASE}/users/@me/channels`, headers, fetchImpl, abortSignal);
     if (response.status === 401) {
         throw new Error('Inbox monitor received HTTP 401 while loading DM channels.');
@@ -88,9 +93,14 @@ async function fetchChannelMessages(
     headers: HeadersInit,
     fetchImpl: FetchImpl,
     channelId: string,
-    abortSignal: AbortSignal
+    abortSignal: AbortSignal,
 ): Promise<InboxMessage[]> {
-    const response = await fetchWithTimeout(`${API_BASE}/channels/${channelId}/messages?limit=${MAX_MESSAGES_PER_CHANNEL}`, headers, fetchImpl, abortSignal);
+    const response = await fetchWithTimeout(
+        `${API_BASE}/channels/${channelId}/messages?limit=${MAX_MESSAGES_PER_CHANNEL}`,
+        headers,
+        fetchImpl,
+        abortSignal,
+    );
     if (response.status === 401) {
         throw new Error(`Inbox monitor received HTTP 401 while loading channel ${channelId}.`);
     }
@@ -110,26 +120,28 @@ export async function pollInboxSnapshot({
     token,
     fetchImpl,
     now,
-    abortSignal
+    abortSignal,
 }: PollInboxOptions): Promise<MonitorPollResult> {
     const headers = {
         Authorization: token,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
     };
     const checkedAt = now().toISOString();
-    const selfUserId = snapshot.lastSeen.selfUserId ?? await fetchSelfUserId(headers, fetchImpl, abortSignal);
+    const selfUserId = snapshot.lastSeen.selfUserId ?? (await fetchSelfUserId(headers, fetchImpl, abortSignal));
     const channels = await fetchChannels(headers, fetchImpl, abortSignal);
     const notifications: InboxNotificationItem[] = [];
     const nextLastSeen: InboxMonitorLastSeen = {
         initializedAt: snapshot.lastSeen.initializedAt ?? checkedAt,
         selfUserId,
-        channelMessageIds: { ...snapshot.lastSeen.channelMessageIds }
+        channelMessageIds: { ...snapshot.lastSeen.channelMessageIds },
     };
 
     for (const channel of channels) {
         const kind: InboxNotificationKind = isMessageRequestChannel(channel) ? 'message_request' : 'direct_message';
-        if ((kind === 'direct_message' && !snapshot.settings.notifyDirectMessages)
-            || (kind === 'message_request' && !snapshot.settings.notifyMessageRequests)) {
+        if (
+            (kind === 'direct_message' && !snapshot.settings.notifyDirectMessages) ||
+            (kind === 'message_request' && !snapshot.settings.notifyMessageRequests)
+        ) {
             continue;
         }
 
@@ -167,11 +179,12 @@ export async function pollInboxSnapshot({
                 channelName: buildChannelName(channel),
                 authorId,
                 authorName: message.author?.global_name ?? message.author?.username ?? authorId,
-                previewText: typeof message.content === 'string' && message.content.trim().length > 0
-                    ? message.content.trim().slice(0, 180)
-                    : '(No text content)',
+                previewText:
+                    typeof message.content === 'string' && message.content.trim().length > 0
+                        ? message.content.trim().slice(0, 180)
+                        : '(No text content)',
                 messageId: message.id,
-                receivedAt: typeof message.timestamp === 'string' ? message.timestamp : checkedAt
+                receivedAt: typeof message.timestamp === 'string' ? message.timestamp : checkedAt,
             });
         }
     }
@@ -179,6 +192,6 @@ export async function pollInboxSnapshot({
     return {
         notifications,
         lastSeen: nextLastSeen,
-        checkedAt
+        checkedAt,
     };
 }

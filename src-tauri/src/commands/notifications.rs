@@ -10,7 +10,8 @@ pub(crate) fn save_inbox_monitor_settings(
     app: AppHandle,
     request: SaveInboxMonitorSettingsRequest,
 ) -> Result<InboxMonitorSnapshot, String> {
-    let snapshot: InboxMonitorSnapshot = send_sidecar_request(&app, "save_inbox_monitor_settings", request)?;
+    let snapshot: InboxMonitorSnapshot =
+        send_sidecar_request(&app, "save_inbox_monitor_settings", request)?;
 
     if snapshot.settings.enabled {
         let _ = restore_inbox_monitor_if_enabled(&app);
@@ -29,7 +30,11 @@ pub(crate) fn get_inbox_monitor_state(app: AppHandle) -> Result<InboxMonitorStat
 #[tauri::command]
 pub(crate) fn start_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, String> {
     let token = resolve_effective_token(&app)?;
-    send_sidecar_request(&app, "start_inbox_monitor", StartInboxMonitorRequest { token })
+    send_sidecar_request(
+        &app,
+        "start_inbox_monitor",
+        StartInboxMonitorRequest { token },
+    )
 }
 
 #[tauri::command]
@@ -38,7 +43,9 @@ pub(crate) fn stop_inbox_monitor(app: AppHandle) -> Result<InboxMonitorState, St
 }
 
 #[tauri::command]
-pub(crate) fn load_notification_delivery_settings(app: AppHandle) -> Result<NotificationDeliverySettings, String> {
+pub(crate) fn load_notification_delivery_settings(
+    app: AppHandle,
+) -> Result<NotificationDeliverySettings, String> {
     Ok(load_notification_delivery_snapshot(&runtime_paths(&app)?)?.settings)
 }
 
@@ -58,7 +65,9 @@ pub(crate) fn save_notification_delivery_settings(
 }
 
 #[tauri::command]
-pub(crate) fn get_notification_delivery_state(app: AppHandle) -> Result<NotificationDeliverySnapshot, String> {
+pub(crate) fn get_notification_delivery_state(
+    app: AppHandle,
+) -> Result<NotificationDeliverySnapshot, String> {
     load_notification_delivery_snapshot(&runtime_paths(&app)?)
 }
 
@@ -77,7 +86,9 @@ pub(crate) fn save_telegram_bot_token(
 }
 
 #[tauri::command]
-pub(crate) fn clear_telegram_bot_token(app: AppHandle) -> Result<NotificationDeliverySnapshot, String> {
+pub(crate) fn clear_telegram_bot_token(
+    app: AppHandle,
+) -> Result<NotificationDeliverySnapshot, String> {
     let paths = runtime_paths(&app)?;
     clear_telegram_bot_token_files(&paths)?;
     let mut snapshot = load_notification_delivery_snapshot(&paths)?;
@@ -87,14 +98,18 @@ pub(crate) fn clear_telegram_bot_token(app: AppHandle) -> Result<NotificationDel
 }
 
 #[tauri::command]
-pub(crate) async fn detect_telegram_chat(app: AppHandle) -> Result<TelegramChatDetectionResult, String> {
+pub(crate) async fn detect_telegram_chat(
+    app: AppHandle,
+) -> Result<TelegramChatDetectionResult, String> {
     let paths = runtime_paths(&app)?;
     let token = read_telegram_bot_token(&paths)?
         .ok_or_else(|| "Save a Telegram bot token before detecting a chat ID.".to_string())?;
     let token_for_lookup = token.clone();
-    let detected = tauri::async_runtime::spawn_blocking(move || detect_telegram_chat_with_token(&token_for_lookup))
-        .await
-        .map_err(|error| format!("Telegram chat detection task failed: {error}"))??;
+    let detected = tauri::async_runtime::spawn_blocking(move || {
+        detect_telegram_chat_with_token(&token_for_lookup)
+    })
+    .await
+    .map_err(|error| format!("Telegram chat detection task failed: {error}"))??;
     let mut snapshot = load_notification_delivery_snapshot(&paths)?;
     snapshot.telegram_state.last_checked_at = Some(current_timestamp());
     snapshot.telegram_state.last_resolved_chat_title = detected.title.clone();
@@ -112,14 +127,19 @@ pub(crate) async fn detect_telegram_chat(app: AppHandle) -> Result<TelegramChatD
 }
 
 #[tauri::command]
-pub(crate) async fn send_test_telegram_notification(app: AppHandle) -> Result<TelegramTestResult, String> {
+pub(crate) async fn send_test_telegram_notification(
+    app: AppHandle,
+) -> Result<TelegramTestResult, String> {
     let paths = runtime_paths(&app)?;
-    let token = read_telegram_bot_token(&paths)?
-        .ok_or_else(|| "Save a Telegram bot token before sending a test notification.".to_string())?;
+    let token = read_telegram_bot_token(&paths)?.ok_or_else(|| {
+        "Save a Telegram bot token before sending a test notification.".to_string()
+    })?;
     let mut snapshot = load_notification_delivery_snapshot(&paths)?;
     let chat_id = snapshot.settings.telegram.chat_id.clone();
     if chat_id.trim().is_empty() {
-        return Err("Save or detect a Telegram chat ID before sending a test notification.".to_string());
+        return Err(
+            "Save or detect a Telegram chat ID before sending a test notification.".to_string(),
+        );
     }
 
     snapshot.telegram_state.status = TelegramDeliveryStatus::Testing;
@@ -129,9 +149,11 @@ pub(crate) async fn send_test_telegram_notification(app: AppHandle) -> Result<Te
     let message = "Telegram delivery test from Discord Auto Message Sender.\n\nIf you received this, live inbox notifications can also be sent here while the desktop app is running.";
     let token_for_send = token.clone();
     let chat_id_for_send = chat_id.clone();
-    let send_result = tauri::async_runtime::spawn_blocking(move || send_telegram_message(&token_for_send, &chat_id_for_send, message))
-        .await
-        .map_err(|error| format!("Telegram test task failed: {error}"))?;
+    let send_result = tauri::async_runtime::spawn_blocking(move || {
+        send_telegram_message(&token_for_send, &chat_id_for_send, message)
+    })
+    .await
+    .map_err(|error| format!("Telegram test task failed: {error}"))?;
     let result = match send_result {
         Ok(()) => {
             snapshot.telegram_state.status = TelegramDeliveryStatus::Ready;

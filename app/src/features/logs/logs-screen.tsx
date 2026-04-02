@@ -28,7 +28,7 @@ const EVENT_LABELS: Record<string, string> = {
     rate_limited: 'Rate limit',
     request_error: 'Request error',
     resume_suppression_wait: 'Resume cooldown',
-    session_segment_started: 'Session segment'
+    session_segment_started: 'Session segment',
 };
 
 function levelTone(level: LogEntry['level']): 'neutral' | 'success' | 'warning' | 'danger' {
@@ -45,23 +45,22 @@ function levelTone(level: LogEntry['level']): 'neutral' | 'success' | 'warning' 
 }
 
 function resolveEventKey(log: LogEntry): string {
-    return typeof log.meta?.event === 'string'
-        ? log.meta.event
-        : 'eventless';
+    return typeof log.meta?.event === 'string' ? log.meta.event : 'eventless';
 }
 
 function resolveEventLabel(log: LogEntry): string {
     const eventKey = resolveEventKey(log);
     if (eventKey === 'session_segment_started') {
-        return log.segmentKind === 'resumed'
-            ? 'Resumed from checkpoint'
-            : 'Fresh session start';
+        return log.segmentKind === 'resumed' ? 'Resumed from checkpoint' : 'Fresh session start';
     }
 
-    return EVENT_LABELS[eventKey] ?? eventKey
-        .split('_')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
+    return (
+        EVENT_LABELS[eventKey] ??
+        eventKey
+            .split('_')
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+    );
 }
 
 function formatMeta(log: LogEntry) {
@@ -93,33 +92,28 @@ function buildEventOptions(logs: LogEntry[]) {
     return [...examples.entries()]
         .map(([key, example]) => ({
             key,
-            label: resolveEventLabel(example)
+            label: resolveEventLabel(example),
         }))
         .sort((left, right) => left.label.localeCompare(right.label));
 }
 
-export function LogsScreen({
-    logs,
-    sessionId,
-    notice,
-    onRefresh,
-    onOpenLogFile
-}: LogsScreenProps) {
+export function LogsScreen({ logs, sessionId, notice, onRefresh, onOpenLogFile }: LogsScreenProps) {
     const [eventFilter, setEventFilter] = useState('all');
 
     const eventOptions = useMemo(() => buildEventOptions(logs), [logs]);
-    const filteredLogs = useMemo(() => (
-        eventFilter === 'all'
-            ? logs
-            : logs.filter((log) => resolveEventKey(log) === eventFilter)
-    ), [eventFilter, logs]);
+    const filteredLogs = useMemo(
+        () => (eventFilter === 'all' ? logs : logs.filter((log) => resolveEventKey(log) === eventFilter)),
+        [eventFilter, logs],
+    );
 
     return (
         <section aria-label="Logs workspace" className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
             <Card>
                 <CardHeader>
                     <CardTitle>Log Controls</CardTitle>
-                    <CardDescription>Filter the current session log and open the underlying JSONL file.</CardDescription>
+                    <CardDescription>
+                        Filter the current session log and open the underlying JSONL file.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {notice ? <InlineNotice tone={notice.tone} message={notice.message} /> : null}
@@ -161,44 +155,54 @@ export function LogsScreen({
             <Card>
                 <CardHeader>
                     <CardTitle>Structured Log</CardTitle>
-                    <CardDescription>{filteredLogs.length} visible entr{filteredLogs.length === 1 ? 'y' : 'ies'}.</CardDescription>
+                    <CardDescription>
+                        {filteredLogs.length} visible entr{filteredLogs.length === 1 ? 'y' : 'ies'}.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {filteredLogs.length === 0 ? (
                         <div className="rounded-lg border border-border/50 bg-background/50 px-4 py-6 text-sm text-muted-foreground">
                             No log entries match the current filter.
                         </div>
-                    ) : filteredLogs.map((log) => {
-                        const eventLabel = resolveEventLabel(log);
-                        const metaDetails = formatMeta(log);
+                    ) : (
+                        filteredLogs.map((log) => {
+                            const eventLabel = resolveEventLabel(log);
+                            const metaDetails = formatMeta(log);
 
-                        return (
-                            <div key={log.id} className="rounded-lg border border-border/50 bg-background/50 px-4 py-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Badge tone={levelTone(log.level)}>{log.level}</Badge>
-                                    <div className="text-sm font-medium text-foreground">{eventLabel}</div>
-                                    {log.segmentKind ? (
-                                        <div className="text-xs text-muted-foreground">
-                                            {log.segmentKind === 'resumed' ? 'Resumed segment' : 'Fresh segment'}
+                            return (
+                                <div
+                                    key={log.id}
+                                    className="rounded-lg border border-border/50 bg-background/50 px-4 py-3"
+                                >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge tone={levelTone(log.level)}>{log.level}</Badge>
+                                        <div className="text-sm font-medium text-foreground">{eventLabel}</div>
+                                        {log.segmentKind ? (
+                                            <div className="text-xs text-muted-foreground">
+                                                {log.segmentKind === 'resumed' ? 'Resumed segment' : 'Fresh segment'}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <div className="mt-2 text-sm text-foreground">{log.message}</div>
+                                    {metaDetails.length > 0 ? (
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {metaDetails.map((detail) => (
+                                                <div
+                                                    key={detail}
+                                                    className="rounded-md border border-border/50 bg-card px-2 py-1 text-xs text-muted-foreground"
+                                                >
+                                                    {detail}
+                                                </div>
+                                            ))}
                                         </div>
                                     ) : null}
-                                </div>
-                                <div className="mt-2 text-sm text-foreground">{log.message}</div>
-                                {metaDetails.length > 0 ? (
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                        {metaDetails.map((detail) => (
-                                            <div key={detail} className="rounded-md border border-border/50 bg-card px-2 py-1 text-xs text-muted-foreground">
-                                                {detail}
-                                            </div>
-                                        ))}
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        {new Date(log.timestamp).toLocaleString()} - {log.context}
                                     </div>
-                                ) : null}
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                    {new Date(log.timestamp).toLocaleString()} - {log.context}
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </CardContent>
             </Card>
         </section>

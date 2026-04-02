@@ -1,13 +1,7 @@
 import React from 'react';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {
-    App,
-    getDesktopMock,
-    headerActions,
-    resetDesktopState,
-    sessionWorkspace,
-} from './app-flow-test-helpers';
+import { App, getDesktopMock, headerActions, resetDesktopState } from './app-flow-test-helpers';
 
 const desktopMock = getDesktopMock();
 
@@ -83,4 +77,3 @@ test('App can reset runtime state from Support when idle', async () => {
         expect(screen.getAllByText('Runtime state reset. Deleted 2 log files.').length).toBeGreaterThan(0);
     });
 });
-

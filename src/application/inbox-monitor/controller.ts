@@ -1,9 +1,4 @@
-import {
-    AppEvent,
-    InboxMonitorSnapshot,
-    InboxMonitorState
-} from '../../types';
-import { getDefaultInboxMonitorSnapshot } from '../../infrastructure/state-store';
+import { AppEvent, InboxMonitorSnapshot, InboxMonitorState } from '../../types';
 import { pollInboxSnapshot } from './poller';
 import {
     buildStatePatch,
@@ -16,7 +11,7 @@ import {
     SleepFn,
     StartInboxMonitorOptions,
     MIN_POLL_INTERVAL_SECONDS,
-    MAX_POLL_INTERVAL_SECONDS
+    MAX_POLL_INTERVAL_SECONDS,
 } from './snapshot';
 
 export class InboxMonitorService implements InboxMonitorController {
@@ -60,8 +55,8 @@ export class InboxMonitorService implements InboxMonitorController {
                 pollIntervalSeconds: normalized.pollIntervalSeconds,
                 status: normalized.enabled ? this.snapshot.state.status : 'stopped',
                 lastError: normalized.enabled ? this.snapshot.state.lastError : undefined,
-                backoffUntil: normalized.enabled ? this.snapshot.state.backoffUntil : undefined
-            })
+                backoffUntil: normalized.enabled ? this.snapshot.state.backoffUntil : undefined,
+            }),
         };
         this.persistAndEmitState();
         return this.getSnapshot();
@@ -78,8 +73,8 @@ export class InboxMonitorService implements InboxMonitorController {
             lastSeen: {
                 initializedAt: this.snapshot.lastSeen.initializedAt,
                 selfUserId: this.snapshot.lastSeen.selfUserId,
-                channelMessageIds: { ...this.snapshot.lastSeen.channelMessageIds }
-            }
+                channelMessageIds: { ...this.snapshot.lastSeen.channelMessageIds },
+            },
         };
     }
 
@@ -91,14 +86,15 @@ export class InboxMonitorService implements InboxMonitorController {
                 enabled: false,
                 pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
                 lastError: undefined,
-                backoffUntil: undefined
+                backoffUntil: undefined,
             });
             return this.getState();
         }
 
-        const nextToken = typeof options.token === 'string' && options.token.trim().length > 0
-            ? options.token.trim()
-            : this.currentToken;
+        const nextToken =
+            typeof options.token === 'string' && options.token.trim().length > 0
+                ? options.token.trim()
+                : this.currentToken;
 
         if (!nextToken) {
             this.stopCurrentLoop();
@@ -107,7 +103,7 @@ export class InboxMonitorService implements InboxMonitorController {
                 enabled: true,
                 pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
                 lastError: 'Discord token is missing. Save a token before starting inbox notifications.',
-                backoffUntil: undefined
+                backoffUntil: undefined,
             });
             return this.getState();
         }
@@ -129,22 +125,21 @@ export class InboxMonitorService implements InboxMonitorController {
             enabled: true,
             pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
             lastError: undefined,
-            backoffUntil: undefined
+            backoffUntil: undefined,
         });
         const runController = new AbortController();
         this.activeRunController = runController;
-        const loopPromise = this.runLoop(runId, nextToken, runController.signal)
-            .finally(() => {
-                if (this.loopPromise === loopPromise) {
-                    this.loopPromise = null;
-                }
-                if (this.activeRunController === runController) {
-                    this.activeRunController = null;
-                }
-                if (this.runGeneration === runId) {
-                    this.running = false;
-                }
-            });
+        const loopPromise = this.runLoop(runId, nextToken, runController.signal).finally(() => {
+            if (this.loopPromise === loopPromise) {
+                this.loopPromise = null;
+            }
+            if (this.activeRunController === runController) {
+                this.activeRunController = null;
+            }
+            if (this.runGeneration === runId) {
+                this.running = false;
+            }
+        });
         this.loopPromise = loopPromise;
         return this.getState();
     }
@@ -156,7 +151,7 @@ export class InboxMonitorService implements InboxMonitorController {
             enabled: this.snapshot.settings.enabled,
             pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
             lastError: reason,
-            backoffUntil: undefined
+            backoffUntil: undefined,
         });
         return this.getState();
     }
@@ -169,7 +164,7 @@ export class InboxMonitorService implements InboxMonitorController {
                     token,
                     fetchImpl: this.fetchImpl,
                     now: this.now,
-                    abortSignal
+                    abortSignal,
                 });
                 if (!this.isCurrentRun(runId)) {
                     break;
@@ -186,8 +181,9 @@ export class InboxMonitorService implements InboxMonitorController {
                         lastSuccessfulPollAt: result.checkedAt,
                         lastError: undefined,
                         backoffUntil: undefined,
-                        lastNotificationAt: result.notifications[0]?.receivedAt ?? this.snapshot.state.lastNotificationAt
-                    })
+                        lastNotificationAt:
+                            result.notifications[0]?.receivedAt ?? this.snapshot.state.lastNotificationAt,
+                    }),
                 };
                 this.persistAndEmitState();
 
@@ -195,7 +191,7 @@ export class InboxMonitorService implements InboxMonitorController {
                     this.emitEvent?.({
                         type: 'inbox_notification_ready',
                         notification,
-                        monitor: this.getState()
+                        monitor: this.getState(),
                     });
                 }
             } catch (error) {
@@ -212,7 +208,7 @@ export class InboxMonitorService implements InboxMonitorController {
                         pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
                         lastCheckedAt: this.now().toISOString(),
                         lastError: message,
-                        backoffUntil: undefined
+                        backoffUntil: undefined,
                     });
                     break;
                 }
@@ -229,7 +225,7 @@ export class InboxMonitorService implements InboxMonitorController {
                     pollIntervalSeconds: this.snapshot.settings.pollIntervalSeconds,
                     lastCheckedAt: this.now().toISOString(),
                     lastError: message,
-                    backoffUntil
+                    backoffUntil,
                 });
 
                 const completedBackoff = await this.sleepWithAbort(backoffMs, abortSignal);
@@ -239,8 +235,7 @@ export class InboxMonitorService implements InboxMonitorController {
                 continue;
             }
 
-            const waitMs = this.snapshot.settings.pollIntervalSeconds * 1000
-                + Math.round(this.random() * 2_500);
+            const waitMs = this.snapshot.settings.pollIntervalSeconds * 1000 + Math.round(this.random() * 2_500);
             const completedWait = await this.sleepWithAbort(waitMs, abortSignal);
             if (!completedWait) {
                 break;
@@ -255,9 +250,7 @@ export class InboxMonitorService implements InboxMonitorController {
     }
 
     private isCurrentRun(runId: number): boolean {
-        return this.running
-            && this.snapshot.settings.enabled
-            && this.runGeneration === runId;
+        return this.running && this.snapshot.settings.enabled && this.runGeneration === runId;
     }
 
     private async awaitLoopShutdown() {
@@ -292,7 +285,7 @@ export class InboxMonitorService implements InboxMonitorController {
             abortSignal.addEventListener('abort', onAbort, { once: true });
             void this.sleepImpl(ms).then(
                 () => finish(true),
-                () => finish(false)
+                () => finish(false),
             );
         });
     }
@@ -300,7 +293,7 @@ export class InboxMonitorService implements InboxMonitorController {
     private setState(nextState: InboxMonitorState) {
         this.snapshot = {
             ...this.snapshot,
-            state: nextState
+            state: nextState,
         };
         this.persistAndEmitState();
     }
@@ -310,7 +303,7 @@ export class InboxMonitorService implements InboxMonitorController {
         this.onSnapshotChange?.(snapshot);
         this.emitEvent?.({
             type: 'inbox_monitor_state_changed',
-            monitor: snapshot.state
+            monitor: snapshot.state,
         });
     }
 }

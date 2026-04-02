@@ -1,7 +1,7 @@
 use super::*;
 use crate::sidecar_manager::{
-    clear_sidecar, mark_sidecar_status, restore_inbox_monitor_if_enabled, take_pending,
-    AppRuntime, SidecarEventEnvelope, SidecarResponseEnvelope,
+    clear_sidecar, mark_sidecar_status, restore_inbox_monitor_if_enabled, take_pending, AppRuntime,
+    SidecarEventEnvelope, SidecarResponseEnvelope,
 };
 
 fn bundled_sidecar_path(app: &AppHandle) -> Option<PathBuf> {
@@ -25,7 +25,10 @@ fn bun_executable() -> &'static str {
     }
 }
 
-fn update_cached_session_state(sidecar: &mut crate::sidecar_manager::ManagedSidecar, event: &Value) {
+fn update_cached_session_state(
+    sidecar: &mut crate::sidecar_manager::ManagedSidecar,
+    event: &Value,
+) {
     if let Some(state_value) = event.get("state").cloned() {
         if let Ok(state) = serde_json::from_value::<SessionSnapshot>(state_value) {
             sidecar.session_state = Some(state);
@@ -70,7 +73,9 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                         let state = app.state::<AppRuntime>();
                         if let Ok(mut sidecar) = state.sidecar.lock() {
                             update_cached_session_state(&mut sidecar, &event.event);
-                            if event.event.get("type").and_then(Value::as_str) == Some("sidecar_ready") {
+                            if event.event.get("type").and_then(Value::as_str)
+                                == Some("sidecar_ready")
+                            {
                                 mark_sidecar_status(&mut sidecar, SidecarStatus::Ready, None);
                             }
                         };
@@ -81,7 +86,9 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                             let _ = restore_inbox_monitor_if_enabled(&app_handle);
                         });
                     }
-                    if event.event.get("type").and_then(Value::as_str) == Some("inbox_notification_ready") {
+                    if event.event.get("type").and_then(Value::as_str)
+                        == Some("inbox_notification_ready")
+                    {
                         let _ = handle_inbox_notification_event(&app, &event.event);
                     }
                     let _ = app.emit("app-event", event.event);
@@ -95,7 +102,9 @@ fn attach_stdout_reader(app: AppHandle, reader: ChildStdout) {
                     mark_sidecar_status(
                         &mut sidecar,
                         SidecarStatus::Failed,
-                        Some(format!("Desktop sidecar produced an invalid message: {trimmed}")),
+                        Some(format!(
+                            "Desktop sidecar produced an invalid message: {trimmed}"
+                        )),
                     );
                 };
             }
@@ -150,7 +159,11 @@ pub(crate) fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
             match child.try_wait() {
                 Ok(None) => return Ok(()),
                 Ok(Some(_)) | Err(_) => {
-                    clear_sidecar(&mut sidecar, "Desktop sidecar stopped.", SidecarStatus::Restarting);
+                    clear_sidecar(
+                        &mut sidecar,
+                        "Desktop sidecar stopped.",
+                        SidecarStatus::Restarting,
+                    );
                 }
             }
         }
@@ -167,10 +180,16 @@ pub(crate) fn start_sidecar_process(app: &AppHandle) -> Result<(), String> {
         command
     } else if let Some(sidecar_entry) = development_sidecar_entry() {
         let mut command = Command::new(bun_executable());
-        command.arg("run").arg(sidecar_entry).current_dir(project_root());
+        command
+            .arg("run")
+            .arg(sidecar_entry)
+            .current_dir(project_root());
         command
     } else {
-        return Err("Could not locate a packaged desktop sidecar or the development sidecar entrypoint.".to_string());
+        return Err(
+            "Could not locate a packaged desktop sidecar or the development sidecar entrypoint."
+                .to_string(),
+        );
     };
 
     let mut child = command
@@ -236,12 +255,20 @@ pub(crate) fn start_sidecar_watcher(app: AppHandle) {
             match sidecar.child.as_mut() {
                 Some(child) => match child.try_wait() {
                     Ok(Some(_status)) => {
-                        clear_sidecar(&mut sidecar, "Desktop sidecar stopped unexpectedly.", SidecarStatus::Restarting);
+                        clear_sidecar(
+                            &mut sidecar,
+                            "Desktop sidecar stopped unexpectedly.",
+                            SidecarStatus::Restarting,
+                        );
                         true
                     }
                     Ok(None) => false,
                     Err(_) => {
-                        clear_sidecar(&mut sidecar, "Desktop sidecar status could not be read.", SidecarStatus::Restarting);
+                        clear_sidecar(
+                            &mut sidecar,
+                            "Desktop sidecar status could not be read.",
+                            SidecarStatus::Restarting,
+                        );
                         true
                     }
                 },

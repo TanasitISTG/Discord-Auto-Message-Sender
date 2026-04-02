@@ -32,7 +32,7 @@ export function DesktopSetupCard({
     onEnvironmentDraftChange,
     onSaveEnvironment,
     onClearSecureToken,
-    onOpenDataDirectory
+    onOpenDataDirectory,
 }: DesktopSetupCardProps) {
     const hasDraftToken = environmentDraft.trim().length > 0;
     const tokenFieldLabel = setup?.tokenPresent ? 'Replace Discord Token' : 'Discord Token';
@@ -43,7 +43,7 @@ export function DesktopSetupCard({
         secure: 'Secure store',
         corrupted: 'Unreadable',
         loading: 'Loading',
-        missing: 'Missing'
+        missing: 'Missing',
     }[tokenStatus.status];
     const tokenHelper = setup?.tokenPresent
         ? 'A secure token is already stored for this Windows user. The field stays blank and only accepts replacement values.'
@@ -53,7 +53,10 @@ export function DesktopSetupCard({
         <Card>
             <CardHeader>
                 <CardTitle>Desktop Setup</CardTitle>
-                <CardDescription>Store the Discord token securely for this Windows user profile without turning config editing into a diagnostics wall.</CardDescription>
+                <CardDescription>
+                    Store the Discord token securely for this Windows user profile without turning config editing into a
+                    diagnostics wall.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <StateRow
@@ -62,10 +65,10 @@ export function DesktopSetupCard({
                         tokenStatus.status === 'secure'
                             ? 'Stored securely'
                             : tokenStatus.status === 'corrupted'
-                                ? 'Stored token unreadable'
-                                : tokenStatus.status === 'loading'
-                                    ? 'Loading'
-                                    : 'No token stored'
+                              ? 'Stored token unreadable'
+                              : tokenStatus.status === 'loading'
+                                ? 'Loading'
+                                : 'No token stored'
                     }
                 />
                 <StateRow label="Token source" value={tokenSourceLabel} />
@@ -77,7 +80,9 @@ export function DesktopSetupCard({
                             type={hasDraftToken && showToken ? 'text' : 'password'}
                             value={environmentDraft}
                             placeholder={tokenPlaceholder}
-                            onChange={(event: ChangeEvent<HTMLInputElement>) => onEnvironmentDraftChange(event.target.value)}
+                            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                                onEnvironmentDraftChange(event.target.value)
+                            }
                         />
                         {hasDraftToken ? (
                             <Button variant="secondary" onClick={onToggleToken}>
@@ -86,12 +91,8 @@ export function DesktopSetupCard({
                         ) : null}
                     </div>
                 </Field>
-                <div className="text-xs leading-relaxed text-muted-foreground">
-                    {tokenHelper}
-                </div>
-                <div className="text-xs leading-relaxed text-muted-foreground">
-                    {tokenStatus.detail}
-                </div>
+                <div className="text-xs leading-relaxed text-muted-foreground">{tokenHelper}</div>
+                <div className="text-xs leading-relaxed text-muted-foreground">{tokenStatus.detail}</div>
 
                 <div className="grid gap-3">
                     <Button className="w-full" onClick={onSaveEnvironment} disabled={!environmentDraft.trim()}>
@@ -123,7 +124,9 @@ export function DesktopSetupCard({
                     >
                         <div>
                             <div className="text-sm font-semibold text-foreground">Runtime Paths</div>
-                            <div className="text-xs text-muted-foreground">App-data locations stay available here, but collapsed until you need them.</div>
+                            <div className="text-xs text-muted-foreground">
+                                App-data locations stay available here, but collapsed until you need them.
+                            </div>
                         </div>
                         <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
                             {showRuntimePaths ? 'Hide' : 'View'}

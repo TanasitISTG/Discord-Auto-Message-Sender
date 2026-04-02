@@ -10,7 +10,7 @@ export function useConfirmationFlow() {
     function requestConfirmation(request: Omit<ConfirmDialogRequest, 'open'>) {
         setConfirmDialog({
             ...request,
-            open: true
+            open: true,
         });
     }
 
@@ -44,6 +44,6 @@ export function useConfirmationFlow() {
         confirmDialogPending,
         requestConfirmation,
         closeConfirmation,
-        confirmCurrentDialog
+        confirmCurrentDialog,
     };
 }

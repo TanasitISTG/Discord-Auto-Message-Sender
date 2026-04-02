@@ -9,15 +9,15 @@ export default defineConfig({
     plugins: [tailwindcss(), react()],
     resolve: {
         alias: {
-            '@': path.resolve(__dirname, 'app/src')
-        }
+            '@': path.resolve(__dirname, 'app/src'),
+        },
     },
     build: {
         outDir: path.resolve(__dirname, 'dist'),
-        emptyOutDir: true
+        emptyOutDir: true,
     },
     server: {
         port: 1420,
-        strictPort: true
-    }
+        strictPort: true,
+    },
 });

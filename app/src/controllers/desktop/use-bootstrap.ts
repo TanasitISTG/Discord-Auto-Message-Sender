@@ -22,15 +22,11 @@ import {
     loadNotificationDeliverySettings,
     loadReleaseDiagnostics,
     loadSetupState,
-    loadState
+    loadState,
 } from '@/lib/desktop';
 import type { ConfigDraftController } from '@/features/config/use-config-draft';
 import type { ConfigReadinessStatus } from '@/shared/readiness';
-import {
-    defaultInboxMonitorSettings,
-    defaultInboxMonitorState,
-    defaultNotificationDeliverySnapshot
-} from './helpers';
+import { defaultInboxMonitorSettings, defaultInboxMonitorState, defaultNotificationDeliverySnapshot } from './helpers';
 import type { PreferredScreen, RecoveryState } from './types';
 
 interface UseBootstrapOptions {
@@ -78,7 +74,7 @@ export function useBootstrap({
     setEnvironmentDraft,
     setPreferredScreen,
     setRuntime,
-    setNotice
+    setNotice,
 }: UseBootstrapOptions) {
     function applyConfigResult(configResult: ConfigLoadResult) {
         if (configResult.kind === 'ok') {
@@ -104,7 +100,16 @@ export function useBootstrap({
 
     async function refreshAll() {
         try {
-            const [configResult, activeSession, persistedState, setupState, monitorSettings, monitorState, deliveryState, diagnostics] = await Promise.all([
+            const [
+                configResult,
+                activeSession,
+                persistedState,
+                setupState,
+                monitorSettings,
+                monitorState,
+                deliveryState,
+                diagnostics,
+            ] = await Promise.all([
                 loadConfig(),
                 getSessionState(),
                 loadState(),
@@ -113,12 +118,12 @@ export function useBootstrap({
                 getInboxMonitorState().catch(() => defaultInboxMonitorState),
                 Promise.all([
                     loadNotificationDeliverySettings().catch(() => defaultNotificationDeliverySnapshot.settings),
-                    getNotificationDeliveryState().catch(() => defaultNotificationDeliverySnapshot)
+                    getNotificationDeliveryState().catch(() => defaultNotificationDeliverySnapshot),
                 ]).then(([settings, snapshot]) => ({
                     ...snapshot,
-                    settings
+                    settings,
                 })),
-                loadReleaseDiagnostics().catch(() => null)
+                loadReleaseDiagnostics().catch(() => null),
             ]);
 
             applyConfigResult(configResult);
@@ -162,6 +167,6 @@ export function useBootstrap({
     return {
         applyConfigResult,
         refreshAll,
-        refreshState
+        refreshState,
     };
 }

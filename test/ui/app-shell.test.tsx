@@ -1,12 +1,8 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import {
-    App,
-    getDesktopMock,
-    resetDesktopState,
-} from './app-flow-test-helpers';
+import { App, getDesktopMock, resetDesktopState } from './app-flow-test-helpers';
 
-const desktopMock = getDesktopMock();
+getDesktopMock();
 
 test('App mounts a single toaster host', async () => {
     resetDesktopState();

@@ -11,7 +11,10 @@ pub(crate) fn load_setup_state(app: AppHandle) -> Result<DesktopSetupState, Stri
 }
 
 #[tauri::command]
-pub(crate) fn save_environment(app: AppHandle, request: SaveEnvironmentRequest) -> Result<DesktopSetupState, String> {
+pub(crate) fn save_environment(
+    app: AppHandle,
+    request: SaveEnvironmentRequest,
+) -> Result<DesktopSetupState, String> {
     let setup = save_secure_environment(&app, request)?;
     let _ = restore_inbox_monitor_if_enabled(&app);
     Ok(setup)

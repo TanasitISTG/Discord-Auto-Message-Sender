@@ -1,16 +1,14 @@
 {
-  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "channels": [
-    {
-      "name": "general",
-      "id": "123456789012345678",
-      "referrer": "https://discord.com/channels/@me/123456789012345678",
-      "messageGroup": "default"
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "channels": [
+        {
+            "name": "general",
+            "id": "123456789012345678",
+            "referrer": "https://discord.com/channels/@me/123456789012345678",
+            "messageGroup": "default"
+        }
+    ],
+    "messageGroups": {
+        "default": ["Hello!"]
     }
-  ],
-  "messageGroups": {
-    "default": [
-      "Hello!"
-    ]
-  }
 }

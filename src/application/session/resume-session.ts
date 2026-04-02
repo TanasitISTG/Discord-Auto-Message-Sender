@@ -4,7 +4,7 @@ import {
     buildChannelProgress,
     createInitialPacing,
     type ResumeSessionRecord,
-    type SessionSegment
+    type SessionSegment,
 } from './session-state-machine';
 
 export function createSessionConfigSignature(config: AppConfig): string {
@@ -14,7 +14,7 @@ export function createSessionConfigSignature(config: AppConfig): string {
 export function canResumeSession(
     resumeSession: ResumeSessionRecord | undefined,
     config: AppConfig,
-    runtime: RuntimeOptions
+    runtime: RuntimeOptions,
 ): resumeSession is ResumeSessionRecord {
     if (!resumeSession) {
         return false;
@@ -28,16 +28,18 @@ export function canResumeSession(
         return false;
     }
 
-    return resumeSession.runtime.numMessages === runtime.numMessages
-        && resumeSession.runtime.baseWaitSeconds === runtime.baseWaitSeconds
-        && resumeSession.runtime.marginSeconds === runtime.marginSeconds;
+    return (
+        resumeSession.runtime.numMessages === runtime.numMessages &&
+        resumeSession.runtime.baseWaitSeconds === runtime.baseWaitSeconds &&
+        resumeSession.runtime.marginSeconds === runtime.marginSeconds
+    );
 }
 
 export function restoreStateFromResume(
     resumeSession: ResumeSessionRecord,
     config: AppConfig,
     segment: SessionSegment,
-    persistedHealth?: SessionState['channelHealth']
+    persistedHealth?: SessionState['channelHealth'],
 ): SessionState {
     const restored = structuredClone(resumeSession.state);
     restored.status = 'idle';
@@ -51,7 +53,9 @@ export function restoreStateFromResume(
     restored.channelProgress = buildChannelProgress(config, restored.channelProgress);
     restored.channelHealth = buildChannelHealth(config, restored.channelHealth ?? persistedHealth);
     restored.pacing = restored.pacing ?? createInitialPacing();
-    restored.activeChannels = restored.activeChannels.filter((channelId) => !(restored.completedChannels.includes(channelId) || restored.failedChannels.includes(channelId)));
+    restored.activeChannels = restored.activeChannels.filter(
+        (channelId) => !(restored.completedChannels.includes(channelId) || restored.failedChannels.includes(channelId)),
+    );
     return restored;
 }
 

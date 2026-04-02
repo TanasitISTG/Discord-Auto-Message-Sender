@@ -8,14 +8,14 @@ function createConfig() {
     return addChannel(createDefaultAppConfig(), {
         name: 'general',
         id: '123456789012345678',
-        messageGroup: 'default'
+        messageGroup: 'default',
     });
 }
 
 test('runPreflight marks skipped access checks as ok and skipped when token is present', async () => {
     const result = await runPreflight(createConfig(), {
         token: 'test-token',
-        checkAccess: false
+        checkAccess: false,
     });
 
     assert.equal(result.ok, true);
@@ -26,7 +26,7 @@ test('runPreflight marks skipped access checks as ok and skipped when token is p
 
 test('runPreflight still fails when token is missing', async () => {
     const result = await runPreflight(createConfig(), {
-        checkAccess: false
+        checkAccess: false,
     });
 
     assert.equal(result.ok, false);

@@ -6,15 +6,15 @@ import type {
     LogEntry,
     NotificationDeliverySnapshot,
     SenderStateRecord,
-    SessionSnapshot
+    SessionSnapshot,
 } from '@/lib/desktop';
 
 export const emptyConfig: AppConfig = {
     userAgent: '',
     channels: [],
     messageGroups: {
-        default: ['Hello!']
-    }
+        default: ['Hello!'],
+    },
 };
 
 export const defaultSenderState: SenderStateRecord = {
@@ -22,20 +22,20 @@ export const defaultSenderState: SenderStateRecord = {
     summaries: [],
     recentFailures: [],
     recentMessageHistory: {},
-    channelHealth: {}
+    channelHealth: {},
 };
 
 export const defaultInboxMonitorSettings: InboxMonitorSettings = {
     enabled: false,
     pollIntervalSeconds: 30,
     notifyDirectMessages: true,
-    notifyMessageRequests: true
+    notifyMessageRequests: true,
 };
 
 export const defaultInboxMonitorState: InboxMonitorState = {
     status: 'stopped',
     enabled: false,
-    pollIntervalSeconds: 30
+    pollIntervalSeconds: 30,
 };
 
 export const defaultNotificationDeliverySnapshot: NotificationDeliverySnapshot = {
@@ -45,12 +45,12 @@ export const defaultNotificationDeliverySnapshot: NotificationDeliverySnapshot =
             enabled: false,
             botTokenStored: false,
             chatId: '',
-            previewMode: 'full'
-        }
+            previewMode: 'full',
+        },
     },
     telegramState: {
-        status: 'disabled'
-    }
+        status: 'disabled',
+    },
 };
 
 export async function copyTextToClipboard(text: string) {

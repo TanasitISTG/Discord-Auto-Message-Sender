@@ -18,13 +18,13 @@ const desktopMock = vi.hoisted(() => {
                     randomMarginSeconds: 2,
                     timezone: 'UTC',
                     maxSendsPerDay: null,
-                    cooldownWindowSize: 3
-                }
-            }
+                    cooldownWindowSize: 3,
+                },
+            },
         ],
         messageGroups: {
-            default: ['Hello']
-        }
+            default: ['Hello'],
+        },
     };
 
     const resumeSession = {
@@ -33,7 +33,7 @@ const desktopMock = vi.hoisted(() => {
         runtime: {
             numMessages: 1,
             baseWaitSeconds: 5,
-            marginSeconds: 2
+            marginSeconds: 2,
         },
         configSignature: '{}',
         state: {
@@ -43,11 +43,11 @@ const desktopMock = vi.hoisted(() => {
             activeChannels: ['123'],
             completedChannels: [],
             failedChannels: [],
-            sentMessages: 1
+            sentMessages: 1,
         },
         recentMessageHistory: {
-            '123': ['Hello']
-        }
+            '123': ['Hello'],
+        },
     };
 
     const state = {
@@ -58,7 +58,7 @@ const desktopMock = vi.hoisted(() => {
             recentFailures: [],
             recentMessageHistory: {},
             channelHealth: {},
-            resumeSession
+            resumeSession,
         } as any,
         setup: {
             tokenPresent: true,
@@ -68,7 +68,7 @@ const desktopMock = vi.hoisted(() => {
             envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
             configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+            logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
         } as any,
         diagnostics: {
             appVersion: '1.0.0',
@@ -78,9 +78,9 @@ const desktopMock = vi.hoisted(() => {
             statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
             secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
             tokenStorage: 'secure',
-            sidecarStatus: 'ready'
+            sidecarStatus: 'ready',
         } as any,
-        eventHandler: null as ((event: any) => void) | null
+        eventHandler: null as ((event: any) => void) | null,
     };
 
     const mocks = {
@@ -92,12 +92,12 @@ const desktopMock = vi.hoisted(() => {
             enabled: false,
             pollIntervalSeconds: 30,
             notifyDirectMessages: true,
-            notifyMessageRequests: true
+            notifyMessageRequests: true,
         })),
         getInboxMonitorState: vi.fn(async () => ({
             status: 'stopped',
             enabled: false,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         loadNotificationDeliverySettings: vi.fn(async () => ({
             windowsDesktopEnabled: true,
@@ -105,8 +105,8 @@ const desktopMock = vi.hoisted(() => {
                 enabled: false,
                 botTokenStored: false,
                 chatId: '',
-                previewMode: 'full'
-            }
+                previewMode: 'full',
+            },
         })),
         getNotificationDeliveryState: vi.fn(async () => ({
             settings: {
@@ -115,34 +115,37 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: false,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         loadReleaseDiagnostics: vi.fn(async () => structuredClone(state.diagnostics)),
         saveConfig: vi.fn(async (config) => ({ ok: true, config })),
         saveEnvironment: vi.fn(async () => ({
-            ...state.setup
+            ...state.setup,
         })),
         saveInboxMonitorSettings: vi.fn(async ({ settings }) => ({
             settings,
             state: {
                 status: settings.enabled ? 'running' : 'stopped',
                 enabled: settings.enabled,
-                pollIntervalSeconds: settings.pollIntervalSeconds
+                pollIntervalSeconds: settings.pollIntervalSeconds,
             },
             lastSeen: {
-                channelMessageIds: {}
-            }
+                channelMessageIds: {},
+            },
         })),
         saveNotificationDeliverySettings: vi.fn(async ({ settings }) => ({
             settings,
             telegramState: {
-                status: settings.telegram.enabled && settings.telegram.botTokenStored && settings.telegram.chatId ? 'ready' : 'unconfigured'
-            }
+                status:
+                    settings.telegram.enabled && settings.telegram.botTokenStored && settings.telegram.chatId
+                        ? 'ready'
+                        : 'unconfigured',
+            },
         })),
         saveTelegramBotToken: vi.fn(async () => ({
             settings: {
@@ -151,12 +154,12 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: true,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         clearTelegramBotToken: vi.fn(async () => ({
             settings: {
@@ -165,34 +168,34 @@ const desktopMock = vi.hoisted(() => {
                     enabled: false,
                     botTokenStored: false,
                     chatId: '',
-                    previewMode: 'full'
-                }
+                    previewMode: 'full',
+                },
             },
             telegramState: {
-                status: 'disabled'
-            }
+                status: 'disabled',
+            },
         })),
         detectTelegramChat: vi.fn(async () => ({
             chatId: '123456789',
-            title: 'tana'
+            title: 'tana',
         })),
         sendTestTelegramNotification: vi.fn(async () => ({
             ok: true,
             message: 'Telegram test notification sent.',
             state: {
                 status: 'ready',
-                lastTestedAt: '2026-03-21T10:00:00.000Z'
-            }
+                lastTestedAt: '2026-03-21T10:00:00.000Z',
+            },
         })),
         clearSecureToken: vi.fn(async () => {
             state.setup = {
                 ...state.setup,
                 tokenPresent: false,
-                tokenStorage: 'missing'
+                tokenStorage: 'missing',
             };
             state.diagnostics = {
                 ...state.diagnostics,
-                tokenStorage: 'missing'
+                tokenStorage: 'missing',
             };
             return structuredClone(state.setup);
         }),
@@ -202,7 +205,7 @@ const desktopMock = vi.hoisted(() => {
             configValid: true,
             tokenPresent: true,
             issues: [],
-            channels: []
+            channels: [],
         })),
         runDryRun: vi.fn(async () => ({
             generatedAt: '2026-03-21T10:00:00.000Z',
@@ -211,8 +214,8 @@ const desktopMock = vi.hoisted(() => {
             summary: {
                 selectedChannels: 0,
                 skippedChannels: 0,
-                totalSampleMessages: 0
-            }
+                totalSampleMessages: 0,
+            },
         })),
         startSession: vi.fn(async () => {
             state.session = {
@@ -223,51 +226,53 @@ const desktopMock = vi.hoisted(() => {
                 completedChannels: [],
                 failedChannels: [],
                 sentMessages: 2,
-                resumedFromCheckpoint: Boolean(state.senderState.resumeSession)
+                resumedFromCheckpoint: Boolean(state.senderState.resumeSession),
             };
             return structuredClone(state.session);
         }),
         pauseSession: vi.fn(async () => {
             state.session = {
                 ...state.session,
-                status: 'paused'
+                status: 'paused',
             };
             return structuredClone(state.session);
         }),
         startInboxMonitor: vi.fn(async () => ({
             status: 'running',
             enabled: true,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         resumeSession: vi.fn(async () => {
             state.session = {
                 ...state.session,
-                status: 'running'
+                status: 'running',
             };
             return structuredClone(state.session);
         }),
         stopInboxMonitor: vi.fn(async () => ({
             status: 'stopped',
             enabled: false,
-            pollIntervalSeconds: 30
+            pollIntervalSeconds: 30,
         })),
         stopSession: vi.fn(async () => {
             state.session = {
                 ...state.session,
-                status: 'stopping'
+                status: 'stopping',
             };
             return structuredClone(state.session);
         }),
         loadLogs: vi.fn(async () => ({
             ok: true,
             path: 'logs/session.jsonl',
-            entries: []
+            entries: [],
         })),
-        openLogsDirectory: vi.fn(async () => 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'),
+        openLogsDirectory: vi.fn(
+            async () => 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
+        ),
         exportSupportBundle: vi.fn(async () => ({
             path: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/support/discord-auto-message-sender-support-123.zip',
             includedFiles: ['diagnostics.json', 'setup.json', 'config.json'],
-            missingFiles: ['logs/*.jsonl']
+            missingFiles: ['logs/*.jsonl'],
         })),
         resetRuntimeState: vi.fn(async () => {
             state.session = null;
@@ -276,12 +281,12 @@ const desktopMock = vi.hoisted(() => {
                 summaries: [],
                 recentFailures: [],
                 recentMessageHistory: {},
-                channelHealth: {}
+                channelHealth: {},
             };
             return {
                 ok: true,
                 clearedStateFile: true,
-                deletedLogFiles: 2
+                deletedLogFiles: 2,
             };
         }),
         openLogFile: vi.fn(async () => 'logs/session.jsonl'),
@@ -289,7 +294,7 @@ const desktopMock = vi.hoisted(() => {
         discardResumeSession: vi.fn(async () => {
             state.senderState = {
                 ...state.senderState,
-                resumeSession: undefined
+                resumeSession: undefined,
             };
             return structuredClone(state.senderState);
         }),
@@ -298,7 +303,7 @@ const desktopMock = vi.hoisted(() => {
             return () => {
                 state.eventHandler = null;
             };
-        })
+        }),
     };
 
     return { baseConfig, resumeSession, state, mocks };
@@ -310,7 +315,7 @@ const toastMock = vi.hoisted(() => ({
     showSuccessToast: vi.fn(),
     showWarningToast: vi.fn(),
     showErrorToast: vi.fn(),
-    showInfoToast: vi.fn()
+    showInfoToast: vi.fn(),
 }));
 vi.mock('../../app/src/shared/toast', () => toastMock);
 vi.mock('@/shared/toast', () => toastMock);
@@ -319,8 +324,8 @@ vi.mock('sonner', () => ({
     toast: Object.assign(vi.fn(), {
         success: vi.fn(),
         warning: vi.fn(),
-        error: vi.fn()
-    })
+        error: vi.fn(),
+    }),
 }));
 
 const { default: App } = await import('../../app/src/App');
@@ -335,7 +340,7 @@ export function resetDesktopState() {
         recentFailures: [],
         recentMessageHistory: {},
         channelHealth: {},
-        resumeSession: structuredClone(desktopMock.resumeSession)
+        resumeSession: structuredClone(desktopMock.resumeSession),
     };
     desktopMock.state.setup = {
         tokenPresent: true,
@@ -345,7 +350,7 @@ export function resetDesktopState() {
         envPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.env',
         configPath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/config.json',
         statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
-        logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs'
+        logsDir: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/logs',
     };
     desktopMock.state.diagnostics = {
         appVersion: '1.0.0',
@@ -355,7 +360,7 @@ export function resetDesktopState() {
         statePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/.sender-state.json',
         secureStorePath: 'C:/Users/Test/AppData/Roaming/com.local.discord-auto-message-sender/discord-token.secure',
         tokenStorage: 'secure',
-        sidecarStatus: 'ready'
+        sidecarStatus: 'ready',
     };
 
     for (const mock of Object.values(desktopMock.mocks)) {
@@ -374,4 +379,3 @@ export function sessionWorkspace() {
 export function getDesktopMock() {
     return desktopMock;
 }
-

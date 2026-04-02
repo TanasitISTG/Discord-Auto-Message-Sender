@@ -8,7 +8,7 @@ const outputFile = path.join(outputDir, process.platform === 'win32' ? 'desktop-
 const targetMap: Record<string, string> = {
     win32: 'bun-windows-x64-modern',
     darwin: 'bun-darwin-x64-modern',
-    linux: 'bun-linux-x64-modern'
+    linux: 'bun-linux-x64-modern',
 };
 
 const target = process.env.SIDECAR_BUN_TARGET ?? targetMap[process.platform];
@@ -19,19 +19,22 @@ if (!target) {
 
 fs.mkdirSync(outputDir, { recursive: true });
 
-const result = Bun.spawnSync([
-    'bun',
-    'build',
-    './src/desktop/server.ts',
-    '--compile',
-    ...(process.platform === 'win32' ? ['--windows-hide-console'] : []),
-    `--target=${target}`,
-    `--outfile=${outputFile}`
-], {
-    cwd: rootDir,
-    stdout: 'inherit',
-    stderr: 'inherit'
-});
+const result = Bun.spawnSync(
+    [
+        'bun',
+        'build',
+        './src/desktop/server.ts',
+        '--compile',
+        ...(process.platform === 'win32' ? ['--windows-hide-console'] : []),
+        `--target=${target}`,
+        `--outfile=${outputFile}`,
+    ],
+    {
+        cwd: rootDir,
+        stdout: 'inherit',
+        stderr: 'inherit',
+    },
+);
 
 if (result.exitCode !== 0) {
     throw new Error(`Failed to compile desktop sidecar (exit ${result.exitCode}).`);

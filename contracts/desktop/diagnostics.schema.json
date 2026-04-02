@@ -7,18 +7,14 @@
             "variants": [
                 {
                     "tagValue": "ok",
-                    "fields": [
-                        { "name": "config", "type": "AppConfig" }
-                    ]
+                    "fields": [{ "name": "config", "type": "AppConfig" }]
                 },
                 {
                     "tagValue": "missing"
                 },
                 {
                     "tagValue": "invalid",
-                    "fields": [
-                        { "name": "error", "type": "string" }
-                    ]
+                    "fields": [{ "name": "error", "type": "string" }]
                 }
             ]
         },

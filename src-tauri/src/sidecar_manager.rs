@@ -78,14 +78,24 @@ pub(crate) fn sidecar_status_value(app: &AppHandle) -> Result<SidecarStatus, Str
 
 fn next_request_id(app: &AppHandle) -> String {
     let state = app.state::<AppRuntime>();
-    state.next_request_id.fetch_add(1, Ordering::Relaxed).to_string()
+    state
+        .next_request_id
+        .fetch_add(1, Ordering::Relaxed)
+        .to_string()
 }
 
-pub(crate) fn take_pending(sidecar: &mut ManagedSidecar, id: &str) -> Option<Sender<PendingResponse>> {
+pub(crate) fn take_pending(
+    sidecar: &mut ManagedSidecar,
+    id: &str,
+) -> Option<Sender<PendingResponse>> {
     sidecar.pending.remove(id)
 }
 
-pub(crate) fn mark_sidecar_status(sidecar: &mut ManagedSidecar, status: SidecarStatus, message: Option<String>) {
+pub(crate) fn mark_sidecar_status(
+    sidecar: &mut ManagedSidecar,
+    status: SidecarStatus,
+    message: Option<String>,
+) {
     sidecar.status = status;
     sidecar.last_error = message;
 }
@@ -124,8 +134,11 @@ fn ensure_sidecar_running(app: &AppHandle) -> Result<(), String> {
     start_sidecar_process(app)
 }
 
-pub(crate) fn restore_inbox_monitor_if_enabled(app: &AppHandle) -> Result<Option<InboxMonitorState>, String> {
-    let settings: InboxMonitorSettings = send_sidecar_request(app, "load_inbox_monitor_settings", json!({}))?;
+pub(crate) fn restore_inbox_monitor_if_enabled(
+    app: &AppHandle,
+) -> Result<Option<InboxMonitorState>, String> {
+    let settings: InboxMonitorSettings =
+        send_sidecar_request(app, "load_inbox_monitor_settings", json!({}))?;
     if !settings.enabled {
         return Ok(None);
     }
@@ -153,7 +166,11 @@ pub(crate) fn ensure_no_active_session(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn send_sidecar_request<T, R>(app: &AppHandle, command: &str, payload: T) -> Result<R, String>
+pub(crate) fn send_sidecar_request<T, R>(
+    app: &AppHandle,
+    command: &str,
+    payload: T,
+) -> Result<R, String>
 where
     T: Serialize,
     R: DeserializeOwned,
@@ -176,14 +193,16 @@ where
             command: command.to_string(),
             payload,
         };
-        let body = serde_json::to_string(&request).map_err(|error| format!("Failed to serialize sidecar request: {error}"))?;
+        let body = serde_json::to_string(&request)
+            .map_err(|error| format!("Failed to serialize sidecar request: {error}"))?;
 
         let write_result = {
             let stdin = sidecar
                 .stdin
                 .as_mut()
                 .ok_or_else(|| "Desktop sidecar stdin is unavailable.".to_string())?;
-            stdin.write_all(format!("{body}\n").as_bytes())
+            stdin
+                .write_all(format!("{body}\n").as_bytes())
                 .and_then(|_| stdin.flush())
         };
 
@@ -200,7 +219,9 @@ where
             if let Ok(mut sidecar) = state.sidecar.lock() {
                 sidecar.pending.remove(&request_id);
             }
-            return Err(format!("Timed out waiting for desktop sidecar response for '{command}'."));
+            return Err(format!(
+                "Timed out waiting for desktop sidecar response for '{command}'."
+            ));
         }
     };
 

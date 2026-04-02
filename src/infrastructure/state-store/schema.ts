@@ -4,7 +4,7 @@ import {
     InboxMonitorState,
     NotificationDeliverySettings,
     NotificationDeliverySnapshot,
-    SenderStateRecord
+    SenderStateRecord,
 } from '../../types';
 
 export const STATE_FILE = '.sender-state.json';
@@ -16,15 +16,17 @@ export function getDefaultInboxMonitorSettings(): InboxMonitorSettings {
         enabled: false,
         pollIntervalSeconds: 30,
         notifyDirectMessages: true,
-        notifyMessageRequests: true
+        notifyMessageRequests: true,
     };
 }
 
-export function getDefaultInboxMonitorState(settings: InboxMonitorSettings = getDefaultInboxMonitorSettings()): InboxMonitorState {
+export function getDefaultInboxMonitorState(
+    settings: InboxMonitorSettings = getDefaultInboxMonitorSettings(),
+): InboxMonitorState {
     return {
         status: 'stopped',
         enabled: settings.enabled,
-        pollIntervalSeconds: settings.pollIntervalSeconds
+        pollIntervalSeconds: settings.pollIntervalSeconds,
     };
 }
 
@@ -34,8 +36,8 @@ export function getDefaultInboxMonitorSnapshot(): InboxMonitorSnapshot {
         settings,
         state: getDefaultInboxMonitorState(settings),
         lastSeen: {
-            channelMessageIds: {}
-        }
+            channelMessageIds: {},
+        },
     };
 }
 
@@ -46,8 +48,8 @@ export function getDefaultNotificationDeliverySettings(): NotificationDeliverySe
             enabled: false,
             botTokenStored: false,
             chatId: '',
-            previewMode: 'full'
-        }
+            previewMode: 'full',
+        },
     };
 }
 
@@ -55,8 +57,8 @@ export function getDefaultNotificationDeliverySnapshot(): NotificationDeliverySn
     return {
         settings: getDefaultNotificationDeliverySettings(),
         telegramState: {
-            status: 'disabled'
-        }
+            status: 'disabled',
+        },
     };
 }
 
@@ -68,6 +70,6 @@ export function getDefaultSenderState(): SenderStateRecord {
         recentMessageHistory: {},
         channelHealth: {},
         inboxMonitor: getDefaultInboxMonitorSnapshot(),
-        notificationDelivery: getDefaultNotificationDeliverySnapshot()
+        notificationDelivery: getDefaultNotificationDeliverySnapshot(),
     };
 }

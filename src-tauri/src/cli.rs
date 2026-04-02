@@ -26,7 +26,8 @@ pub(crate) fn cli_command_requested() -> Option<CliCommand> {
 fn print_cli_json<T: Serialize>(payload: &T) -> Result<(), String> {
     println!(
         "{}",
-        serde_json::to_string(payload).map_err(|error| format!("Failed to serialize CLI payload: {error}"))?
+        serde_json::to_string(payload)
+            .map_err(|error| format!("Failed to serialize CLI payload: {error}"))?
     );
     std::io::stdout()
         .flush()

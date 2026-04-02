@@ -47,7 +47,10 @@
                 },
                 { "tagValue": "preflight_result_emitted", "fields": [{ "name": "result", "type": "PreflightResult" }] },
                 { "tagValue": "dry_run_ready", "fields": [{ "name": "result", "type": "DryRunResult" }] },
-                { "tagValue": "inbox_monitor_state_changed", "fields": [{ "name": "monitor", "type": "InboxMonitorState" }] },
+                {
+                    "tagValue": "inbox_monitor_state_changed",
+                    "fields": [{ "name": "monitor", "type": "InboxMonitorState" }]
+                },
                 {
                     "tagValue": "inbox_notification_ready",
                     "fields": [
@@ -55,7 +58,10 @@
                         { "name": "monitor", "type": "InboxMonitorState" }
                     ]
                 },
-                { "tagValue": "notification_delivery_state_changed", "fields": [{ "name": "delivery", "type": "NotificationDeliverySnapshot" }] },
+                {
+                    "tagValue": "notification_delivery_state_changed",
+                    "fields": [{ "name": "delivery", "type": "NotificationDeliverySnapshot" }]
+                },
                 {
                     "tagValue": "telegram_test_result",
                     "fields": [
