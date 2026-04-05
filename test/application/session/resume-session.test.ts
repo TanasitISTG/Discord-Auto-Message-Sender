@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDefaultAppConfig } from '../../src/config/schema';
-import { canResumeSession, createSessionConfigSignature } from '../../src/services/session';
+import { createDefaultAppConfig } from '../../../src/config/schema';
+import { canResumeSession, createSessionConfigSignature } from '../../../src/application/session/session-service';
 
 function createConfig() {
     const config = createDefaultAppConfig();

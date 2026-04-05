@@ -6,8 +6,8 @@ import path from 'path';
 import readline from 'readline';
 import { spawn, spawnSync } from 'child_process';
 import { createDefaultAppConfig } from '../../src/config/schema';
-import { createSessionConfigSignature } from '../../src/services/session';
-import { STATE_SCHEMA_VERSION } from '../../src/services/state-store';
+import { createSessionConfigSignature } from '../../src/application/session/session-service';
+import { STATE_SCHEMA_VERSION } from '../../src/infrastructure/state-store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-sidecar-'));

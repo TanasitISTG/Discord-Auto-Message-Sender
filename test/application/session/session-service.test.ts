@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createDefaultAppConfig } from '../../src/config/schema';
-import { SessionService } from '../../src/services/session';
-import { loadSenderState, saveSenderState, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
-import { createStructuredLogger } from '../../src/utils/logger';
+import { createDefaultAppConfig } from '../../../src/config/schema';
+import { SessionService } from '../../../src/application/session/session-service';
+import { loadSenderState, saveSenderState, STATE_SCHEMA_VERSION } from '../../../src/infrastructure/state-store';
+import { createStructuredLogger } from '../../../src/utils/logger';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-session-'));

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDryRun } from '../../src/services/dry-run';
-import { createDefaultAppConfig } from '../../src/config/schema';
-import { addChannel } from '../../src/services/config-editor';
+import { createDryRun } from '../../../src/application/dry-run/create-dry-run';
+import { createDefaultAppConfig } from '../../../src/config/schema';
+import { addChannel } from '../../../src/domain/config-editor';
 
 test('dry run reports sendable channels and sample messages', () => {
     const config = addChannel(createDefaultAppConfig(), {

@@ -11,10 +11,9 @@ This repository is a local-first desktop app organized as a modular monolith:
 - `src/desktop/` contains the TypeScript desktop transport/runtime layer plus generated desktop contracts.
 - `src-tauri/src/commands/` and sibling Rust modules contain the native desktop shell, runtime paths, secure token storage, support bundle export, sidecar lifecycle, and command wiring.
 - `contracts/desktop/*.schema.json` are the source of truth for desktop payloads and generate `src/desktop/contracts.ts` and `src-tauri/src/contracts.rs`.
+  Do not recreate `src/services/*` or `src/core/*` compatibility barrels. Import from the owning layer instead. Keep `src-tauri/src` limited to native desktop concerns such as secure storage, notifications, file-manager integration, support bundles, runtime paths, and sidecar lifecycle.
 
-`src/services/*` and `src/core/*` remain as compatibility barrels for migrated modules. Do not add new logic there unless the task is explicitly about maintaining a compatibility surface.
-
-Tests live under `test/` and mirror the current layers and flows, for example `test/desktop/runtime-session.test.ts`, `test/scripts/desktop-contracts.test.ts`, `test/services/session-service.test.ts`, and `test/ui/session-flow.test.tsx`.
+Tests live under `test/` and mirror the current layers and flows, for example `test/desktop/runtime-session.test.ts`, `test/scripts/desktop-contracts.test.ts`, `test/application/session/session-service.test.ts`, and `test/ui/session-flow.test.tsx`.
 
 ## Build, Test, and Development Commands
 

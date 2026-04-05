@@ -5,7 +5,7 @@ import {
     cloneMessageGroup,
     renameMessageGroup,
     reorderGroupMessages,
-} from '../../src/services/config-editor';
+} from '../../src/domain/config-editor';
 import { createDefaultAppConfig } from '../../src/config/schema';
 
 test('config editor can add channels with a default referrer', () => {

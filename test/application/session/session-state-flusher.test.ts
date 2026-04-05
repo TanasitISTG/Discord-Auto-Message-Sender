@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SessionStateFlusher } from '../../src/application/session/session-state-flusher';
+import { SessionStateFlusher } from '../../../src/application/session/session-state-flusher';
 
 test('SessionStateFlusher drains follow-up flushes scheduled during an active flush', async () => {
     let flushCount = 0;

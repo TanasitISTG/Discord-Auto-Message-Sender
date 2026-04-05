@@ -8,7 +8,7 @@ import {
     resolveStateFile,
     saveSenderState,
     STATE_SCHEMA_VERSION,
-} from '../../src/services/state-store';
+} from '../../../src/infrastructure/state-store';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'discord-auto-state-'));
