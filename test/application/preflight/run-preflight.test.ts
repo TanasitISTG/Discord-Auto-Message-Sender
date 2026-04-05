@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PREFLIGHT_ACCESS_CONCURRENCY, runPreflight } from '../../src/services/preflight';
-import { createDefaultAppConfig } from '../../src/config/schema';
-import { addChannel } from '../../src/services/config-editor';
+import { PREFLIGHT_ACCESS_CONCURRENCY, runPreflight } from '../../../src/application/preflight/run-preflight';
+import { createDefaultAppConfig } from '../../../src/config/schema';
+import { addChannel } from '../../../src/domain/config-editor';
 
 function createConfig() {
     return addChannel(createDefaultAppConfig(), {

@@ -1,16 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { readAppConfigResult, writeAppConfig } from '../config/store';
-import { createInboxMonitorService, InboxMonitorController } from '../services/inbox-monitor';
-import { createDryRun } from '../services/dry-run';
-import { runPreflight } from '../services/preflight';
-import { canResumeSession, SessionService, SessionServiceOptions } from '../services/session';
+import { createInboxMonitorService, InboxMonitorController } from '../application/inbox-monitor/controller';
+import { createDryRun } from '../application/dry-run/create-dry-run';
+import { runPreflight } from '../application/preflight/run-preflight';
+import { canResumeSession, SessionService, SessionServiceOptions } from '../application/session/session-service';
 import {
     clearResumeSession,
     getDefaultInboxMonitorSnapshot,
     loadSenderState,
     updateSenderState,
-} from '../services/state-store';
+} from '../infrastructure/state-store';
 import {
     ConfigLoadResult,
     DesktopCommandMap,

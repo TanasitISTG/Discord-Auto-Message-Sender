@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createInboxMonitorService } from '../../src/services/inbox-monitor';
-import { pollInboxSnapshot } from '../../src/application/inbox-monitor/poller';
-import { getDefaultInboxMonitorSnapshot } from '../../src/services/state-store';
-import { AppEvent } from '../../src/types';
+import { createInboxMonitorService } from '../../../src/application/inbox-monitor/controller';
+import { pollInboxSnapshot } from '../../../src/application/inbox-monitor/poller';
+import { getDefaultInboxMonitorSnapshot } from '../../../src/infrastructure/state-store';
+import { AppEvent } from '../../../src/types';
 
 function createDeferred<T = void>() {
     let resolve!: (value: T | PromiseLike<T>) => void;

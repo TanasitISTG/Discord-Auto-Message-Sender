@@ -11,7 +11,7 @@ import {
     writeDesktopFiles,
 } from './runtime-test-helpers';
 import type { SessionState } from '../../src/types';
-import { createSessionConfigSignature } from '../../src/services/session';
+import { createSessionConfigSignature } from '../../src/application/session/session-service';
 
 test('DesktopRuntime uses a single in-process session controller for lifecycle commands', async () => {
     const tempDir = createTempDir();

@@ -8,16 +8,17 @@ import {
     SessionState,
     SessionStatus,
 } from '../../types';
-import { createSenderCoordinator, runChannel } from '../../core/sender';
 import { type BufferedFileWriter, type StructuredLogger } from '../../utils/logger';
 import { validateSessionId } from '../../utils/session-id';
 import { loadSenderState } from '../../infrastructure/state-store';
+import { createSenderCoordinator } from './pacing-coordinator';
 import { restoreStateFromResume, type ResumeSessionRecord } from './resume-session';
 import { updatePersistedSessionRecord, flushPersistedSessionState } from './session-persistence';
 import { buildSessionSummary } from './session-summary';
 import { createSessionChannelLifecycle } from './session-channel-lifecycle';
 import { SessionStateFlusher } from './session-state-flusher';
 import { createSessionLoggerArtifacts } from './session-logger';
+import { runChannel } from './channel-runner';
 import {
     createInitialState,
     createSessionSegment,

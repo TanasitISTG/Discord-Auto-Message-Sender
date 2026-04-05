@@ -4,6 +4,7 @@ import ts from 'typescript';
 
 const repoRoot = process.cwd();
 const sourceRoots = [path.join(repoRoot, 'src'), path.join(repoRoot, 'app', 'src')];
+const deprecatedSourceRoots = ['src/services', 'src/core'];
 const sourceExtensions = new Set(['.ts', '.tsx']);
 
 interface DependencyRecord {
@@ -112,6 +113,15 @@ function collectDependencies(filePath: string) {
 function isViolation(dependency: DependencyRecord): Violation | null {
     const { importer, specifier, target } = dependency;
 
+    if (target.startsWith('src/services/') || target.startsWith('src/core/')) {
+        return {
+            rule: 'no-compatibility-barrel-imports',
+            importer,
+            specifier,
+            target,
+        };
+    }
+
     if (
         importer.startsWith('src/domain/') &&
         (target.startsWith('src/application/') ||
@@ -150,6 +160,18 @@ function isViolation(dependency: DependencyRecord): Violation | null {
     }
 
     return null;
+}
+
+const recreatedCompatibilityRoots = deprecatedSourceRoots.filter((directory) =>
+    fs.existsSync(path.join(repoRoot, directory)),
+);
+
+if (recreatedCompatibilityRoots.length > 0) {
+    console.error('Deprecated compatibility roots must not be recreated:');
+    for (const directory of recreatedCompatibilityRoots) {
+        console.error(`- ${directory}`);
+    }
+    process.exit(1);
 }
 
 const dependencies = sourceRoots

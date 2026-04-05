@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveAppReadiness, deriveSetupChecklist } from '../../app/src/shared/readiness';
+import { deriveAppReadiness, deriveSetupChecklist } from '../../../app/src/shared/readiness';
 
 const secureSetup = {
     tokenPresent: true,

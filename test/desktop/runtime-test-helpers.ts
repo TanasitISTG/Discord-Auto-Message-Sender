@@ -4,9 +4,9 @@ import os from 'os';
 import path from 'path';
 import { createDefaultAppConfig } from '../../src/config/schema';
 import { DesktopRuntime, resolveSessionLogPath } from '../../src/desktop/runtime';
-import { InboxMonitorController } from '../../src/services/inbox-monitor';
-import { SessionServiceOptions } from '../../src/services/session';
-import { getDefaultInboxMonitorSnapshot, STATE_SCHEMA_VERSION } from '../../src/services/state-store';
+import { InboxMonitorController } from '../../src/application/inbox-monitor/controller';
+import { SessionServiceOptions } from '../../src/application/session/session-service';
+import { getDefaultInboxMonitorSnapshot, STATE_SCHEMA_VERSION } from '../../src/infrastructure/state-store';
 import { SessionState } from '../../src/types';
 
 export { assert, DesktopRuntime, resolveSessionLogPath, STATE_SCHEMA_VERSION };

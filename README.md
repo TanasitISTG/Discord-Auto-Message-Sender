@@ -33,9 +33,9 @@ The repository is organized as a modular monolith:
 - `app/src/app-shell`, `app/src/controllers`, and `app/src/features` contain the React/Tauri UI shell, desktop controller hooks, and screen-level feature modules.
 - `src/domain`, `src/application`, and `src/infrastructure` contain pure business logic, orchestration flows, and persistence/integration code for the TypeScript sidecar.
 - `src/desktop` contains the TypeScript desktop transport, runtime bridge, and generated desktop contracts.
-- `src-tauri/src/commands` plus the other `src-tauri/src/*.rs` modules contain the Rust desktop shell, command handlers, runtime paths, secure token storage, support bundle export, and sidecar management.
+- `src-tauri/src/commands` plus the other `src-tauri/src/*.rs` modules contain the Rust desktop shell, command handlers, runtime paths, secure token storage, support bundle export, notifications, and sidecar management. Keep Rust limited to native, security-sensitive, or Tauri-specific concerns.
 - `contracts/desktop/*.schema.json` define the desktop payload schemas that generate `src/desktop/contracts.ts` and `src-tauri/src/contracts.rs`.
-- `src/services/*` and `src/core/*` still exist as compatibility barrels during the migration; new logic should land in the layered modules instead.
+- Import directly from the owning layer. `src/services/*` and `src/core/*` compatibility barrels are intentionally removed.
 
 ## Install
 
